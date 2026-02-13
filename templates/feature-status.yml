@@ -1,0 +1,12 @@
+features:
+  example-feature:
+    status: planned         # exploring | building | polishing | parked | planned
+    next: Define scope
+    summary: Brief description of this feature area
+
+in_progress: null           # Set to task description when mid-stream, null when clean
+
+last_session:
+  date: null
+  summary: null
+  feature: null

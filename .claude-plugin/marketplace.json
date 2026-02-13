@@ -1,0 +1,21 @@
+{
+  "name": "claude-continuity-local",
+  "owner": {
+    "name": "Chad Thornton"
+  },
+  "metadata": {
+    "description": "Local marketplace for claude-continuity plugin",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "claude-continuity",
+      "source": "./",
+      "description": "Lightweight continuity system for cross-session context, decisions, and direction tracking",
+      "version": "0.1.0",
+      "author": {
+        "name": "Chad Thornton"
+      }
+    }
+  ]
+}
