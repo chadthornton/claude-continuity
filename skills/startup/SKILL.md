@@ -94,6 +94,38 @@ Compose a focused brief (~500 tokens max) containing:
 
 Output the brief as your final response. The main session will receive this as context to begin working.
 
+## Edge Cases
+
+### No .continuity/ directory
+The project hasn't been initialized. Tell the user:
+> "This project doesn't have continuity tracking set up yet. Run `/continuity-init` to create a `.continuity/` directory with your feature areas. It takes about a minute."
+
+Don't proceed with the triage flow — there's nothing to show.
+
+### Fresh init — all features are "planned" with empty decisions
+This is normal for a new project. Show the dashboard (even if everything says "planned"), skip the contextual flags (there's no history to reference), and narrate briefly:
+> "Fresh project — no history yet. Everything is in the planning stage. What feels right to start with?"
+
+### feature-status.yml exists but has no features
+The file was created but never populated. Suggest:
+> "Your `.continuity/feature-status.yml` exists but has no feature areas defined. Want to add some now, or run `/continuity-init` to set them up interactively?"
+
+### Decisions file missing for chosen feature
+The user picks a feature area but `decisions/{feature}.md` doesn't exist yet. That's fine — create it during wrap-up. For now, compose the brief without decision context and note:
+> "No decision history for this area yet — starting fresh."
+
+### last-activity.txt is stale but no uncommitted changes
+The wrap-up didn't run last time, but the user committed their work or it was a brainstorm session with no code changes. Don't alarm — just note it lightly:
+> "Last session didn't run wrap-up, but no uncommitted changes detected. Decisions from that session may not be captured."
+
+### Multiple signals of mid-stream work
+`in_progress` is set AND there are uncommitted changes AND last-activity.txt shows recent file touches. Present all the signals together rather than asking about each one:
+> "Looks like you were mid-stream on [task]. There are uncommitted changes in [files], and last session touched [other files]. Pick up where you left off?"
+
+### User invokes startup but clearly just wants to ask a quick question
+If the user's message includes a specific question alongside "startup" or "what should I work on," use judgment. They might want the triage, or they might want to skip it and just ask their question. When in doubt, offer:
+> "Want to run the full triage, or just dive in?"
+
 ## Guidelines
 
 - Keep the dashboard clean and scannable. No prose in the table.

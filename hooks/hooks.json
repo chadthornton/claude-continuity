@@ -1,6 +1,17 @@
 {
-  "description": "Continuity system hooks: auto-save activity on session end, backup transcript before compaction",
+  "description": "Continuity system hooks: init reminder on start, auto-save on end, transcript backup before compaction",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "hooks": [

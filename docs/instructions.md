@@ -120,6 +120,7 @@ This is the one piece that relies on a norm rather than automation. Side-chat Cl
 
 | Event | What happens | Automatic? |
 |-------|-------------|------------|
+| You start any session | One-line nudge if no `.continuity/` exists | Yes — SessionStart hook |
 | You start a session and say "startup" | Dashboard + triage + focused brief | No — you invoke it |
 | You say "wrap up" | Status + decisions updated | No — you invoke it |
 | You exit Claude Code (any way) | `last-activity.txt` written with git state | Yes — SessionEnd hook |
@@ -133,7 +134,8 @@ This is the one piece that relies on a norm rather than automation. Side-chat Cl
 |------|---------|
 | `.claude-plugin/plugin.json` | Plugin manifest |
 | `.claude-plugin/marketplace.json` | Local marketplace registration |
-| `hooks/hooks.json` | Hook configuration (SessionEnd + PreCompact) |
+| `hooks/hooks.json` | Hook configuration (SessionStart + SessionEnd + PreCompact) |
+| `hooks/session-start.sh` | Nudges to run /continuity-init if no .continuity/ exists |
 | `hooks/session-end.sh` | Writes last-activity.txt on exit |
 | `hooks/pre-compact.sh` | Backs up transcript before compaction |
 | `skills/startup/SKILL.md` | Startup triage skill |
