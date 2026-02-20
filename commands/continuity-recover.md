@@ -25,31 +25,91 @@ If no transcript is found, tell the user and stop. Suggest they check the sessio
 
 ### Step 2: Check for `.continuity/`
 
-If `.continuity/` doesn't exist in the current project, tell the user and offer two options:
-1. Run `/continuity-init` first (recommended if this is a new project)
-2. Create a minimal scaffold inline (just the directory, empty `feature-status.yml` from the template, and `decisions/` directory)
+If `.continuity/` doesn't exist in the current project:
+
+1. **Ask the user** using AskUserQuestion with two options:
+   - "Run /continuity-init first (Recommended)" — this sets up features properly with user input
+   - "Create minimal scaffold" — just enough structure to write recovery artifacts
+
+2. If the user picks `/continuity-init`, run it and then continue with Step 3.
+
+3. If the user picks minimal scaffold, create the structure using the **exact template** from the plugin. Read the template file at `${CLAUDE_PLUGIN_ROOT}/templates/feature-status.yml` and copy it to `.continuity/feature-status.yml`. Create the `.continuity/decisions/` directory. Do NOT improvise the YAML format — use the template exactly as-is.
 
 Recovery needs somewhere to write — don't proceed without the directory.
 
 ### Step 3: Extract Session Narrative
 
-Launch a **subagent** (Task tool, `general-purpose` type) to read the transcript and produce a structured summary. The subagent prompt should ask it to:
+Launch a **subagent** (Task tool, `general-purpose` type) to read the transcript and produce a structured summary.
 
-1. Read the JSONL file (it's a series of JSON records — look at `type: "human"` and `type: "assistant"` messages for conversation content)
-2. Produce a structured summary covering:
-   - **Goal**: What was the session trying to accomplish?
-   - **Features worked on**: Which feature area(s) — name them as they'd appear in `feature-status.yml`
-   - **Decisions made**: Specific choices with rationale (the *why*, not just the *what*)
-   - **Open questions**: Unresolved items discovered during the session
-   - **What was implemented**: Files changed, commits made, concrete artifacts produced
-   - **Session ending**: Did it end cleanly (user wrapped up) or abruptly (context exhaustion, crash, just stopped)?
-   - **Unfinished work**: What was in progress but not completed? Include enough detail for a handoff.
+The subagent prompt must include ALL of the following. Do not paraphrase — include this structure verbatim in the prompt:
 
-**Important guidance for the subagent:**
-- If the transcript has fewer than 50 records, warn that there may not be enough signal for a useful recovery.
+---
+
+**How to read the transcript:**
+
+The file at `{path}` is JSONL — one JSON object per line. Lines are very long (often 5000+ chars). The `Read` tool will truncate them. Do NOT use `Read` to parse this file.
+
+Instead, use Bash to run a Python script that extracts the conversation:
+
+```python
+import json, sys
+with open(sys.argv[1]) as f:
+    for line in f:
+        r = json.loads(line)
+        if r.get("type") == "user":
+            msg = r.get("message", {})
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                print(f"USER: {content[:2000]}")
+            elif isinstance(content, list):
+                for c in content:
+                    if isinstance(c, dict) and c.get("type") == "text":
+                        print(f"USER: {c['text'][:2000]}")
+        elif r.get("type") == "assistant":
+            msg = r.get("message", {})
+            for c in msg.get("content", []):
+                if isinstance(c, dict):
+                    if c.get("type") == "text":
+                        print(f"ASSISTANT: {c['text'][:2000]}")
+                    elif c.get("type") == "tool_use":
+                        print(f"TOOL_USE: {c.get('name', '?')}({json.dumps(c.get('input', {}))[:500]})")
+        elif r.get("type") == "tool_result":
+            content = r.get("content", "")
+            if isinstance(content, str):
+                print(f"TOOL_RESULT: {content[:500]}")
+```
+
+Write this script to `/tmp/parse_continuity_transcript.py` and run it with `python3 /tmp/parse_continuity_transcript.py "{path}"`. The output will be a readable conversation log. Read THAT output to produce the summary.
+
+If the output is very large (>200 lines), focus on the first and last third — the middle is usually implementation details.
+
+**What to produce:**
+
+Return a structured summary in EXACTLY this format (use these headings):
+
+**Goal:** One sentence — what the session was trying to accomplish.
+
+**Features:** List each feature area as a short kebab-case name suitable for a YAML key and filename (e.g., `ingest-pipeline`, `semantic-search`). For each, include a one-line summary and a status: `exploring`, `building`, `polishing`, `parked`, or `planned`.
+
+**Decisions:** Bullet list. Each entry MUST follow this format:
+- `{feature-name}`: {what was decided} — {why it was decided}
+Example: `ingest-pipeline`: Use SQLite FTS5 for full-text search — simpler than Elasticsearch, sufficient for single-user bookmark volumes.
+
+**Open questions:** Bullet list with context. Each entry MUST follow this format:
+- `{feature-name}`: {question} — {known constraints or tradeoffs}
+
+**Implemented:** List of files created/modified and any git commits made.
+
+**Session ending:** One of: `clean` (user explicitly wrapped up), `abrupt` (context exhaustion, crash), or `abandoned` (user just stopped). Include one sentence of evidence.
+
+**Unfinished work:** What was in progress but not completed. Include the specific next action and relevant file paths. If nothing was unfinished, say "None."
+
+---
+
+Additional guidance for the subagent:
+- If the transcript has fewer than 50 records, prefix the response with "⚠️ Short transcript — limited signal."
 - Focus on *decisions and state changes*, not a blow-by-blow replay.
-- Each decision must include rationale — "Use X" is not enough, "Use X — because Y" is.
-- Keep the summary concise. It will be used to generate ~30-line artifacts, not a report.
+- Keep the entire response under 500 words. This feeds into ~30-line artifacts, not a report.
 
 ### Step 4: Generate Continuity Artifacts
 
