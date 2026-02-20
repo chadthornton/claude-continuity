@@ -12,7 +12,7 @@
       "name": "claude-continuity",
       "source": "./",
       "description": "Lightweight continuity system for cross-session context, decisions, and direction tracking",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Chad Thornton"
       }
