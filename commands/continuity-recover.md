@@ -23,19 +23,20 @@ If a session ID is given, search for a matching JSONL file under `~/.claude/proj
 
 If no transcript is found, tell the user and stop. Suggest they check the session ID or provide the path directly.
 
-### Step 2: Check for `.continuity/`
+### Step 2: Ensure `.continuity/` exists
 
-If `.continuity/` doesn't exist in the current project:
+If `.continuity/` already exists, continue to Step 3.
 
-1. **Ask the user** using AskUserQuestion with two options:
-   - "Run /continuity-init first (Recommended)" — this sets up features properly with user input
-   - "Create minimal scaffold" — just enough structure to write recovery artifacts
+If `.continuity/` doesn't exist, scaffold it inline — don't prompt the user. Recovery implies they know what they're doing.
 
-2. If the user picks `/continuity-init`, run it and then continue with Step 3.
+1. Read the template at `${CLAUDE_PLUGIN_ROOT}/templates/feature-status.yml`
+2. Create `.continuity/feature-status.yml` using that template exactly as-is
+3. Create the `.continuity/decisions/` directory
 
-3. If the user picks minimal scaffold, create the structure using the **exact template** from the plugin. Read the template file at `${CLAUDE_PLUGIN_ROOT}/templates/feature-status.yml` and copy it to `.continuity/feature-status.yml`. Create the `.continuity/decisions/` directory. Do NOT improvise the YAML format — use the template exactly as-is.
+Tell the user what was created:
+> "Created `.continuity/` with a starter `feature-status.yml`. (For a more thorough interactive setup, you can run `/continuity-init` later.)"
 
-Recovery needs somewhere to write — don't proceed without the directory.
+Continue to Step 3 — don't block on this.
 
 ### Step 3: Extract Session Narrative
 
