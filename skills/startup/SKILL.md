@@ -63,24 +63,49 @@ Print the feature status as a formatted table:
 
 Read the feature names, statuses, and next moves from `feature-status.yml`. Adapt the table to whatever features exist — don't hardcode MacTerminal's features.
 
-### Step 4: Ask Work Mode
+If there is a `workflows` section in the YAML, render a second table:
 
-Use AskUserQuestion:
+```
+  WORKFLOWS
+  ┌────────────────────┬─────────────┬────────────────────────┐
+  │ Workflow           │ Last run    │ Trigger                │
+  ├────────────────────┼─────────────┼────────────────────────┤
+  │ Permission Audit   │ 3d ago      │ Weekly or after drift  │
+  │ Tool Usage Review  │ never       │ 500+ new log entries   │
+  └────────────────────┴─────────────┴────────────────────────┘
+```
 
-> What mode feels right today?
+Workflows differ from features: they don't have a build lifecycle (exploring → building → polishing). They are repeatable operations. When a user picks a workflow, load its `steps` list as the work guide and its `artifacts` as relevant file paths.
 
-Options:
-- **Build feature** — Pick up or start building a feature
-- **Polish / UX** — Details, refinement on existing features
-- **Harden** — Tests, edge cases, stability
-- **Architecture** — Framework, process, planning
-- **Brainstorm** — Explore ideas, no commitment
+### Step 4: Ask What To Work On
 
-### Step 5: Ask Feature Area (if applicable)
+Present a single unified list of all workable items — features and workflows together. Use AskUserQuestion.
 
-If the chosen mode involves a specific feature area (Build, Polish, Harden), ask which area using AskUserQuestion. List the features from `feature-status.yml`.
+Build the options list dynamically from `feature-status.yml`:
+- Each feature becomes an option: **"{name}"** with description "{status} — {next}"
+- Each workflow becomes an option: **"{name}"** with description "Workflow — {summary}" (append "last run: {last_run}" or "never run" if available)
+- Add **"Brainstorm / explore"** as a final catch-all option
 
-For Architecture and Brainstorm, the user may or may not want a specific area — ask with an "Open / cross-cutting" option.
+Don't separate features and workflows into different questions or force a "mode" choice first. The user knows what they want to work on. Let them pick directly.
+
+Example:
+
+> What do you want to work on?
+>
+> - **Dashboard UX** — building: Wire up fix action buttons
+> - **Attention Detection** — polishing: Tune CPU thresholds
+> - **Permission System** — parked: Overhaul complete
+> - **Permission Audit** — Workflow: Review tool usage, tune allow/deny (last run: 3d ago)
+> - **Tool Usage Review** — Workflow: Analyze bash command frequency (never run)
+> - **Brainstorm / explore** — Open-ended exploration
+
+### Step 5: Load Context For Chosen Work
+
+Once the user picks, determine whether it's a feature or a workflow:
+
+**If feature:** Ask what mode feels right (Build / Polish / Harden). Then load `decisions/{feature}.md` and compose the brief as before.
+
+**If workflow:** Skip the mode question — workflows have their own steps. Load the workflow's `steps` list as a numbered action plan, and `artifacts` as relevant file paths. Load `decisions/{workflow-name}.md` if it exists (workflows can have decisions too — e.g., "we decided to red-team permission changes with a separate agent").
 
 ### Step 6: Load Decisions and Compose Brief
 

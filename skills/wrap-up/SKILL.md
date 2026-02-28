@@ -17,7 +17,7 @@ The project must have a `.continuity/` directory with `feature-status.yml`. If i
 
 Review the current session's work:
 
-- What feature area was the focus?
+- What feature area or workflow was the focus?
 - Were any decisions made? (New approaches chosen, alternatives rejected, constraints discovered)
 - Were any open questions resolved? Any new ones discovered?
 - Is the work at a clean stopping point, or mid-stream?
@@ -26,16 +26,28 @@ If it's not obvious from conversation context, ask the user briefly.
 
 ### Step 2: Update feature-status.yml
 
-Read the current `.continuity/feature-status.yml` and update:
+Read the current `.continuity/feature-status.yml` and update the relevant section.
+
+**If the session worked on a feature**, update:
 
 - **status** for the worked-on feature (exploring → building, etc., if it changed)
 - **next** — short label for the next move (shown in dashboard table)
 - **next_steps** — ordered list of specific, actionable steps for the next session. These should be concrete enough that a fresh Claude can act on them without re-reading the conversation. Include file paths where relevant. Aim for 3-7 items. This is the primary handoff mechanism — don't compress a multi-step plan into the `next` one-liner.
 - **summary** — one-line current state
 - **in_progress** — set to a task description if mid-stream, `null` if at a clean stop
+
+**If the session ran a workflow**, update:
+
+- **last_run** — today's date
+- **steps** — if the workflow steps evolved or need updating based on what was learned, update them. Workflows improve over time.
+- **summary** — if the workflow's description needs clarifying, update it
+- Don't set `in_progress` for workflows — they're either done or they aren't. If interrupted mid-workflow, set it on the top-level `in_progress` field.
+
+**Always update:**
+
 - **last_session.date** — today's date
 - **last_session.summary** — one sentence about what happened
-- **last_session.feature** — which area was worked on
+- **last_session.feature** — which area or workflow was worked on
 
 Keep the YAML concise. Don't add commentary.
 

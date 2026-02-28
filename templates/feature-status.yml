@@ -5,6 +5,16 @@ features:
     summary: Brief description of this feature area
     next_steps: []          # Ordered list of specific next actions for the next session
 
+# Workflows are repeatable operations, not features to build.
+# They appear in the dashboard alongside features but have different fields.
+workflows:
+  # example-workflow:
+  #   summary: What this workflow does
+  #   trigger: When to suggest it (cadence, condition, or manual)
+  #   steps: []             # Ordered steps to execute
+  #   last_run: null        # ISO date of last execution
+  #   artifacts: []         # Key files/scripts involved
+
 in_progress: null           # Set to task description when mid-stream, null when clean
 
 last_session:
