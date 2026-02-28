@@ -30,9 +30,14 @@ Look for signals that work was interrupted:
 - Uncommitted changes exist
 - `last-activity.txt` is newer than `feature-status.yml` (wrap-up didn't happen)
 
-If mid-stream work is detected, present it immediately:
+If mid-stream work is detected, present it immediately. **If the feature has `next_steps`, display them as a numbered list** — these are the specific actions the previous session laid out:
 
-> "Looks like you were mid-stream on [task]. There are uncommitted changes in [files]. Pick up where you left off?"
+> "Looks like you were mid-stream on [task]. The previous session left these next steps:
+> 1. Update src/ui/main.tsx to import the real App component
+> 2. Try bun run dev — fix compilation errors
+> 3. Wire progress.css into the build
+>
+> Pick up where you left off?"
 
 Use AskUserQuestion:
 - **Yes, continue** — load the relevant `decisions/{feature}.md`, compose a brief, done.
@@ -85,10 +90,11 @@ Compose a focused brief (~500 tokens max) containing:
 
 1. **What the user chose** — mode and area
 2. **Current status** — from the YAML
-3. **Key decisions** — from the "Decided" section, so the main Claude works within established choices
-4. **Open questions** — from the "Open" section, so the main Claude is aware of unresolved issues
-5. **Contextual flags** — use your judgment. If an open question is directly relevant to the chosen work, flag it. If a past decision might need revisiting given the chosen mode, mention it. If nothing needs flagging, say nothing. Be a thoughtful project manager, not a checklist.
-6. **Relevant file paths** — if you can infer them from the decisions or YAML
+3. **Next steps** — if the feature has `next_steps` in the YAML, display them as a numbered list. These are the sequenced actions from the previous session and should be presented prominently — they're the primary guide for what to do next. If no `next_steps` exist, fall back to the `next` field.
+4. **Key decisions** — from the "Decided" section, so the main Claude works within established choices
+5. **Open questions** — from the "Open" section, so the main Claude is aware of unresolved issues
+6. **Contextual flags** — use your judgment. If an open question is directly relevant to the chosen work, flag it. If a past decision might need revisiting given the chosen mode, mention it. If nothing needs flagging, say nothing. Be a thoughtful project manager, not a checklist.
+7. **Relevant file paths** — if you can infer them from the decisions or YAML
 
 ### Step 7: Return Brief
 

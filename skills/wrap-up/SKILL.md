@@ -29,7 +29,8 @@ If it's not obvious from conversation context, ask the user briefly.
 Read the current `.continuity/feature-status.yml` and update:
 
 - **status** for the worked-on feature (exploring → building, etc., if it changed)
-- **next** — what's the next move for this feature?
+- **next** — short label for the next move (shown in dashboard table)
+- **next_steps** — ordered list of specific, actionable steps for the next session. These should be concrete enough that a fresh Claude can act on them without re-reading the conversation. Include file paths where relevant. Aim for 3-7 items. This is the primary handoff mechanism — don't compress a multi-step plan into the `next` one-liner.
 - **summary** — one-line current state
 - **in_progress** — set to a task description if mid-stream, `null` if at a clean stop
 - **last_session.date** — today's date

@@ -3,6 +3,7 @@ features:
     status: planned         # exploring | building | polishing | parked | planned
     next: Define scope
     summary: Brief description of this feature area
+    next_steps: []          # Ordered list of specific next actions for the next session
 
 in_progress: null           # Set to task description when mid-stream, null when clean
 
