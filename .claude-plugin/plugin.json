@@ -1,5 +1,5 @@
 {
   "name": "claude-continuity",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Lightweight continuity system for maintaining context, direction, and decision rationale across Claude Code sessions."
 }

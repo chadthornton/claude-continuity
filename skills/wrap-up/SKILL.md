@@ -33,6 +33,9 @@ Read the current `.continuity/feature-status.yml` and update the relevant sectio
 - **status** for the worked-on feature (exploring → building, etc., if it changed)
 - **next** — short label for the next move (shown in dashboard table)
 - **next_steps** — ordered list of specific, actionable steps for the next session. These should be concrete enough that a fresh Claude can act on them without re-reading the conversation. Include file paths where relevant. Aim for 3-7 items. This is the primary handoff mechanism — don't compress a multi-step plan into the `next` one-liner.
+  - **Step completion tracking:** When steps use the `{step, done}` object format, mark completed steps as `done: true` rather than removing them. Add new steps discovered during the session at the end with `done: false`. This preserves the progress trail so the next startup can show "step 3 of 7" instead of a context-free list.
+  - If all steps are done and the work is at a clean stop, replace with a fresh list for the next phase of work.
+  - If steps are plain strings, it's fine to rewrite the list as usual — or upgrade to `{step, done}` format if the work is clearly multi-session.
 - **summary** — one-line current state
 - **in_progress** — set to a task description if mid-stream, `null` if at a clean stop
 
@@ -42,6 +45,8 @@ Read the current `.continuity/feature-status.yml` and update the relevant sectio
 - **steps** — if the workflow steps evolved or need updating based on what was learned, update them. Workflows improve over time.
 - **summary** — if the workflow's description needs clarifying, update it
 - Don't set `in_progress` for workflows — they're either done or they aren't. If interrupted mid-workflow, set it on the top-level `in_progress` field.
+
+**Minimal wrap-up (context pressure):** If the user mentions token pressure, or the session is being cut short, do a minimal wrap-up: update only `next_steps` (mark done/not-done), `in_progress`, and `last_session`. Skip decisions file updates — preserving where-you-are matters more than capturing rationale when tokens are scarce.
 
 **Always update:**
 
@@ -110,6 +115,13 @@ Updated .continuity/:
   decisions/canvas-types.md — +1 decided, +2 open, -1 resolved
   handoff.md — removed (clean stop)
 ```
+
+**Phase gate note:** If the worked-on feature has a `phase` field and higher-phase features exist in the YAML, append a phase status line:
+
+- If the feature's status is now `building` or `exploring` → `"Phase N is underway. Phase N+1 unblocks when it completes."`
+- If the feature's status is now `polishing` or `parked` → `"Phase N complete. Phase N+1 is now unblocked."`
+
+This is informational — it helps the user (and the next startup) understand where the project stands in its phase sequence.
 
 ## Guidelines
 
