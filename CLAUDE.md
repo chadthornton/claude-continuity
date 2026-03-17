@@ -38,4 +38,8 @@ Decision files should stay under ~30 lines. Old decided items that are absorbed 
 <rule name="light-ceremonies">
 Startup and wrap-up should each take < 1 minute of user time. If either feels heavy, it's doing too much.
 </rule>
+
+<rule name="changelog">
+When adding or modifying a plugin feature (skills, hooks, commands, templates), add an entry to `CHANGELOG.md` under an `## [Unreleased]` section at the top. Use Keep a Changelog format (Added/Changed/Fixed/Removed). One line per change — describe the *what* and *why*. Version numbers and dates get filled in at release time.
+</rule>
 </rules>
