@@ -26,19 +26,46 @@ Read these files (all are small — do this in parallel):
 
 Determine which of three modes applies. This shapes the entire flow.
 
-**Compute the mode from signals:**
+**Compute the mode from signals (check in this order):**
 
-1. Parse `last_session.date`. If it is null or ≥ 3 days ago → **cold return**
+1. If `in_progress` is set AND `last_session.date` is today or yesterday AND (`handoff.md` exists OR uncommitted changes) → **fast resume**
 2. If `in_progress` is set, OR (uncommitted changes exist AND last session < 3 days ago) → **resumed session**
-3. Otherwise (recent session, clean stop) → **next session**
+3. If `last_session.date` is null or ≥ 3 days ago → **cold return**
+4. Otherwise (recent session, clean stop) → **next session**
 
 Then jump to the matching flow below.
 
 ---
 
+### Fast Resume Flow
+
+**Triggers when ALL of these are true:**
+- `in_progress` is set in feature-status.yml
+- `last_session.date` is today or yesterday
+- A `handoff.md` file exists OR there are uncommitted changes (`git diff`)
+
+The user was just here and left mid-stream. Don't show a dashboard. Don't ask questions. Get them back to work immediately.
+
+1. Read `.continuity/handoff.md` if it exists (the `<first-action>` block has the next step)
+2. Read `decisions/{feature}.md` for the in-progress feature
+3. Read the `next_steps` list from feature-status.yml for the in-progress feature
+4. Compose a single brief:
+
+> Resuming **{feature}**. Last: {last_session.summary}. Next: {first action from handoff, or first not-done next_step}.
+>
+> Key decisions: {1-2 most recent from decisions file}
+>
+> Say "board" if you want the full dashboard instead.
+
+That's it. No AskUserQuestion. No mode selection. The "board" escape hatch is a plain text instruction, not a prompt — the user types it if they want it, otherwise work begins immediately.
+
+**If Fast Resume conditions are NOT all met**, fall through to the Resumed Session Flow below.
+
+---
+
 ### Resumed Session Flow
 
-The user was just here. Minimize friction — get them back to where they were.
+The user was recently here but conditions for Fast Resume aren't fully met (e.g., clean stop with `in_progress` set but no handoff or uncommitted changes). Still minimize friction.
 
 **Skip the dashboard entirely.** Show the in-progress feature, its status, and progress through `next_steps`.
 
