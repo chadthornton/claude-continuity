@@ -57,19 +57,35 @@ Update **only these fields** for the active feature:
 - `in_progress` — session is continuing, don't clear it
 - `summary` — the feature's overall summary doesn't change mid-session
 
-### Step 5: Confirm
+### Step 5: Check Context Health
 
-Return a brief confirmation to the main session. Two to three lines max:
+After updating files, check the proxy diagnostics to estimate current context usage. Use the `proxy_diagnostics` MCP tool if available, or check the conversation's approximate size from the context.
+
+Categorize:
+- **Low** (under 60k tokens): Plenty of room
+- **Medium** (60k-120k tokens): Getting full, clearing soon would help
+- **High** (over 120k tokens): Should clear soon to avoid compaction
+
+### Step 6: Confirm With Context Nudge
+
+Return a brief confirmation to the main session. Three lines max:
 
 ```
 Checkpointed {feature}: {N} decisions saved, {N} questions added.
 Next: {updated next field}
+Context: ~{N}k tokens. {nudge}
 ```
+
+The nudge varies by context level:
+- **Low:** "Plenty of room — keep going."
+- **Medium:** "Getting full. You could `/clear` safely — everything important is saved."
+- **High:** "Running hot. Recommend `/clear` now — your progress is checkpointed. Run `/startup` after to resume."
 
 Or if nothing meaningful to capture:
 
 ```
 Checkpointed {feature}: no new decisions found. Status unchanged.
+Context: ~{N}k tokens. {nudge}
 ```
 
 ## Guidelines
