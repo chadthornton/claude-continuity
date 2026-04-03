@@ -1,46 +1,6 @@
 # claude-continuity
 
-A Claude Code plugin for lightweight cross-session continuity. Maintains feature status, decision rationale, and open questions across sessions without heavyweight infrastructure.
-
-## The problem
-
-Claude Code sessions are stateless. Each new session starts from scratch -- no memory of what was decided, what was tried, or what's in progress. For multi-session projects, this means:
-
-- Re-explaining context every session
-- Accidentally revisiting rejected approaches
-- Losing track of open questions and decisions
-- No structured way to hand off mid-stream work
-
-## What this plugin does
-
-It maintains a small `.continuity/` directory in your project with two key files:
-
-- **`feature-status.yml`** -- a machine-readable dashboard of feature areas, their status, and next steps
-- **`decisions/{feature}.md`** -- decided items (with rationale) and open questions per feature
-
-Three skills manage the lifecycle:
-
-| Command | When | What it does |
-|---------|------|-------------|
-| `/startup` | Session start | Renders a dashboard, detects re-entry mode (fast resume / resumed / next / cold return), loads relevant context into a focused brief |
-| `/wrap-up` | Session end | Updates feature status, decisions, writes handoff if mid-stream, runs a retrospect to flag blind spots |
-| `/checkpoint` | Mid-session | Quick save of decisions and progress without ending the session |
-
-Plus two recovery commands:
-
-| Command | When | What it does |
-|---------|------|-------------|
-| `/continuity-init` | New project | Scaffolds `.continuity/` with your feature areas |
-| `/continuity-recover` | After crash/context exhaustion | Reconstructs continuity state from a session transcript |
-
-## Key features
-
-- **Adaptive startup** -- detects whether you're resuming mid-stream work, starting a new session, or returning after time away, and adjusts the flow accordingly
-- **Phase sequencing** -- optional `phase` field on features for cross-feature ordering (phase 1 must progress before phase 2 unblocks)
-- **Step tracking** -- `next_steps` with `{step, done}` objects show "step 3 of 7" progress across sessions
-- **Retrospect** -- wrap-up and checkpoint include a "what might the next Claude miss?" step that surfaces blind spots the next session should watch for
-- **Workflows** -- repeatable operations (audits, reviews) tracked alongside features
-- **Minimal ceremony** -- startup and wrap-up each take under a minute
+Cross-session memory for Claude Code. Three slash commands, a few small files, no infrastructure.
 
 ## Install
 
@@ -52,95 +12,106 @@ claude plugin marketplace add chadthornton/claude-continuity
 claude plugin install claude-continuity
 ```
 
-Restart Claude Code, then run `/continuity-init` in any project to set up `.continuity/`.
+Restart Claude Code, then run `/continuity-init` in any project to get started.
 
-## Usage
+## About
 
-### Starting a session
+If you're using Claude Code to build something over multiple sessions, you've probably noticed the main limitation: every session starts from zero. The previous Claude made decisions, rejected approaches, discovered constraints -- and the next Claude has no idea. You end up re-explaining context, re-litigating settled questions, and watching Claude cheerfully re-explore the dead end you already mapped.
 
-Run `/startup` (or just start working -- the plugin detects `.continuity/` and offers to triage).
+This plugin adds a lightweight continuity layer. A small `.continuity/` directory in your project tracks what's been decided (and why), what's still open, and where things left off. Three slash commands manage the lifecycle:
 
-The startup skill detects your re-entry mode automatically:
+- **`/startup`** reads the state and gives the new Claude a focused brief
+- **`/wrap-up`** captures what happened and flags what the next Claude might miss
+- **`/checkpoint`** saves progress mid-session without ending anything
 
-- **Fast resume** -- you were just here and left mid-stream. Skips the dashboard, gets you back to work immediately.
-- **Resumed session** -- recent work, shows progress through next_steps ("step 3 of 7").
-- **Next session** -- clean stop from a recent session. Shows the dashboard and recommends what to work on.
-- **Cold return** -- it's been a while. Shows a "since you've been away" summary before the dashboard.
+That's the core loop. Everything else -- adaptive startup modes, phase sequencing, step tracking, crash recovery -- grew out of using it daily on real projects.
 
-### During a session
+### A note on opinions
 
-Run `/checkpoint` any time to save decisions and progress without interrupting your work. Zero questions asked -- it infers the active feature and captures what's changed.
+There is no shortage of approaches to LLM context management. CLAUDE.md files, AGENTS.md, handoff documents, memory banks, custom system prompts, elaborate scaffolding -- people have strong feelings and everyone's workflow is different.
 
-### Ending a session
+This plugin doesn't try to be the universal answer. It's opinionated toward a specific style of work: **iterative product development where you're building features across many sessions over days or weeks.** The kind of work where you need to remember *why* you chose Postgres over SQLite three sessions ago, not just *that* you did.
 
-Run `/wrap-up` to:
+If you're doing one-off scripts, greenfield prototypes you'll finish in a sitting, or work where the code itself is the complete context -- you probably don't need this. If you keep finding yourself saying "we already decided that" to a Claude that wasn't there, it might help.
+
+## How it works
+
+### The session lifecycle
+
+**Starting a session** -- run `/startup`. It detects how you're returning:
+
+- **Fast resume** -- you were just here, left mid-stream. Skips the dashboard, gets you back to work.
+- **Resumed session** -- recent work, shows progress ("step 3 of 7").
+- **Next session** -- clean stop recently. Shows the board, recommends what to tackle.
+- **Cold return** -- it's been a while. Orients you before showing the board.
+
+**During a session** -- run `/checkpoint` to save decisions and progress. Zero questions asked.
+
+**Ending a session** -- run `/wrap-up` to:
 1. Update feature status and next steps
-2. Capture new decisions (with rationale) and open questions
-3. Run a retrospect -- "what might the next Claude miss?" with a 1-10 completeness grade
-4. Write a handoff block if you're stopping mid-task
+2. Capture decisions (with rationale) and open questions
+3. Run a retrospect -- "what might the next Claude miss?" -- graded 1-10
+4. Write a handoff if you're stopping mid-task
 
-### Recovering from crashes
+**After a crash** -- run `/continuity-recover` with a session ID. It reconstructs what `/wrap-up` would have produced from the transcript.
 
-If a session ended without wrap-up (context exhaustion, crash, forgot), run `/continuity-recover` with the session ID or transcript path. It reconstructs what `/wrap-up` would have produced.
+### What gets tracked
 
-## File structure
+A `.continuity/` directory with a few small files:
 
 ```
 .continuity/
-  feature-status.yml      # Dashboard: features, status, next steps, last session
+  feature-status.yml      # Dashboard: features, status, next steps
   decisions/
-    {feature}.md           # Decided items + open questions per feature
-  handoff.md               # Only exists when mid-stream (deleted on clean stop)
-  last-activity.txt        # Auto-written by SessionEnd hook (add to .gitignore)
+    {feature}.md           # What's decided, what's open (per feature)
+  handoff.md               # Only exists when stopping mid-task
 ```
 
-### feature-status.yml
+The feature status file is the dashboard:
 
 ```yaml
 features:
   my-feature:
     status: building        # planned | exploring | building | polishing | parked
-    phase: 1                # Optional. Lower phases first.
     next: Wire up the API
-    summary: REST API for widget management
     next_steps:
       - step: "Define API routes"
         done: true
       - step: "Wire up database layer"
         done: false
-      - step: "Add auth middleware"
-        done: false
-
-in_progress: null           # Task description if mid-stream, null if clean
 
 last_session:
   date: 2026-04-03
   summary: Got API routes defined, starting database layer
   feature: my-feature
   blind_spots:
-    - "The auth middleware expects JWT tokens but the client SDK sends session cookies"
-    - "Rate limiting config is in a separate env var not mentioned in .env.example"
+    - "Auth middleware expects JWT but the client SDK sends session cookies"
+    - "Rate limiting config lives in a separate env var not in .env.example"
 ```
 
-### decisions/{feature}.md
+Decision files capture the *why*, not just the *what*:
 
 ```markdown
-# My Feature
-
 ## Decided
 - Use Postgres over SQLite -- need concurrent writes from multiple workers
-- REST over GraphQL -- simpler for the current use case, team has more REST experience
+- REST over GraphQL -- simpler for current scope, team knows it better
 
 ## Open
-- Connection pooling strategy -- PgBouncer vs built-in pool. PgBouncer adds ops complexity but handles connection storms better
+- Connection pooling strategy -- PgBouncer vs built-in pool
 ```
+
+### Other features
+
+- **Phase sequencing** -- optional `phase` field for cross-feature ordering (phase 1 before phase 2)
+- **Workflows** -- repeatable operations (audits, reviews) tracked alongside features
+- **Retrospect** -- the outgoing Claude flags blind spots for the incoming one. Surprisingly effective at catching the 2-3 things that would otherwise cost a session to rediscover.
 
 ## Design principles
 
-- **Prune over accumulate.** Decision files stay under ~30 lines. Old items absorbed into the codebase get removed.
-- **Decisions need rationale.** "Use Postgres" is insufficient. "Use Postgres -- need concurrent writes from multiple workers" is good.
-- **Light ceremonies.** Startup and wrap-up each take under a minute. If they feel heavy, they're doing too much.
-- **Context budget.** Startup runs as a subagent and returns a ~500 token brief, not the full continuity state.
+- **Prune over accumulate.** Decision files stay under ~30 lines. Old items get removed once they're absorbed into the code.
+- **Decisions need rationale.** "Use Postgres" is not a decision. "Use Postgres -- need concurrent writes" is.
+- **Light ceremonies.** Startup and wrap-up each take under a minute. If they feel heavy, something's wrong.
+- **Context budget.** Startup returns a ~500 token brief, not the full continuity state.
 
 ## License
 
