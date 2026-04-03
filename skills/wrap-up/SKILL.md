@@ -75,7 +75,23 @@ Read the current decisions file for the worked-on feature. If it doesn't exist, 
 - Decided items that are old and fully absorbed into the codebase can be removed. They live in MEMORY.md or the code itself at that point.
 - Aim to keep the file under ~30 lines.
 
-### Step 4: Write Handoff Block (if mid-stream)
+### Step 4: Retrospect
+
+Before finishing, pause and ask yourself: **"What might the next Claude miss?"**
+
+Think about things you learned during this session that aren't obvious from the code, git history, or the decisions file. These are the implicit assumptions, gotchas, failed approaches, or context that would cost the next instance time to rediscover.
+
+Write 2-5 bullet points and a completeness grade (1-10) reflecting how well the continuity state captures what matters from this session.
+
+Examples of good retrospect items:
+- "The SwiftUI preview crashes if you don't set the environment object — not obvious from the error message"
+- "We tried FSEvents first but it doesn't work in sandboxed apps — don't re-explore that path"
+- "The user wants the sidebar to feel like Finder, not like a typical IDE file tree"
+- "There's a circular dependency between Canvas and Renderer that isn't in the decisions file yet"
+
+Save these to `last_session.blind_spots` in `feature-status.yml` as a list. They get naturally replaced on the next wrap-up. If the grade is below 7, take another look at the decisions file and next_steps — something important is probably missing.
+
+### Step 5: Write Handoff Block (if mid-stream)
 
 Only if `in_progress` is set — the user is stopping mid-task and needs the next Claude to pick up exactly where they left off.
 
@@ -105,7 +121,7 @@ Write this to `.continuity/handoff.md`. Keep it minimal — just enough for the 
 
 If the session ended at a clean stopping point, delete `.continuity/handoff.md` if it exists — it's stale.
 
-### Step 5: Confirm
+### Step 6: Confirm
 
 Print a brief summary of what was updated:
 
@@ -114,6 +130,10 @@ Updated .continuity/:
   feature-status.yml — Canvas Types: exploring → building
   decisions/canvas-types.md — +1 decided, +2 open, -1 resolved
   handoff.md — removed (clean stop)
+
+Blind spots (7/10):
+  • The WebKit content sizing workaround only applies to the split view — full-screen mode uses a different layout path
+  • User prefers Finder-style navigation feel, not IDE-style
 ```
 
 **Phase gate note:** If the worked-on feature has a `phase` field and higher-phase features exist in the YAML, append a phase status line:

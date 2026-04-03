@@ -57,7 +57,15 @@ Update **only these fields** for the active feature:
 - `in_progress` — session is continuing, don't clear it
 - `summary` — the feature's overall summary doesn't change mid-session
 
-### Step 5: Check Context Health
+### Step 5: Retrospect
+
+Ask yourself: **"What might the next Claude miss?"**
+
+Think about implicit assumptions, gotchas, failed approaches, or context from the session so far that aren't captured in the decisions file or next_steps. Write 2-5 bullet points and a completeness grade (1-10).
+
+Save to `last_session.blind_spots` in `feature-status.yml` as a list. If the grade is below 7, revisit the decisions file — something important is probably missing.
+
+### Step 6: Check Context Health
 
 After updating files, check the proxy diagnostics to estimate current context usage. Use the `proxy_diagnostics` MCP tool if available, or check the conversation's approximate size from the context.
 
@@ -66,13 +74,14 @@ Categorize:
 - **Medium** (60k-120k tokens): Getting full, clearing soon would help
 - **High** (over 120k tokens): Should clear soon to avoid compaction
 
-### Step 6: Confirm With Context Nudge
+### Step 7: Confirm With Context Nudge
 
 Return a brief confirmation to the main session. Three lines max:
 
 ```
 Checkpointed {feature}: {N} decisions saved, {N} questions added.
 Next: {updated next field}
+Blind spots ({grade}/10): {1-2 most notable items, inline}
 Context: ~{N}k tokens. {nudge}
 ```
 

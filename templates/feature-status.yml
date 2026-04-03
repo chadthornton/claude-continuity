@@ -27,3 +27,4 @@ last_session:
   date: null
   summary: null
   feature: null
+  blind_spots: []             # Written by retrospect step in wrap-up/checkpoint

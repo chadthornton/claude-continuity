@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Retrospect step** in wrap-up and checkpoint — outgoing Claude asks "what might the next Claude miss?" and grades completeness 1-10. Saves to `last_session.blind_spots` in feature-status.yml. Startup surfaces these as "Watch out for:" in the brief.
+
 ## [0.3.0] - 2026-03-16
 
 ### Added

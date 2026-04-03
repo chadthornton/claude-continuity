@@ -55,6 +55,8 @@ The user was just here and left mid-stream. Don't show a dashboard. Don't ask qu
 >
 > Key decisions: {1-2 most recent from decisions file}
 >
+> Watch out for: {blind spots from last_session.blind_spots, if any}
+>
 > Say "board" if you want the full dashboard instead.
 
 That's it. No AskUserQuestion. No mode selection. The "board" escape hatch is a plain text instruction, not a prompt — the user types it if they want it, otherwise work begins immediately.
@@ -188,8 +190,9 @@ Compose a focused brief (~500 tokens max) containing:
 3. **Next steps** — if the feature has `next_steps` in the YAML, display them as a numbered list. If steps have `done` fields, show only the remaining (not-done) steps. If no `next_steps` exist, fall back to the `next` field.
 4. **Key decisions** — from the "Decided" section, so the main Claude works within established choices
 5. **Open questions** — from the "Open" section, so the main Claude is aware of unresolved issues
-6. **Contextual flags** — use your judgment. If an open question is directly relevant to the chosen work, flag it. If a past decision might need revisiting given the chosen mode, mention it. If nothing needs flagging, say nothing. Be a thoughtful project manager, not a checklist.
-7. **Relevant file paths** — if you can infer them from the decisions or YAML
+6. **Blind spots** — if `last_session.blind_spots` exists in the YAML, include them. These are things the previous Claude flagged as easy to miss. Present them as a short "Watch out for:" list. These are high-signal — the previous instance specifically identified them as things the next Claude would likely overlook.
+7. **Contextual flags** — use your judgment. If an open question is directly relevant to the chosen work, flag it. If a past decision might need revisiting given the chosen mode, mention it. If nothing needs flagging, say nothing. Be a thoughtful project manager, not a checklist.
+8. **Relevant file paths** — if you can infer them from the decisions or YAML
 
 #### Step 7: Return Brief
 
