@@ -14,48 +14,58 @@ claude plugin install claude-continuity
 
 Restart Claude Code, then run `/continuity-init` in any project to get started.
 
-## About
+## The idea
 
-If you're using Claude Code to build something over multiple sessions, you've probably noticed the main limitation: every session starts from zero. The previous Claude made decisions, rejected approaches, discovered constraints -- and the next Claude has no idea. You end up re-explaining context, re-litigating settled questions, and watching Claude cheerfully re-explore the dead end you already mapped.
+**The underlying bet:** small, curated, opinionated state beats large, comprehensive, neutral state. A 30-line decisions file that gets pruned every session is more useful than a 500-line memory bank that only grows.
 
-This plugin adds a lightweight continuity layer. A small `.continuity/` directory in your project tracks what's been decided (and why), what's still open, and where things left off. Three slash commands manage the lifecycle:
+This works best for **iterative product development** -- building features across many sessions over days or weeks, where decisions compound and the *why* behind past choices matters as much as the choices themselves. Think: multi-feature apps, architectural build-outs, anything where session 5 needs to know what sessions 1-4 decided.
 
-- **`/startup`** reads the state and gives the new Claude a focused brief
-- **`/wrap-up`** captures what happened and flags what the next Claude might miss
-- **`/checkpoint`** saves progress mid-session without ending anything
+It's probably not worth the overhead for one-off scripts, quick prototypes, or work where each session is self-contained.
 
-That's the core loop. Everything else -- adaptive startup modes, phase sequencing, step tracking, crash recovery -- grew out of using it daily on real projects.
+### What's different
 
-### A note on opinions
+There's no shortage of approaches to LLM context management -- CLAUDE.md files, AGENTS.md, memory banks, handoff docs, elaborate scaffolding. This plugin doesn't try to replace any of that. It adds a thin layer on top, focused on three things most approaches underserve:
 
-There is no shortage of approaches to LLM context management. CLAUDE.md files, AGENTS.md, handoff documents, memory banks, custom system prompts, elaborate scaffolding -- people have strong feelings and everyone's workflow is different.
+1. **Decisions carry rationale.** Every system can record "we chose Postgres." The difference is recording *why* -- "need concurrent writes from multiple workers." Without the why, the next Claude can't judge whether the decision still holds when circumstances change.
 
-This plugin doesn't try to be the universal answer. It's opinionated toward a specific style of work: **iterative product development where you're building features across many sessions over days or weeks.** The kind of work where you need to remember *why* you chose Postgres over SQLite three sessions ago, not just *that* you did.
+2. **The outgoing Claude audits its own handoff.** A mandatory retrospect step asks "what might the next Claude miss?" and grades completeness 1-10. In practice it consistently catches 2-3 things that would cost a full session to rediscover -- implicit constraints, failed approaches, user preferences not in the code.
 
-If you're doing one-off scripts, greenfield prototypes you'll finish in a sitting, or work where the code itself is the complete context -- you probably don't need this. If you keep finding yourself saying "we already decided that" to a Claude that wasn't there, it might help.
+3. **Startup adapts to how you're returning.** Instead of loading everything, it detects whether you're mid-stream, next-day, or back after a week, and adjusts what it surfaces. The context budget stays around 500 tokens regardless.
 
-## How it works
+## Usage
 
-### The session lifecycle
+Three commands cover the whole lifecycle:
 
-**Starting a session** -- run `/startup`. It detects how you're returning:
+| Command | When | What it does |
+|---------|------|-------------|
+| `/startup` | Beginning of session | Reads continuity state, gives the new Claude a focused brief |
+| `/wrap-up` | End of session | Captures decisions, flags blind spots, writes handoff if mid-task |
+| `/checkpoint` | Whenever | Saves progress mid-session without interrupting work |
 
-- **Fast resume** -- you were just here, left mid-stream. Skips the dashboard, gets you back to work.
+Plus `/continuity-init` to set up a new project and `/continuity-recover` to reconstruct state after a crash.
+
+### Startup
+
+`/startup` detects how you're returning and adjusts:
+
+- **Fast resume** -- you were just here, left mid-stream. Two-line brief, back to work.
 - **Resumed session** -- recent work, shows progress ("step 3 of 7").
-- **Next session** -- clean stop recently. Shows the board, recommends what to tackle.
-- **Cold return** -- it's been a while. Orients you before showing the board.
+- **Next session** -- clean stop recently. Dashboard with a recommendation.
+- **Cold return** -- it's been a while. "Since you've been away" orientation first.
 
-**During a session** -- run `/checkpoint` to save decisions and progress. Zero questions asked.
+### Wrap-up
 
-**Ending a session** -- run `/wrap-up` to:
-1. Update feature status and next steps
-2. Capture decisions (with rationale) and open questions
-3. Run a retrospect -- "what might the next Claude miss?" -- graded 1-10
-4. Write a handoff if you're stopping mid-task
+`/wrap-up` at the end of a session:
+1. Updates feature status and next steps
+2. Captures new decisions (with rationale) and open questions
+3. Runs the retrospect -- "what might the next Claude miss?" graded 1-10
+4. Writes a handoff block if you're stopping mid-task
 
-**After a crash** -- run `/continuity-recover` with a session ID. It reconstructs what `/wrap-up` would have produced from the transcript.
+### Checkpoint
 
-### What gets tracked
+`/checkpoint` mid-session. Zero questions asked -- infers the active feature and captures what's changed. Includes a context health nudge so you know when to `/clear`.
+
+## What gets tracked
 
 A `.continuity/` directory with a few small files:
 
@@ -104,7 +114,6 @@ Decision files capture the *why*, not just the *what*:
 
 - **Phase sequencing** -- optional `phase` field for cross-feature ordering (phase 1 before phase 2)
 - **Workflows** -- repeatable operations (audits, reviews) tracked alongside features
-- **Retrospect** -- the outgoing Claude flags blind spots for the incoming one. Surprisingly effective at catching the 2-3 things that would otherwise cost a session to rediscover.
 
 ## Design principles
 
