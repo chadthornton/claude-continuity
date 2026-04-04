@@ -20,11 +20,9 @@ Restart Claude Code, then run `/continuity-init` in any project to get started.
 
 This works best for **iterative product development** -- building features across many sessions over days or weeks, where decisions compound and the *why* behind past choices matters as much as the choices themselves. Think: multi-feature apps, architectural build-outs, anything where session 5 needs to know what sessions 1-4 decided.
 
-It's probably not worth the overhead for one-off scripts, quick prototypes, or work where each session is self-contained.
-
 ### What's different
 
-There's no shortage of approaches to LLM context management -- CLAUDE.md files, AGENTS.md, memory banks, handoff docs, elaborate scaffolding. This plugin doesn't try to replace any of that. It adds a thin layer on top, focused on three things most approaches underserve:
+There's no shortage of approaches to LLM context management: CLAUDE.md files, AGENTS.md, memory banks, handoff docs, elaborate scaffolding. This plugin doesn't try to replace any of that. It adds a thin layer on top, focused on three things most approaches underserve:
 
 1. **Decisions carry rationale.** Every system can record "we chose Postgres." The difference is recording *why* -- "need concurrent writes from multiple workers." Without the why, the next Claude can't judge whether the decision still holds when circumstances change.
 
