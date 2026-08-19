@@ -150,6 +150,8 @@ Workflows differ from features: they don't have a build lifecycle (exploring →
 
 Compute the "frontier" — the lowest phase number where the feature's status is NOT `polishing` or `parked` (i.e., the phase still has active work to do). Features at the frontier are **workable**. Features above the frontier are **blocked**.
 
+**Intra-phase blocking (`blocked_by`):** A feature may carry an optional `blocked_by: [feature-name, ...]` list. Even when its phase is at the frontier, the feature is workable only if every feature it lists is `polishing`, `parked`, or `superseded`. A feature with no `blocked_by` is unaffected — evaluate it exactly as before. In the options list, append `(blocked by {name})` to the description of any feature held back this way, and still allow the user to pick it (blocks are recommendations, not gates — same as phases).
+
 - If exactly one feature is at the frontier and all other phased features are above it, **auto-recommend** instead of asking:
   > "Phase 1 (standalone-app) is the active frontier. Phases 2–4 are blocked until it progresses. Start there?"
   >

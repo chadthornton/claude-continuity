@@ -32,6 +32,7 @@ Read the current `.continuity/feature-status.yml` and update the relevant sectio
 
 - **status** for the worked-on feature (exploring → building, etc., if it changed)
 - **next** — short label for the next move (shown in dashboard table)
+- **blocked_by** (optional) — if this feature can't start until a sibling feature lands, set `blocked_by: [sibling-name]`. Only add it where a real dependency exists; most features need none. Remove the entry once the blocker is `polishing`/`parked`/`superseded`.
 - **next_steps** — ordered list of specific, actionable steps for the next session. These should be concrete enough that a fresh Claude can act on them without re-reading the conversation. Include file paths where relevant. Aim for 3-7 items. This is the primary handoff mechanism — don't compress a multi-step plan into the `next` one-liner.
   - **Step completion tracking:** When steps use the `{step, done}` object format, mark completed steps as `done: true` rather than removing them. Add new steps discovered during the session at the end with `done: false`. This preserves the progress trail so the next startup can show "step 3 of 7" instead of a context-free list.
   - If all steps are done and the work is at a clean stop, replace with a fresh list for the next phase of work.

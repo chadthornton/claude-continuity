@@ -2,6 +2,7 @@ features:
   example-feature:
     status: planned         # exploring | building | polishing | parked | planned
     phase: 1                # Optional. Enables cross-feature sequencing (lower phases first).
+    blocked_by: []          # Optional. Sibling feature names that must be polishing/parked/superseded before this is workable. Refines phase within a same-phase cluster.
     next: Define scope
     summary: Brief description of this feature area
     next_steps: []          # Ordered list of next actions. Plain strings or {step, done} objects.
