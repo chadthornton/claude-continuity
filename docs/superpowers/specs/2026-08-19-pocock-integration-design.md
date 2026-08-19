@@ -14,7 +14,7 @@ Two direct collisions exist: Superpowers and Pocock both ship TDD (`test-driven-
 
 - **Not** un-gating any Pocock skill. Every `disable-model-invocation` gate is either a user-invoked interview (already available as a slash command) or a setup-dependent tracker skill (dormant by design) or unfinished. Un-gating auto-invocation on interview skills (`grill-me`, `loop-me`) would drop the user into interrogations mid-task. Leave all gates as-is.
 - **Not** adopting Pocock's issue-tracker workflow (`setup-matt-pocock-skills`, `to-tickets`, `triage`, `wayfinder`, `to-spec`) globally. It competes with Continuity's roadmap for the same job. Keep it gated-but-available for the rare too-big-for-one-session build, invoked explicitly per-repo.
-- **Not** adding `blocked_by` fine-grained dependency edges to `feature-status.yml`. See "Rejected: blocked_by" below.
+- **Not** replacing `phase` with a full dependency graph. `blocked_by` is added as an *optional intra-phase refinement* on top of `phase` (see 3c) — not a wholesale graph model.
 
 ## Overlap Analysis (verified against source)
 
@@ -66,7 +66,7 @@ Add a **work-mode → suggested-skill** hint to `startup/SKILL.md` Step 5 ("Load
 
 This is a **suggestion in the brief**, not an auto-invocation — Continuity's `light-ceremonies` rule (startup < 1 min) and its "don't gatekeep modes" guideline both hold. One or two lines, no new AskUserQuestion.
 
-## Deliverable 3 — Continuity enhancements (2, not 3)
+## Deliverable 3 — Continuity enhancements (3)
 
 ### 3a. Decision-vs-task marking in `decisions/{feature}.md` "Open" section
 
@@ -82,9 +82,19 @@ Borrowed from wayfinder's fog-of-war: a place to park decisions you can *see com
 
 **Additive & optional.** A decisions file without the section behaves exactly as today. `wrap-up` Step 3 gains a sub-step: "if a coming-but-unphrasable decision surfaced, add it to `## Not yet specified`." `startup` optionally surfaces it in cold-return orientation.
 
-### Rejected: `blocked_by` fine-grained edges
+### 3c. Optional `blocked_by` intra-phase edges in `feature-status.yml`
 
-Continuity's own anti-goal A3 ("don't track at a granularity that creates maintenance burden without proportional value") and its "human is a product designer, low-maintenance" constraint rule this out. Integer `phase` already expresses ordering over the ~4–6 feature areas a project has, and `startup` already computes the frontier from it. Explicit edges only pay off at 15+ interdependent slices — the `/wayfinder` case. Two overlapping ordering models is worse than one. Dropped.
+**Reinstated after checking the data.** An audit of the 8 phased projects showed same-phase clusters are the *normal* shape, not a rare large-build case: `web-pinterest-quickmove` has three phase-1 features (`backend-api`, `board-cache-mru`, `frontend-ui`) all `building` at once; `pinterest-moodboarder` has three phase-1 + two phase-2; `trip-planner` has two phase-1 + three phase-2. Within a cluster there is real dependency structure `phase` cannot express — `frontend-ui` plainly depends on `backend-api`, but both read as "phase 1," so startup's frontier logic offers all three as equally workable when one gates the others.
+
+`phase` was not mis-designed and is not being replaced — it is the coarse *cross-cluster* ordering, in use by 8 projects. `blocked_by` adds the one missing edge type: *intra-cluster* dependency.
+
+**Design:**
+- `blocked_by: [feature-name, ...]` — optional per-feature list of sibling features that must be complete first.
+- Startup frontier rule gains one clause: a feature is workable iff its phase is at the frontier **AND** every feature in its `blocked_by` is `polishing` / `parked` / `superseded`. Absent `blocked_by`, behavior is byte-identical to today.
+- `wrap-up` gains one line: when a feature can't start until a sibling lands, record it as `blocked_by`.
+- `feature-status.yml` template documents the optional field.
+
+**Why this respects A3's actual intent (not just the letter):** A3 guards against a graph so fine-grained nobody maintains it. This is not that — it is at most one or two sibling names per feature, added in seconds during wrap-up, only where a genuine block exists. It stays additive and rollout-safe: the ~25 existing projects with no `blocked_by` behave exactly as before. A3 as a blanket rule outlived its usefulness here; the *concern* behind it (maintenance burden) is satisfied by keeping the edge set minimal and optional.
 
 ## Rollout Constraint (critical)
 
@@ -100,8 +110,9 @@ All edits target the **source repo** `~/Projects/claude-continuity` (git: `githu
 - `~/.claude/CLAUDE.md` — add `skill-routing` rule block
 
 **This repo (`~/Projects/claude-continuity`):**
-- `skills/startup/SKILL.md` — Step 5 mode→skill hint; Step 6 use decision/task marker if present; optional fog surfacing in cold return
-- `skills/wrap-up/SKILL.md` — Step 3 encourage decision/task marker + fog sub-step
+- `skills/startup/SKILL.md` — Step 4 frontier logic gains `blocked_by` clause; Step 5 mode→skill hint; Step 6 use decision/task marker if present; optional fog surfacing in cold return
+- `skills/wrap-up/SKILL.md` — Step 2 record `blocked_by` when a sibling gates a feature; Step 3 encourage decision/task marker + fog sub-step
+- `templates/feature-status.yml` — document optional `blocked_by` field
 - `templates/decisions/_template.md` — document `[decision]`/`[task]` convention + `## Not yet specified` section
 - `CHANGELOG.md` — version bump entry
 - `.claude-plugin/plugin.json` — version bump 0.3.0 → 0.4.0
@@ -112,7 +123,8 @@ All edits target the **source repo** `~/Projects/claude-continuity` (git: `githu
 2. `/startup` on a project **without** the new markers/sections produces byte-identical behavior to pre-change (verify against one existing `.continuity/` project).
 3. `/startup` on a project **with** a decision/task marker distinguishes decisions from tasks in the brief.
 4. `wrap-up` writes fog items only when a coming-but-unphrasable decision actually surfaced (no forced ceremony).
-5. All edits in the source repo; plugin rebuilt; version bumped to 0.4.0.
+5. `/startup` on a feature carrying `blocked_by: [sibling]` treats it as workable only when `sibling` is `polishing`/`parked`/`superseded`; a feature with no `blocked_by` is workable exactly as today. Verify against `web-pinterest-quickmove` shape (add `blocked_by: [backend-api]` to `frontend-ui` in a scratch copy → startup should not offer `frontend-ui` while `backend-api` is `building`).
+6. All edits in the source repo; plugin rebuilt; version bumped to 0.4.0.
 
 ## Testing Approach
 
