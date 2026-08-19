@@ -72,6 +72,10 @@ Read the current decisions file for the worked-on feature. If it doesn't exist, 
 **Resolve open questions** that were answered during the session:
 - Move them to "Decided" with the resolution, or simply remove if no longer relevant.
 
+**Optionally mark open items by kind.** If it clarifies triage, prefix an open item with `[decision]` (answer is a choice, resolve before building) or `[task]` (queued work, nothing to decide). Unmarked items are fine — don't force markers.
+
+**Capture fog (optional).** If a decision is clearly coming but you can't phrase it sharply yet, add one line to a `## Not yet specified` section in the decisions file. Don't invent fog — only record a real, not-yet-specifiable decision. This is the low-friction path for side-chat insights: a brainstorm that shifts direction leaves its trace here instead of evaporating.
+
 **Prune stale items:**
 - Decided items that are old and fully absorbed into the codebase can be removed. They live in MEMORY.md or the code itself at that point.
 - Aim to keep the file under ~30 lines.
