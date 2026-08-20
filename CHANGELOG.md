@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-20
+
 ### Added
 - **`## Ruled out`** in decision files — tested-and-abandoned approaches, one line each (`approach — why it failed`). Recorded by wrap-up, checkpoint, and continuity-recover when a real dead end occurred; startup replays them in every brief (fast-resume, resumed, next, cold) so the next session doesn't re-walk a known dead end. Pruned when the code path that would hit them is gone. Fills the one gap rationale-for-a-decision doesn't cover: the negative space of what was tried and rejected.
 - **`/continuity-prune`** command — proposes stale or over-budget decisions, parked features, dead `blocked_by` edges, and untrue gotchas for removal, each with a reason. Human confirms (apply all / pick / cancel); never auto-deletes. Reports that git history is the archive.
