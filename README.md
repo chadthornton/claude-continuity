@@ -14,11 +14,13 @@ claude plugin install claude-continuity
 
 Restart Claude Code, then run `/continuity-init` in any project to get started.
 
-## The idea
+## Summary
 
-**The bet:** small, curated, opinionated state beats large, comprehensive, neutral state. A 30-line decisions file that gets pruned every session is more useful than a 500-line memory bank that only grows.
+Claude Code forgets everything between sessions. It can re-read your code, but not the reasoning behind it — the approaches you rejected, the constraints nobody wrote down, what you decided last week and why.
 
-This works best for **iterative product development** — building features across many sessions over days or weeks, where decisions compound and the *why* behind past choices matters as much as the choices themselves. Think multi-feature apps and architectural build-outs: anything where session 5 needs to know what sessions 1–4 decided.
+Continuity keeps that reasoning in a few small files alongside your project: what's decided (and why), what's still open, where you left off. `/startup` hands the next session a focused brief; `/wrap-up` captures the new state and prunes the stale. The files stay small on purpose — the bet is that 30 curated lines that stay current beat a 500-line memory bank that only grows.
+
+Best for work that compounds across days or weeks — multi-feature apps, architectural build-outs — where session 5 needs what sessions 1–4 decided.
 
 ## What's different
 
@@ -128,6 +130,18 @@ Continuity owns the **session boundary and the state that crosses it** — where
 - **[Matt Pocock's skills](https://github.com/mattpocock/skills)** — code review, grilling a plan, domain modeling, ticket flows. Reach for these on the work; let Continuity handle the resume.
 
 **When to graduate off a flat feature list.** Continuity's `phase` + `blocked_by` handle ordering well up to a point. When the work outgrows one context window *and* has real dependency structure a flat list can't express — roughly 15+ interdependent slices — move to a proper ticket tracker (Pocock's `to-tickets` / `wayfinder`, or GitHub issues). Below that threshold, the ticket ceremony costs more than it saves. Continuity is the default; graduate deliberately, not by habit.
+
+## How it compares
+
+Cross-session memory is a crowded space, and much of it is genuinely good. Continuity is opinionated about one corner of it — *curated, rationale-first, session-bounded* state — and happily points you elsewhere if you want a different trade.
+
+- **Automatic capture.** [claude-mem](https://github.com/thedotmack/claude-mem) and [claude-remember](https://github.com/Digital-Process-Tools/claude-remember) record your session automatically and compress it for recall — great when you want total coverage with zero effort. Continuity asks a human to decide what's worth keeping instead, so the record stays small and every entry has intent behind it.
+- **Memory banks.** The [Cline](https://docs.cline.bot/prompting/cline-memory-bank) / [Roo Code](https://github.com/GreatScottyMac/roo-code-memory-bank) memory-bank pattern and ports like [claude-code-memory-bank](https://github.com/hudrazine/claude-code-memory-bank) and [claude-memory-bank](https://github.com/russbeye/claude-memory-bank) keep a rich set of reference files — a strong fit when you want a durable knowledge base. Continuity is the lighter end of that spectrum: a ~500-token brief and a hard line budget rather than a growing library.
+- **Handoff docs.** [claude-handoff](https://github.com/willseltzer/claude-handoff), [handoff](https://github.com/thepushkarp/handoff), and [memory-toolkit](https://github.com/IlyaGorsky/memory-toolkit) write a per-session handoff — closest in spirit to this project. Continuity adds a structured feature dashboard, dependency edges, and a rationale rule on top of the handoff.
+- **Memory frameworks.** [Mem0](https://github.com/mem0ai/mem0), [Letta](https://github.com/letta-ai/letta), [Zep](https://www.getzep.com/), and [Cognee](https://github.com/topoteretes/cognee) are infrastructure for building memory *into your own product* — vector/graph stores with automatic extraction. Continuity is the opposite scale: no database, no server, just files you can read and `git diff`.
+- **Built-ins.** `CLAUDE.md`, `AGENTS.md`, `/compact`, `/rewind`, and the memories features in Cursor, Windsurf, and Copilot all persist real state. They're rules, silent facts, or a replayable transcript, though — none has a dedicated slot for *why a choice was made and what's still open*. Claude Code even ships the `SessionStart`/`SessionEnd`/`PreCompact` hooks to build that on; Continuity is a ritual that uses them.
+
+**In one line:** most tools *accumulate* (logs, memory banks, vector stores) or prescribe *rules*. Continuity treats curation as the feature — decisions that must carry a *why*, pruned to a budget, bound to a startup/wrap-up ritual. If that's not the trade you want, the projects above are excellent at the others.
 
 ## Design principles
 
