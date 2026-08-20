@@ -64,6 +64,9 @@ Read the current decisions file for the worked-on feature. If it doesn't exist, 
 **Add new decisions** to the "Decided" section:
 - Include the *why*, not just the *what*. One sentence of rationale.
 - Example: "NSOutlineView for file browser, not SwiftUI OutlineGroup. OutlineGroup has known bugs with dynamic content updates."
+- *Optional stable handle:* if an Open item or Ruled out entry needs to point back at a decision, prefix it with a short within-file handle (`D1`, `D2`, …) and reference it as "(see D2)". Handles are local to this file and retire when the decision is pruned — don't build a permanent numbered log.
+
+**Record ruled-out approaches (optional).** If the session tried an approach and abandoned it, add one line to a `## Ruled out` section: `approach — why it failed`. This is the negative of a decision — it stops the next session from re-walking a dead end. Only record real, tested dead ends; don't speculate. Prune an entry once the code path that would have hit it no longer exists.
 
 **Add new open questions** to the "Open" section:
 - Describe the question and any known constraints.
@@ -79,22 +82,27 @@ Read the current decisions file for the worked-on feature. If it doesn't exist, 
 **Prune stale items:**
 - Decided items that are old and fully absorbed into the codebase can be removed. They live in MEMORY.md or the code itself at that point.
 - Aim to keep the file under ~30 lines.
+- Prune without fear: git history is the archive. Anything you remove is recoverable via `git log`/`git blame` on the decisions file, so there's no need for an "archive" section or keeping stale items "just in case."
 
 ### Step 4: Retrospect
 
 Before finishing, pause and ask yourself: **"What might the next Claude miss?"**
 
-Think about things you learned during this session that aren't obvious from the code, git history, or the decisions file. These are the implicit assumptions, gotchas, failed approaches, or context that would cost the next instance time to rediscover.
+Think about things you learned during this session that aren't obvious from the code, git history, or the decisions file — implicit assumptions, gotchas, or context that would cost the next instance time to rediscover.
 
-Write 2-5 bullet points and a completeness grade (1-10) reflecting how well the continuity state captures what matters from this session.
+Write 2-5 bullet points, then grade the handoff on the **necessary-and-sufficient test**: *would the next session have enough to resume, with nothing it could delete and still succeed?* Score 1-10. Below 7 means something important is missing (look again at decisions and next_steps) or there's noise to prune.
 
 Examples of good retrospect items:
 - "The SwiftUI preview crashes if you don't set the environment object — not obvious from the error message"
-- "We tried FSEvents first but it doesn't work in sandboxed apps — don't re-explore that path"
 - "The user wants the sidebar to feel like Finder, not like a typical IDE file tree"
 - "There's a circular dependency between Canvas and Renderer that isn't in the decisions file yet"
 
-Save these to `last_session.blind_spots` in `feature-status.yml` as a list. They get naturally replaced on the next wrap-up. If the grade is below 7, take another look at the decisions file and next_steps — something important is probably missing.
+**Route each item to the right home** — blind_spots is not a catch-all:
+- **Tested dead end** ("we tried FSEvents, it fails in sandboxed apps") → a `## Ruled out` line in the decisions file, not a blind spot. It's about that feature and should be pruned with it.
+- **Durable project-wide fact** ("the test harness needs `CI=1` set") → the top-level `gotchas` list (see below). It stays true across many sessions, so it shouldn't evaporate on the next wrap-up.
+- **Everything else** (this-session assumptions, preferences, easy-to-miss context) → `last_session.blind_spots`, a list in `feature-status.yml`. These are session-scoped and naturally replaced on the next wrap-up.
+
+**Promote to `gotchas` sparingly.** Only a fact that will still bite three sessions from now belongs there. Keep the list under ~10 lines and prune any entry that's no longer true — it loads on cold return and competes for the startup budget. When in doubt, it's a blind spot, not a gotcha.
 
 ### Step 5: Write Handoff Block (if mid-stream)
 

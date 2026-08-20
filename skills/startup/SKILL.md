@@ -190,7 +190,7 @@ Compose a focused brief (~500 tokens max) containing:
 1. **What the user chose** — mode and area
 2. **Current status** — from the YAML
 3. **Next steps** — if the feature has `next_steps` in the YAML, display them as a numbered list. If steps have `done` fields, show only the remaining (not-done) steps. If no `next_steps` exist, fall back to the `next` field.
-4. **Key decisions** — from the "Decided" section, so the main Claude works within established choices
+4. **Key decisions** — from the "Decided" section, so the main Claude works within established choices. If the file has a `## Ruled out` section, include those lines too (as "Already ruled out: …") — they stop the main Claude from re-attempting a known dead end, which is the single most expensive rediscovery.
 5. **Open questions** — from the "Open" section, so the main Claude is aware of unresolved issues. If items carry `[decision]`/`[task]` markers, lead with `[decision]` items (they gate building) and list `[task]` items after. Unmarked items render as before.
 6. **Blind spots** — if `last_session.blind_spots` exists in the YAML, include them. These are things the previous Claude flagged as easy to miss. Present them as a short "Watch out for:" list. These are high-signal — the previous instance specifically identified them as things the next Claude would likely overlook.
 7. **Contextual flags** — use your judgment. If an open question is directly relevant to the chosen work, flag it. If a past decision might need revisiting given the chosen mode, mention it. If nothing needs flagging, say nothing. Be a thoughtful project manager, not a checklist.
@@ -215,12 +215,14 @@ Same as Next Session Flow Step 3 (phase-aware table). But before asking what to 
 > - Recent commits: `a1b2c3d Add dual render toggle`, `e4f5g6h Fix WebKit content sizing`
 > - Open questions still hanging: "How to handle keyboard focus when WebView is active"
 > - Not yet specified (fog): "Rate-limit strategy for batch moves — can't size until multi-select lands"
+> - Gotchas to remember: "Test harness needs `CI=1`; auth always routes through the gateway service"
 
 Pull this from:
 - `last_session.summary` and `last_session.feature` in the YAML
 - `git log --oneline -5`
 - The "Open" section of `decisions/{last_session.feature}.md` if it exists
 - The "Not yet specified" section of that decisions file, if present (show the first 1-2 items; skip the line entirely if the section is absent or empty)
+- The top-level `gotchas` list in `feature-status.yml`, if present and non-empty (durable project facts worth reloading after time away). Load this **only** in cold return — the other modes skip it to protect the budget.
 
 #### Step 4c: Ask What To Work On
 

@@ -22,6 +22,13 @@ workflows:
   #   last_run: null        # ISO date of last execution
   #   artifacts: []         # Key files/scripts involved
 
+# Durable, project-wide gotchas — facts that stay true across many sessions
+# (env quirks, non-obvious wiring, "auth always routes through X"). Distinct
+# from last_session.blind_spots, which are session-scoped and replaced each
+# wrap-up. Hard-capped ~10 lines; prune when no longer true. Surfaced only on
+# cold return, to protect the startup budget. Omit if empty.
+gotchas: []
+
 in_progress: null           # Set to task description when mid-stream, null when clean
 
 last_session:

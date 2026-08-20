@@ -40,8 +40,9 @@ If there's a recent git commit, read its message for additional decision context
 Read the current file and:
 - **Append** new decisions to the `## Decided` section (with rationale)
 - **Append** new open questions to the `## Open` section
+- **Record** any tested-and-abandoned approach as a `## Ruled out` line (`approach — why it failed`), so the next session doesn't re-walk it
 - **Remove** resolved open questions (or move to Decided if they became decisions)
-- **Prune** if the file exceeds ~30 lines — remove old absorbed decisions that are now obvious from the code
+- **Prune** if the file exceeds ~30 lines — remove old absorbed decisions that are now obvious from the code (git history is the archive; pruned items are recoverable via `git log`)
 
 ### Step 4: Update feature-status.yml
 
@@ -61,9 +62,9 @@ Update **only these fields** for the active feature:
 
 Ask yourself: **"What might the next Claude miss?"**
 
-Think about implicit assumptions, gotchas, failed approaches, or context from the session so far that aren't captured in the decisions file or next_steps. Write 2-5 bullet points and a completeness grade (1-10).
+Think about implicit assumptions, gotchas, or context from the session so far that aren't captured in the decisions file or next_steps. Write 2-5 bullet points, then grade on the necessary-and-sufficient test: *could the next session resume with nothing it could delete and still succeed?* (1-10).
 
-Save to `last_session.blind_spots` in `feature-status.yml` as a list. If the grade is below 7, revisit the decisions file — something important is probably missing.
+Save to `last_session.blind_spots` in `feature-status.yml` as a list. Keep the buckets distinct: a *tested dead end* belongs in `## Ruled out`, not here. If the grade is below 7, revisit the decisions file — something important is probably missing.
 
 ### Step 6: Check Context Health
 

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+- **`## Ruled out`** in decision files — tested-and-abandoned approaches, one line each (`approach — why it failed`). Recorded by wrap-up/checkpoint when a real dead end occurred; startup replays them in the brief so the next session doesn't re-walk a known dead end. Pruned when the code path that would hit them is gone. Fills the one gap rationale-for-a-decision doesn't cover: the negative space of what was tried and rejected.
+- **`/continuity-prune`** command — proposes stale or over-budget decisions, parked features, dead `blocked_by` edges, and untrue gotchas for removal, each with a reason. Human confirms (apply all / pick / cancel); never auto-deletes. Reports that git history is the archive.
+- **Top-level `gotchas`** list in feature-status.yml — durable, project-wide facts (env quirks, non-obvious wiring) that stay true across sessions. Hard-capped ~10 lines, pruned when no longer true, surfaced only on cold-return startup to protect the budget. Distinct from session-scoped `blind_spots`.
+- **Optional within-file ADR handles** — a short `D1`/`D2` prefix on Decided items so Open/Ruled-out items can reference them ("see D2"). Local to the file; retire when the decision is pruned — not an append-only ADR log.
+
+### Changed
+- **Retrospect grades on the necessary-and-sufficient test** — "would the next session have enough to resume, with nothing it could delete and still succeed?" — and routes each note to the right home: tested dead ends to `## Ruled out`, durable facts to `gotchas`, everything else to `blind_spots`. Keeps `blind_spots` from becoming a catch-all.
+- **Prune guidance** in wrap-up/checkpoint now states git history is the archive — pruned items are recoverable via `git log`, so there's no need to hoard stale entries "just in case."
+
 ## [0.4.0] - 2026-08-19
 
 ### Added

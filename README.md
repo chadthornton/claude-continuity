@@ -39,6 +39,7 @@ There's no shortage of context-management approaches: CLAUDE.md, AGENTS.md, memo
 | `/startup` | Beginning of session | Reads continuity state, hands the new Claude a focused brief |
 | `/wrap-up` | End of session | Captures decisions, flags blind spots, writes handoff if mid-task |
 | `/checkpoint` | Whenever | Saves progress mid-session without interrupting work |
+| `/continuity-prune` | When state bloats | Proposes stale/over-budget items to remove — you confirm |
 | `/continuity-init` | New project | Scaffolds `.continuity/` |
 | `/continuity-recover` | After a crash | Reconstructs state from the session transcript |
 
@@ -107,6 +108,9 @@ Decision files capture the *why*, not just the *what*:
 - [decision] Connection pooling — PgBouncer vs built-in pool (gates the data layer)
 - [task] Backfill the migration script for existing rows
 
+## Ruled out
+- Prisma for the data layer — its migration story fought our multi-tenant schema
+
 ## Not yet specified
 - Rate-limit strategy for batch moves — can't size it until multi-select lands
 ```
@@ -120,7 +124,12 @@ As a project grows past a handful of features, ordering matters. Continuity laye
 - **`[decision]` / `[task]` markers** on Open items — startup leads with `[decision]` items, since an unresolved decision blocks building in a way a task doesn't.
 - **`## Not yet specified`** — fog-of-war. Decisions you can see coming but can't phrase yet. Distinct from `blind_spots` (which look backward at what you already learned), this looks forward. Surfaced during cold-return orientation.
 
-Also tracked: **workflows** — repeatable operations (audits, metrics refreshes, incident response) recorded alongside features with their trigger, steps, and last run.
+The state also keeps a few kinds of note, each with a deliberately narrow job so none becomes a catch-all:
+
+- **`## Ruled out`** — approaches tried and abandoned, per feature (`approach — why it failed`). Startup replays them so the next session doesn't re-walk a dead end. Pruned when the code path that would hit them is gone.
+- **`gotchas`** — durable, project-wide facts (env quirks, non-obvious wiring) that stay true across many sessions. Surfaced on cold return only, to protect the startup budget.
+- **`blind_spots`** — session-scoped "what might the next Claude miss," captured by the wrap-up retrospect and replaced each session.
+- **workflows** — repeatable operations (audits, metrics refreshes, incident response) recorded alongside features with their trigger, steps, and last run.
 
 ## Works alongside other skills
 
