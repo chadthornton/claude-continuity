@@ -99,6 +99,10 @@ Example: `ingest-pipeline`: Use SQLite FTS5 for full-text search — simpler tha
 **Open questions:** Bullet list with context. Each entry MUST follow this format:
 - `{feature-name}`: {question} — {known constraints or tradeoffs}
 
+**Ruled out:** Bullet list of approaches that were *tried and abandoned* during the session (a crashed session is exactly where these go unrecorded and hurt most). Each entry MUST follow this format:
+- `{feature-name}`: {approach} — {why it failed}
+Only real, tested dead ends — not paths merely discussed. If none, say "None."
+
 **Implemented:** List of files created/modified and any git commits made.
 
 **Session ending:** One of: `clean` (user explicitly wrapped up), `abrupt` (context exhaustion, crash), or `abandoned` (user just stopped). Include one sentence of evidence.
@@ -131,8 +135,9 @@ Using the subagent's summary, prepare the artifacts to write. Read the current s
   - If it doesn't exist, create it from the template
   - Add new decided items to "## Decided" — each with rationale
   - Add new open questions to "## Open" — each with context
+  - Add any "Ruled out" entries to a "## Ruled out" section — `approach — why it failed`
   - Don't duplicate entries that already exist
-  - Prune if the file would exceed ~30 lines (old decided items absorbed into codebase can go)
+  - Prune if the file would exceed ~30 lines (old decided items absorbed into codebase can go; git history is the archive)
 
 #### handoff.md
 - Only create this if the session ended mid-stream (abrupt ending with unfinished work)

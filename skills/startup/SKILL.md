@@ -55,9 +55,13 @@ The user was just here and left mid-stream. Don't show a dashboard. Don't ask qu
 >
 > Key decisions: {1-2 most recent from decisions file}
 >
+> Already ruled out: {`## Ruled out` items from the decisions file, if any}
+>
 > Watch out for: {blind spots from last_session.blind_spots, if any}
 >
 > Say "board" if you want the full dashboard instead.
+
+The **Already ruled out** line matters most here: you left mid-stream, often one step from re-attempting the very dead end you just hit. Include it whenever the feature's decisions file has a `## Ruled out` section; omit the line if it's empty.
 
 That's it. No AskUserQuestion. No mode selection. The "board" escape hatch is a plain text instruction, not a prompt — the user types it if they want it, otherwise work begins immediately.
 
@@ -84,7 +88,7 @@ If `next_steps` contains objects with `done` fields, show a progress display:
 If `next_steps` contains plain strings (no `done` field), show the full list as-is — progress tracking isn't available, but the list still provides direction. Present the first item as "Top priority" and the rest as a numbered list.
 
 Use AskUserQuestion:
-- **Continue here** — load the relevant `decisions/{feature}.md`, compose a brief with remaining steps only. Done.
+- **Continue here** — load the relevant `decisions/{feature}.md`, compose a brief with remaining steps only, plus an **Already ruled out** line if that file has a `## Ruled out` section. Done.
 - **No, show me the board** — proceed to the Next Session Flow (Step 3 onward).
 
 ---

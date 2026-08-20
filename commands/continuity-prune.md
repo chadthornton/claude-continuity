@@ -1,7 +1,7 @@
 ---
 name: continuity-prune
 description: Propose prunes for continuity state that has gone stale or over-budget. Lists candidates with reasons; you confirm before anything is removed. Use when decision files have grown past ~30 lines, when features are parked/absorbed, or when the board feels cluttered.
-allowed-tools: Read, Write, Edit, Bash, Glob
+allowed-tools: Read, Write, Edit, Bash, Glob, AskUserQuestion
 ---
 
 # Continuity Prune
