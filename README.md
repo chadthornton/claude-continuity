@@ -1,6 +1,6 @@
 # claude-continuity
 
-A decision ledger, a dependency-aware roadmap, and a shift-change handoff — in a handful of files Claude reads at startup and prunes at wrap-up. Lighter than a memory bank, sharper than `/compact` — it keeps the *why* both let slip.
+Help your project survive the leap to a new Claude Code session. A lightweight mix of workstreams, decision logs, and dependencies — more roadmapper than issue tracker. Lighter than a memory bank, sharper than `/compact`, it keeps the *why* both let slip.
 
 ## Install
 
