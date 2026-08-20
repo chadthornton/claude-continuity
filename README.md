@@ -1,6 +1,6 @@
 # claude-continuity
 
-Help your project survive the leap to a new Claude Code session. A lightweight mix of workstreams, decision logs, and dependencies — more roadmapper than issue tracker. Lighter than a memory bank, sharper than `/compact`, it keeps the *why* both let slip.
+Help your project survive the leap to a new Claude Code session — a lightweight mix of workstreams, decision logs, and dependencies, more roadmapper than issue tracker. Lighter than a memory bank, sharper than `/compact`, it keeps the *why* both let slip.
 
 ## Install
 
@@ -60,7 +60,7 @@ There's no shortage of context-management approaches: CLAUDE.md, AGENTS.md, memo
 
 ## What gets tracked
 
-A `.continuity/` directory with a few small files:
+Continuity tracks your project as a handful of **features** — the workstreams from the tagline — in a `.continuity/` directory of a few small files:
 
 ```
 .continuity/
