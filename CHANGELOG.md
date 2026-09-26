@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-26
+
 ### Added
 - **`continuity-save`** (wrap-up skill script) — the new "Make It Durable" step. Commits only `.continuity/` (never code or `last-activity.txt`), and with the opt-in `settings: { push_to_default_branch: true }` lands it on `origin/<default>` by re-applying just the `.continuity/` diff via three-way `git merge-tree` — so a worktree branch's unmerged code is never shipped. Fast-forward only, never forces; each landed commit carries a `Continuity-Source:` trailer. `--resolve` lands a hand-merged `.continuity/` after a conflict. Why: continuity lived in git but nothing committed or pushed it, so edits died with deleted worktrees and other checkouts' boards went stale.
 - **Wrap-up Step 0: edit the newest board** — fetch, and if `.continuity/` is behind origin and untouched locally, `git restore` origin's copy before editing, shrinking the conflict window from a session to a minute.
