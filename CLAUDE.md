@@ -6,10 +6,13 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 ## Plugin Structure
 
 - `plugin.json` — manifest with hook registrations
+- `hooks/session-start.sh` — init hint; flags continuity commits stranded on local branches
 - `hooks/session-end.sh` — writes `.continuity/last-activity.txt` on session exit
+- `hooks/worktree-remove.sh` — blocks worktree removal that would lose `.continuity/` edits
 - `hooks/pre-compact.sh` — backs up transcript JSONL before compaction
 - `skills/startup/SKILL.md` — session triage: dashboard + mode/area pick + focused brief
 - `skills/wrap-up/SKILL.md` — session end: update status + decisions + handoff if mid-stream
+- `skills/wrap-up/continuity-save` — commits only `.continuity/`; opt-in lands it on origin/<default> without shipping code
 - `commands/continuity-init.md` — scaffold `.continuity/` in a new project
 - `templates/` — starter files for new projects
 - `docs/` — design brief, proposal, and conversation history
@@ -20,6 +23,8 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 - `decisions/{feature}.md` — decided + open items per feature (~30 lines each)
 - `last-activity.txt` — auto-written by SessionEnd hook (transient)
 - `handoff.md` — only exists when mid-stream on a task
+
+Durability: `.continuity/` is tracked in git and is only shared once it reaches `origin/<default>`. Scenario tests for `continuity-save` and the hooks should build a bare remote + clone + worktree and assert that code never reaches the default branch.
 </architecture>
 
 <rules>

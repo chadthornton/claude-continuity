@@ -21,6 +21,9 @@ Read these files (all are small — do this in parallel):
 2. `.continuity/last-activity.txt` — if it exists, check for stale/unfinished state
 3. Run `git log --oneline -5` — recent commits
 4. Run `git diff --name-only` — uncommitted changes
+5. **Freshness check** (git repo with an `origin` remote only): `git fetch -q origin <default>` (default = `git symbolic-ref --short refs/remotes/origin/HEAD`; skip silently if the fetch fails or offline), then `git log --oneline HEAD..origin/<default> -- .continuity`. If that lists commits, this checkout's board is **stale** — another session landed continuity since it was cut. Read `feature-status.yml` (and any decisions file you load later) from origin instead: `git show origin/<default>:.continuity/feature-status.yml`. Put one line at the top of whatever you show: "Board read from origin/<default> — this checkout is N continuity commit(s) behind." Don't pull or modify the checkout; wrap-up syncs before editing.
+
+If the SessionStart context contains a **CONTINUITY NOT LANDED** notice, relay it in one line at the top of the output: those commits live only on a local branch and aren't on this board.
 
 ### Step 2: Detect Re-entry Mode
 

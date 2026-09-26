@@ -1,5 +1,5 @@
 {
-  "description": "Continuity system hooks: init reminder on start, auto-save on end, transcript backup before compaction",
+  "description": "Continuity system hooks: init reminder + unlanded-continuity notice on start, auto-save on end, transcript backup before compaction, refuse worktree removal that would lose .continuity/ edits",
   "hooks": {
     "SessionStart": [
       {
@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh",
-            "timeout": 3
+            "timeout": 5
           }
         ]
       }
@@ -30,6 +30,17 @@
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.sh",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/worktree-remove.sh",
+            "timeout": 5
           }
         ]
       }

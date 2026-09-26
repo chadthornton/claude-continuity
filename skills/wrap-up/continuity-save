@@ -1,0 +1,155 @@
+#!/bin/bash
+# continuity-save — make .continuity/ durable at the end of a wrap-up.
+#
+# Commits ONLY .continuity/ (never code, never last-activity.txt). If the project
+# opts in (feature-status.yml: `settings: { push_to_default_branch: true }`),
+# also lands those commits on origin/<default> WITHOUT shipping any code the
+# current branch carries: each continuity-only commit is re-applied onto
+# origin/<default> with a three-way `git merge-tree`, stamped with a
+# `Continuity-Source: <sha>` trailer, and pushed as a fast-forward. Never forces.
+#
+#   continuity-save [-m "message"]
+#   continuity-save --resolve [-m "message"]
+#
+# --resolve is the way out of a CONFLICT: after you have hand-merged (start from
+# `git restore --source=origin/<default> -- .continuity`, re-apply this
+# session's edits), it lands this checkout's .continuity/ AS-IS on
+# origin/<default> and stamps every pending commit as landed. It trusts that
+# your .continuity/ already includes what origin has — that's the hand merge.
+#
+# Prints one status line (plus notes). Exit codes:
+#   0  saved (or nothing to save, or saved locally by design)
+#   1  could not reach the remote / push kept being rejected — committed locally only
+#   2  conflict with a newer .continuity on origin — nothing pushed, needs a human
+#   3  not usable here (not a git repo, no .continuity/, git too old)
+
+set -u
+MSG="continuity: wrap-up"
+RESOLVE=0
+if [ "${1:-}" = "--resolve" ]; then RESOLVE=1; shift; fi
+while getopts "m:" opt; do
+  case $opt in
+    m) MSG="$OPTARG" ;;
+    *) echo "usage: continuity-save [-m message]" >&2; exit 3 ;;
+  esac
+done
+
+EXCL=':(exclude).continuity/last-activity.txt'
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "SKIP: not a git repository"; exit 3; }
+cd "$(git rev-parse --show-toplevel)" || exit 3
+[ -d .continuity ] || { echo "SKIP: no .continuity/ here"; exit 3; }
+if git check-ignore -q .continuity/feature-status.yml; then
+  echo "SKIP: .continuity/ is gitignored in this project — nothing to make durable"
+  exit 0
+fi
+
+BRANCH=$(git symbolic-ref --short -q HEAD || echo "(detached)")
+
+# 1. Commit only .continuity/ — `git commit -- <paths>` leaves anything else
+#    the user has staged exactly as it was.
+git add -A -- .continuity "$EXCL"
+if ! git diff --cached --quiet -- .continuity "$EXCL"; then
+  git commit -q -m "$MSG" -- .continuity "$EXCL" || { echo "FAILED: git commit"; exit 3; }
+fi
+
+# 2. Where should it live?
+D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD)
+if [ -z "$D_REF" ]; then
+  if ! git remote | grep -qx origin; then
+    echo "SAVED LOCALLY: $(git rev-parse --short HEAD) on $BRANCH (no origin remote)"
+    exit 0
+  fi
+  for cand in main master; do
+    git show-ref -q --verify "refs/remotes/origin/$cand" && { D_REF="origin/$cand"; break; }
+  done
+  [ -n "$D_REF" ] || { echo "SAVED LOCALLY on $BRANCH: can't tell origin's default branch (run: git remote set-head origin -a)"; exit 1; }
+fi
+D=${D_REF#origin/}
+
+if ! grep -Eq '^[[:space:]]*push_to_default_branch:[[:space:]]*true' .continuity/feature-status.yml; then
+  if git merge-base --is-ancestor HEAD "$D_REF" 2>/dev/null; then
+    echo "SAVED: $(git rev-parse --short HEAD) on $BRANCH (already on $D_REF)"
+  else
+    echo "SAVED ON BRANCH ONLY: $(git rev-parse --short HEAD) on $BRANCH — not on $D_REF until this branch merges."
+    echo "  Opt in to auto-landing: add 'settings: { push_to_default_branch: true }' to .continuity/feature-status.yml"
+  fi
+  exit 0
+fi
+
+# 3. Land continuity-only commits on origin/<default>.
+git merge-tree --write-tree --merge-base HEAD HEAD HEAD >/dev/null 2>&1 \
+  || { echo "SAVED LOCALLY on $BRANCH: git $(git --version | awk '{print $3}') lacks 'merge-tree --merge-base' (needs 2.40+)"; exit 3; }
+
+attempt() {
+  git fetch -q origin "$D" 2>/dev/null || { echo "SAVED LOCALLY on $BRANCH: fetch of origin/$D failed — not pushed"; return 1; }
+  local landed pending c base tree out msg files skipped=""
+  landed=$(git log "$D_REF" -n 500 --format='%(trailers:key=Continuity-Source,valueonly)' | grep -v '^$')
+  pending=""
+  for c in $(git rev-list --reverse "$D_REF..HEAD" -- .continuity "$EXCL"); do
+    printf '%s\n' "$landed" | grep -qx "$c" && continue
+    files=$(git diff-tree --no-commit-id --name-only -r "$c")
+    if printf '%s\n' "$files" | grep -qv '^\.continuity/'; then
+      skipped="$skipped ${c:0:7}"   # mixed code+continuity commit: never push code
+      continue
+    fi
+    pending="$pending $c"
+  done
+  [ -n "$skipped" ] && echo "  NOTE: skipped commits that mix code with .continuity/ (merge the branch to land them):$skipped"
+  if [ -z "$pending" ]; then
+    echo "SAVED: nothing new to land — $D_REF already has this branch's continuity"
+    return 0
+  fi
+
+  base=$(git rev-parse "$D_REF")
+  if [ $RESOLVE -eq 1 ]; then
+    # Graft HEAD's .continuity/ onto origin's tree in a throwaway index —
+    # the working tree and the real index are never touched.
+    local idx trailers=""
+    idx="$(git rev-parse --git-dir)/continuity-resolve-index.$$"
+    GIT_INDEX_FILE="$idx" git read-tree "$D_REF" \
+      && GIT_INDEX_FILE="$idx" git rm -r -q -f --cached --ignore-unmatch .continuity \
+      && GIT_INDEX_FILE="$idx" git read-tree --prefix=.continuity/ "HEAD:.continuity" \
+      && tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+    rc=$?; rm -f "$idx"
+    [ $rc -eq 0 ] || { echo "FAILED: could not build the resolve tree"; return 2; }
+    for c in $pending; do trailers="${trailers}Continuity-Source: $c
+"; done
+    base=$(printf '%s\n\n%s' "$MSG (resolved onto $D)" "$trailers" | git commit-tree "$tree" -p "$base")
+    pending=""
+  fi
+  for c in $pending; do
+    out=$(git merge-tree --write-tree --merge-base "$c^" "$base" "$c" 2>&1)
+    if [ $? -ne 0 ]; then
+      echo "CONFLICT: ${c:0:7} vs newer .continuity on $D_REF — nothing pushed. Committed on $BRANCH."
+      printf '%s\n' "$out" | sed -n '2,8p' | sed 's/^/  /'
+      echo "  Fix: git restore --source=$D_REF -- .continuity, re-apply this session's edits, then: continuity-save --resolve"
+      return 2
+    fi
+    tree=$(printf '%s\n' "$out" | head -1)
+    msg=$(git log -1 --format=%B "$c")
+    base=$(printf '%s\n\nContinuity-Source: %s\n' "$msg" "$c" | git commit-tree "$tree" -p "$base")
+  done
+
+  if git diff --name-only "$D_REF" "$base" | grep -qv '^\.continuity/'; then
+    echo "ABORTED: built commit touches paths outside .continuity/ — refusing to push"; return 2
+  fi
+  if git push -q origin "$base:refs/heads/$D" 2>/dev/null; then
+    echo "SAVED: $(git rev-parse --short "$base") landed on $D_REF (from $BRANCH)"
+    if [ "$BRANCH" = "$D" ]; then
+      if [ -z "$(git rev-list "$D_REF..HEAD" -- . ":(exclude).continuity")" ] 2>/dev/null; then
+        git fetch -q origin "$D" && git reset -q --keep "$D_REF" \
+          && echo "  local $D fast-forwarded to $D_REF"
+      else
+        echo "  NOTE: local $D also has unpushed code commits — 'git pull --rebase' before pushing them"
+      fi
+    fi
+    return 0
+  fi
+  return 10   # rejected (origin moved) — caller retries once
+}
+
+attempt; rc=$?
+if [ $rc -eq 10 ]; then attempt; rc=$?; fi
+if [ $rc -eq 10 ]; then echo "SAVED LOCALLY on $BRANCH: push to origin/$D rejected twice — not pushed (protected branch?)"; exit 1; fi
+exit $rc

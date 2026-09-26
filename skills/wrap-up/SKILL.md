@@ -13,6 +13,16 @@ The project must have a `.continuity/` directory with `feature-status.yml`. If i
 
 ## Flow
 
+### Step 0: Edit the Newest Board
+
+In a git repo with an `origin` remote, other sessions (other worktrees, other machines) may have landed continuity updates since this checkout was cut. Editing a stale copy is how conflicts are born. Before touching any file:
+
+1. `git fetch -q origin <default>` (default = `git symbolic-ref --short refs/remotes/origin/HEAD`, minus `origin/`).
+2. If `git log --oneline HEAD..origin/<default> -- .continuity` is non-empty **and** `.continuity/` has no local changes (`git status --porcelain -- .continuity` empty, ignoring `last-activity.txt`) **and** this branch has no continuity commits missing from origin, run `git restore --source=origin/<default> --staged --worktree -- .continuity ':(exclude).continuity/last-activity.txt'`. `restore` (unlike `checkout`) also removes files origin deleted, such as a stale `handoff.md`.
+3. Otherwise edit in place — Step 6 merges three-way and reports a conflict rather than overwriting.
+
+Skip this step if there is no remote or `.continuity/` is gitignored.
+
 ### Step 1: Identify What Changed
 
 Review the current session's work:
@@ -47,7 +57,7 @@ Read the current `.continuity/feature-status.yml` and update the relevant sectio
 - **summary** — if the workflow's description needs clarifying, update it
 - Don't set `in_progress` for workflows — they're either done or they aren't. If interrupted mid-workflow, set it on the top-level `in_progress` field.
 
-**Minimal wrap-up (context pressure):** If the user mentions token pressure, or the session is being cut short, do a minimal wrap-up: update only `next_steps` (mark done/not-done), `in_progress`, and `last_session`. Skip decisions file updates — preserving where-you-are matters more than capturing rationale when tokens are scarce.
+**Minimal wrap-up (context pressure):** If the user mentions token pressure, or the session is being cut short, do a minimal wrap-up: update only `next_steps` (mark done/not-done), `in_progress`, and `last_session`. Skip decisions file updates — preserving where-you-are matters more than capturing rationale when tokens are scarce. **Never skip Step 6 (Make It Durable)** — it is one command, and a minimal update that isn't saved is no update.
 
 **Always update:**
 
@@ -134,7 +144,31 @@ Write this to `.continuity/handoff.md`. Keep it minimal — just enough for the 
 
 If the session ended at a clean stopping point, delete `.continuity/handoff.md` if it exists — it's stale.
 
-### Step 6: Confirm
+### Step 6: Make It Durable
+
+Edited files are not saved state. `.continuity/` lives in git, so an uncommitted edit dies with its worktree, and a commit on a feature branch is invisible to every other checkout's `/startup` until that branch merges. Run the bundled script from this skill's base directory:
+
+```
+<skill base directory>/continuity-save -m "continuity: <one-line summary>"
+```
+
+Invoke it by its absolute path (it is executable) — not via `bash <script>`, which some worktree guards refuse. It:
+
+- commits **only** `.continuity/` (never `last-activity.txt`, never code, and leaves anything else the user staged untouched);
+- if the project opted in with `settings: { push_to_default_branch: true }` in `feature-status.yml`, lands those commits on `origin/<default>` — re-applying just the `.continuity/` diff with a three-way `git merge-tree`, so code on the current branch is never shipped. It fast-forwards only, never forces, and stamps each landed commit with a `Continuity-Source:` trailer;
+- without the setting, commits on the current branch and says whether that is on the default branch.
+
+Invoking wrap-up is consent to commit (and, when opted in, push) `.continuity/` — nothing else.
+
+**Report its first line verbatim in the Step 7 summary.** Don't soften a failure:
+
+- `SAVED …` — done.
+- `SAVED ON BRANCH ONLY` / `SAVED LOCALLY` — tell the user continuity is not on the default branch yet and why.
+- `CONFLICT` (exit 2) — another session changed the same lines. Nothing was pushed; the commit is safe on this branch. Resolve: `git restore --source=origin/<default> -- .continuity`, re-apply this session's edits, then run `continuity-save --resolve`, which lands this checkout's `.continuity/` as-is and marks the earlier commits landed.
+
+A `WorktreeRemove` hook refuses to delete a worktree with uncommitted or unlanded `.continuity/` changes, and `SessionStart` flags unlanded continuity commits on any local branch — so a skipped Step 6 surfaces instead of vanishing.
+
+### Step 7: Confirm
 
 Print a brief summary of what was updated:
 
@@ -143,6 +177,7 @@ Updated .continuity/:
   feature-status.yml — Canvas Types: exploring → building
   decisions/canvas-types.md — +1 decided, +2 open, -1 resolved
   handoff.md — removed (clean stop)
+  SAVED: 5ee1f0c landed on origin/master (from feature-x)
 
 Blind spots (7/10):
   • The WebKit content sizing workaround only applies to the split view — full-screen mode uses a different layout path

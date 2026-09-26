@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+- **`continuity-save`** (wrap-up skill script) — the new "Make It Durable" step. Commits only `.continuity/` (never code or `last-activity.txt`), and with the opt-in `settings: { push_to_default_branch: true }` lands it on `origin/<default>` by re-applying just the `.continuity/` diff via three-way `git merge-tree` — so a worktree branch's unmerged code is never shipped. Fast-forward only, never forces; each landed commit carries a `Continuity-Source:` trailer. `--resolve` lands a hand-merged `.continuity/` after a conflict. Why: continuity lived in git but nothing committed or pushed it, so edits died with deleted worktrees and other checkouts' boards went stale.
+- **Wrap-up Step 0: edit the newest board** — fetch, and if `.continuity/` is behind origin and untouched locally, `git restore` origin's copy before editing, shrinking the conflict window from a session to a minute.
+- **`WorktreeRemove` hook** — refuses to delete a worktree with uncommitted `.continuity/` changes, or (when opted in) continuity commits not on `origin/<default>`.
+- **Unlanded-continuity notice** in the `SessionStart` hook — flags continuity-only commits from the last 14 days sitting on local branches but not on `origin/<default>` (local refs only, no fetch).
+- **Startup freshness check** — fetches and, if this checkout is behind on `.continuity/`, reads the board from `origin/<default>` and says so.
+
+### Fixed
+- **`session-start.sh` emitted top-level `additionalContext`**, which Claude Code doesn't read for SessionStart — the `/continuity-init` hint likely never reached the model. Now `hookSpecificOutput.additionalContext`.
+
+### Changed
+- **Minimal wrap-up never skips the save step**, and `/checkpoint` documents that it stays local until wrap-up.
+
 ## [0.5.0] - 2026-08-20
 
 ### Added

@@ -106,3 +106,4 @@ Context: ~{N}k tokens. {nudge}
 - **Decisions need rationale.** "Use X" is not a decision. "Use X — because Y" is.
 - **Prune, don't accumulate.** The decisions file is a living doc, not an append-only log.
 - **Session continues after.** This is NOT a wrap-up. Don't write handoff blocks or change feature status.
+- **Stays local — no commit, no push.** Checkpoint edits are uncommitted by design; `/wrap-up`'s Make It Durable step (`continuity-save`) commits and lands them. Until then the `WorktreeRemove` hook refuses to delete a worktree holding them.
