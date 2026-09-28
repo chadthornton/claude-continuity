@@ -86,7 +86,9 @@ needs to run board-wide.
 5. Record the ledger boundary in `roadmap-adoption.md`, and update the
    CHANGELOG.
 
-## Relay proposal (from a trip-planner peer session)
+## Relay proposal (from a trip-planner peer session) — SHIPPED in 0.7.0
+
+Shipped: relay (wrap-up Step 6b, runs after the save), `owner:`, `gate:`. Dropped: the startup freshness fix, because 3/3 baseline runs already read handoff.md from origin. Scenario fixtures: `tests/skill-scenarios/`. The original proposal follows for reference.
 
 Optional end-of-wrap-up step. It fires when the worked-on feature has ≥2 open
 steps and no unmet gate at the head. It:
