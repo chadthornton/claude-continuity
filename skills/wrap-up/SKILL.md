@@ -47,8 +47,10 @@ Read the current `.continuity/feature-status.yml` and update the relevant sectio
   - **Step completion tracking:** When steps use the `{step, done}` object format, mark completed steps as `done: true` rather than removing them. Add new steps discovered during the session at the end with `done: false`. This preserves the progress trail so the next startup can show "step 3 of 7" instead of a context-free list.
   - If all steps are done and the work is at a clean stop, replace with a fresh list for the next phase of work.
   - If steps are plain strings, it's fine to rewrite the list as usual — or upgrade to `{step, done}` format if the work is clearly multi-session.
+  - **Gates (optional):** add `gate: approval` to a step that needs the user's explicit go-ahead (prod deploy, data migration, spend), or `gate: "decision: <question>"` to a step blocked on an unmade choice. Startup and relay stop at gated steps.
 - **summary** — one-line current state
 - **in_progress** — set to a task description if mid-stream, `null` if at a clean stop
+- **owner** — set only by a relay (Step 6b). If this checkout is the owner and its chain is finished, or the user said "take over {feature}", set `owner` to this checkout's name (`basename "$(git rev-parse --show-toplevel)"`) or remove it when the work is at a clean stop.
 
 **If the session ran a workflow**, update:
 
@@ -168,6 +170,49 @@ Invoking wrap-up is consent to commit (and, when opted in, push) `.continuity/` 
 
 A `WorktreeRemove` hook refuses to delete a worktree with uncommitted or unlanded `.continuity/` changes, and `SessionStart` flags unlanded continuity commits on any local branch — so a skipped Step 6 surfaces instead of vanishing.
 
+### Step 6b: Offer a Relay
+
+A relay hands the next steps straight to a new agent in its own worktree instead of waiting for someone to run `/startup`. Offer it when **all** of these hold for the worked-on feature:
+
+- `command -v agent-spawn` succeeds;
+- it has **2 or more** not-done steps;
+- the first not-done step has no `gate:`;
+- its `owner` is absent or is this checkout.
+
+The **chain** is the run of not-done steps from the first one up to, but not including, the first gated step.
+
+This runs after Step 6, so the session's state is already saved whatever the answer. Ask once with AskUserQuestion: **"Relay {feature} steps {first}–{last} to a new agent?"** — options **Relay to a new agent** / **No, just save**. Spawning only happens on an explicit yes. If the conditions don't hold, skip this step without mentioning it.
+
+On yes:
+
+1. Pick a name: `{feature}-{N}` with the lowest N ≥ 1 for which `.claude/worktrees/{feature}-{N}` does not exist.
+2. Set `owner: {name}` and `in_progress: "Steps {first}–{last} per handoff.md"` on the feature.
+3. Write `.continuity/handoff.md` in the relay shape:
+
+```xml
+<handoff>
+<task>{feature}: steps {first} → {last}, one commit per step.</task>
+<status>Done so far: {not-yet-pruned done steps, one line}.</status>
+<first-action>
+1. `git fetch -q origin && git switch -c {name}-step-{first} origin/{default}` — this worktree may be cut from a stale local branch.
+2. Step {first}: {its text, with file paths}.
+</first-action>
+<stops>
+- {each gated step in or right after the chain, with its gate}
+- Anything these steps don't cover, a permission denial, or a check failing for an unclear reason: stop and ask. Don't route around it.
+</stops>
+<environment>
+{Only the `gotchas` and `last_session.blind_spots` entries that touch the chain's files or tools; omit the rest. Add any peer session known to share a resource with this chain.}
+</environment>
+<verify>
+{Per step: how to confirm it works.} After each step ships: mark it `done: true` and run continuity-save. After the last step: clear `owner` and `in_progress`, then run wrap-up.
+</verify>
+</handoff>
+```
+
+4. Run continuity-save again (`-m "continuity: relay {feature} steps {first}–{last} to {name}"`). If it reports `CONFLICT`, stop and resolve before spawning: the new agent would read a board without its handoff.
+5. Run `agent-spawn {name}` from the repo root and report its output line. If the new session appears in ListAgents, you may send it one line — "You own {feature}; run /startup, it resumes from handoff.md" — but don't wait for it. handoff.md is the source of truth, and the agent resumes from it without the message.
+
 ### Step 7: Confirm
 
 Print a brief summary of what was updated:
@@ -178,6 +223,7 @@ Updated .continuity/:
   decisions/canvas-types.md — +1 decided, +2 open, -1 resolved
   handoff.md — removed (clean stop)
   SAVED: 5ee1f0c landed on origin/master (from feature-x)
+  RELAY: canvas-types-1 spawned — owns steps 3–5
 
 Blind spots (7/10):
   • The WebKit content sizing workaround only applies to the split view — full-screen mode uses a different layout path

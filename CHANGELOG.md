@@ -5,6 +5,7 @@
 ### Added
 - **Chain ownership (`owner:` on a feature)** — startup compares a feature's `owner` with this checkout's worktree name; another agent's chain is shown as `(owned by …)` and never fast-resumed. Why: in scenario tests, 3/3 baseline startups told a non-owner session "Resuming widgets", which invites duplicate work on a relayed chain.
 - **Gated steps (`gate:` on a next_step)** — `approval` or `"decision: <question>"`; startup renders `⛔` and says "stop and ask" when the next step is gated. Why: stops lived only in handoff prose, invisible to anything that reads the board.
+- **Relay (wrap-up Step 6b)** — after saving, when the worked-on feature has 2+ not-done steps, an ungated head, and `agent-spawn` exists, wrap-up asks once whether to hand the chain to a new agent. On yes it sets `owner`, writes a relay handoff (`<stops>`, and an `<environment>` filtered from gotchas/blind_spots to the chain's files), saves again, and spawns. Why: sessions often end with obvious next work; waiting for someone to run `/startup` is pure latency. Baseline wrap-up offered it 0/2 times; with the step, 4/4 offered or relayed, and a gated head skipped it.
 - **Skill scenario fixtures** in `tests/skill-scenarios/` — build a bare origin + clones for running skills against in subagents (stale handoff + ownership; relay-ready).
 
 ## [0.6.0] - 2026-09-26
