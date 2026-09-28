@@ -25,11 +25,20 @@ Read these files (all are small — do this in parallel):
 
 If the SessionStart context contains a **CONTINUITY NOT LANDED** notice, relay it in one line at the top of the output: those commits live only on a local branch and aren't on this board.
 
+### Step 1b: Check Ownership
+
+A feature carries `owner: <worktree-name>` when its chain of steps was relayed to another agent. This checkout's name is `basename "$(git rev-parse --show-toplevel)"`.
+
+- **`owner` set and different from this checkout's name** → the chain belongs to another agent. Open the output with one line: `{feature} is owned by {owner} — {in_progress}. Not resuming it here; say "take over {feature}" if that agent is gone.` Skip Fast Resume and Resumed Session for that feature and run the **Next Session Flow**, marking its dashboard row and option `(owned by {owner})`.
+- **`owner` equal to this checkout's name, or absent** → continue normally.
+
 ### Step 2: Detect Re-entry Mode
 
 Determine which of three modes applies. This shapes the entire flow.
 
 **Compute the mode from signals (check in this order):**
+
+An `in_progress` feature owned by another checkout (Step 1b) counts as not set here.
 
 1. If `in_progress` is set AND `last_session.date` is today or yesterday AND (`handoff.md` exists OR uncommitted changes) → **fast resume**
 2. If `in_progress` is set, OR (uncommitted changes exist AND last session < 3 days ago) → **resumed session**
@@ -63,6 +72,8 @@ The user was just here and left mid-stream. Don't show a dashboard. Don't ask qu
 > Watch out for: {blind spots from last_session.blind_spots, if any}
 >
 > Say "board" if you want the full dashboard instead.
+
+**Gated steps.** A step may carry `gate: approval` (needs the user's explicit go-ahead) or `gate: "decision: <question>"` (blocked on that choice). Wherever steps appear — the Next line, progress lists, the Step 6 brief — render a gated step as `{step} ⛔ needs approval` or `{step} ⛔ decide: {question}`. If the next not-done step is gated, the Next line ends with: `— stop and ask before starting it.`
 
 The **Already ruled out** line matters most here: you left mid-stream, often one step from re-attempting the very dead end you just hit. Include it whenever the feature's decisions file has a `## Ruled out` section; omit the line if it's empty.
 
