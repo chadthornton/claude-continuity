@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-28
+
 ### Added
 - **Chain ownership (`owner:` on a feature)** — startup compares a feature's `owner` with this checkout's worktree name; another agent's chain is shown as `(owned by …)` and never fast-resumed. Why: in scenario tests, 3/3 baseline startups told a non-owner session "Resuming widgets", which invites duplicate work on a relayed chain.
 - **Gated steps (`gate:` on a next_step)** — `approval` or `"decision: <question>"`; startup renders `⛔` and says "stop and ask" when the next step is gated. Why: stops lived only in handoff prose, invisible to anything that reads the board.
