@@ -91,6 +91,7 @@ attempt() {
   for c in $(git rev-list --reverse "$D_REF..HEAD" -- .continuity "$EXCL" "$AWAYX"); do
     printf '%s\n' "$landed" | grep -qx "$c" && continue
     git log -1 --format=%B "$c" | grep -q '^Continuity-Sync:' && continue   # a re-sync: already main's content
+    [ "$(git rev-list --parents -n 1 "$c" | wc -w)" -gt 2 ] && continue       # a merge: its parents carry the edits
     files=$(git diff-tree --no-commit-id --name-only -r "$c")
     if printf '%s\n' "$files" | grep -qv '^\.continuity/' \
        || printf '%s\n' "$files" | grep -qx '\.continuity/away\.md'; then
@@ -162,6 +163,9 @@ attempt() {
 # origin, and adopting origin's copy would drop them from this checkout.
 sync_branch() {
   [ "$BRANCH" = "$D" ] || [ "$BRANCH" = "(detached)" ] || [ -n "$SKIPPED" ] && return 0
+  # While /away's brief is on the branch, /back replays the cloud's commits onto
+  # this branch; a sync here would widen that replay and invite conflicts.
+  git cat-file -e HEAD:.continuity/away.md 2>/dev/null && return 0
   git diff --quiet "$D_REF" HEAD -- .continuity "$EXCL" "$AWAYX" && return 0
   git restore --source="$D_REF" --staged --worktree -- .continuity "$EXCL" "$AWAYX" 2>/dev/null || return 0
   git diff --cached --quiet -- .continuity && return 0

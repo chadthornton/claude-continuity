@@ -121,5 +121,19 @@ for bad in ['../.env', '/etc/hosts', 'decisions/../../.env']:
     expect(f'S8 refuses {bad}', rc == 3 and 'secret' not in out and 'localhost' not in out, out)
 shutil.rmtree(root)
 
+# S9. Peer commits the branch already absorbed through a sync don't count as behind.
+root, remote, clone, wt = setup()
+write(f'{wt}/.continuity/decisions/a.md', '# a\n'); save(wt)
+git(clone, 'pull', '-q', 'origin', 'master')
+write(f'{clone}/.continuity/decisions/p.md', '# P\n'); git(clone, 'add', '-A'); git(clone, 'commit', '-qm', 'P'); git(clone, 'push', '-q', 'origin', 'master')
+write(f'{wt}/.continuity/decisions/b.md', '# b\n'); rc, o = save(wt)            # lands b, syncs (absorbs P)
+rc, out = state(wt)
+expect('S9 synced branch reads local', 'board: local' in out, (o, out))
+write(f'{clone}/.continuity/decisions/q.md', '# Q\n'); git(clone, 'pull', '-q', 'origin', 'master')
+git(clone, 'add', '-A'); git(clone, 'commit', '-qm', 'Q'); git(clone, 'push', '-q', 'origin', 'master')
+rc, out = state(wt)
+expect('S9 only Q counts', 'board: origin/master (1 continuity commit(s) behind)' in out, out)
+shutil.rmtree(root)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

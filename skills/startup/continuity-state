@@ -38,13 +38,20 @@ D_REF=""
 [ -n "$IN_GIT" ] && D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null)
 if [ -n "$D_REF" ]; then
   if [ "${1:-}" != "show" ]; then   # `show` reuses the ref the first call fetched
-    GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' \
+    # Never prompt or hang: extend the user's own ssh command, don't replace it.
+    ssh_cmd="${GIT_SSH_COMMAND:-$(git config core.sshCommand 2>/dev/null || echo ssh)}"
+    GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="$ssh_cmd -o BatchMode=yes -o ConnectTimeout=5" \
       git fetch -q origin "${D_REF#origin/}" 2>/dev/null
   fi
   if ! git diff --quiet HEAD "$D_REF" -- .continuity "$EXCL" "$AWAYX" 2>/dev/null; then
+    # origin tips this branch already copied in via continuity-save's sync commits
+    synced=$(git log HEAD -n 200 --format='%(trailers:key=Continuity-Sync,valueonly)' 2>/dev/null | grep -v '^$')
     for c in $(git rev-list "HEAD..$D_REF" -- .continuity 2>/dev/null); do
       src=$(git log -1 --format='%(trailers:key=Continuity-Source,valueonly)' "$c" | head -1)
       [ -n "$src" ] && git merge-base --is-ancestor "$src" HEAD 2>/dev/null && continue   # our own save
+      absorbed=""
+      for s in $synced; do git merge-base --is-ancestor "$c" "$s" 2>/dev/null && { absorbed=1; break; }; done
+      [ -n "$absorbed" ] && continue                                                      # already synced in
       BEHIND=$((BEHIND + 1))
     done
     [ "$BEHIND" -gt 0 ] && SRC="$D_REF"
