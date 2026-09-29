@@ -11,6 +11,7 @@ FAKE_CLAUDE = r'''#!/bin/bash
 printf '%s\n' "$*" >> "$(dirname "$0")/claude.log"
 if [ "$1" = "--cloud" ]; then
   [ -n "${FAKE_CLAUDE_FAIL:-}" ] && { echo "Error: Cloud sessions are disabled by your organization's policy."; exit 1; }
+  [ -n "${FAKE_CLAUDE_BOGUS:-}" ] && { echo "Error: invalid session_token for this account"; exit 1; }
   printf 'Created cloud session: Fake task\nView: https://claude.ai/code/session_01FAKEabc123?from=cli&m=0\nResume with: claude --teleport session_01FAKEabc123\n'
   exit 0
 fi
@@ -65,7 +66,10 @@ def setup():
 
 def run_away(ctx, cwd, *args, **extra_env):
     env = dict(ctx['env'], **extra_env)
-    r = subprocess.run([AWAY] + list(args), cwd=cwd, env=env, capture_output=True, text=True)
+    try:
+        r = subprocess.run([AWAY] + list(args), cwd=cwd, env=env, capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return 124, 'TIMEOUT: away hung'
     return r.returncode, (r.stdout + r.stderr).strip()
 
 
@@ -147,6 +151,59 @@ expect('L6 exit 1', rc == 1 and 'push' in out, out)
 expect('L6 nothing launched', claude_log(c) == '', claude_log(c))
 shutil.rmtree(c['root'])
 
+# L7. Untracked files (local data, stray secrets) are never pushed; launch names them.
+c = setup(); cl = c['clone']
+git(cl, 'switch', '-q', '-c', 'feat')
+write(f'{cl}/.continuity/away.md', 'b\n'); write(f'{cl}/app.js', 'v2\n')
+write(f'{cl}/data/widgets.csv', 'id,name\n'); write(f'{cl}/.env', 'TOKEN=secret\n')
+rc, out = run_away(c, cl, 'launch', '-m', 'x')
+names = git(cl, 'show', '--name-only', '--format=', 'HEAD').splitlines()
+expect('L7 exit 0', rc == 0, out)
+expect('L7 tracked change committed', 'app.js' in names, names)
+expect('L7 untracked data + .env not committed', 'data/widgets.csv' not in names and '.env' not in names, names)
+expect('L7 launch names the untracked files', 'data/widgets.csv' in out and '.env' in out, out)
+shutil.rmtree(c['root'])
+
+# L8. Nothing to commit → still a fresh WIP commit, so base is unique to this /away.
+c = setup(); cl = c['clone']
+git(cl, 'switch', '-q', '-c', 'feat')
+write(f'{cl}/.continuity/away.md', 'b\n'); git(cl, 'add', '-f', '.continuity/away.md'); git(cl, 'commit', '-qm', 'brief already committed')
+before = git(cl, 'rev-parse', 'HEAD')
+rc, out = run_away(c, cl, 'launch', '-m', 'x')
+expect('L8 exit 0', rc == 0, out)
+expect('L8 base is a new commit', f'base={before}' not in out and git(cl, 'rev-parse', 'HEAD~1') == before, out)
+shutil.rmtree(c['root'])
+
+# L9. Output mentioning session_… without a created session → FAILED, no bogus AWAY line.
+c = setup(); cl = c['clone']
+write(f'{cl}/.continuity/away.md', 'b\n')
+rc, out = run_away(c, cl, 'launch', FAKE_CLAUDE_BOGUS='1')
+expect('L9 exit 1, no AWAY line', rc == 1 and 'AWAY:' not in out and out.startswith('FAILED'), out)
+shutil.rmtree(c['root'])
+
+# L10. Default branch unknown (no origin/HEAD, not main/master) → refuse, nothing committed.
+c = setup(); cl = c['clone']
+git(cl, 'branch', '-m', 'main', 'develop'); git(cl, 'push', '-q', 'origin', 'develop')
+git(c['remote'], 'symbolic-ref', 'HEAD', 'refs/heads/develop'); git(cl, 'push', '-q', 'origin', '--delete', 'main')
+git(cl, 'config', 'remote.origin.followRemoteHEAD', 'never')   # git ≥2.48 would re-create origin/HEAD on fetch
+git(cl, 'remote', 'set-head', 'origin', '-d'); git(cl, 'fetch', '-q', '--prune', 'origin')
+write(f'{cl}/.continuity/away.md', 'b\n'); write(f'{cl}/app.js', 'v2\n')
+head = git(cl, 'rev-parse', 'HEAD')
+rc, out = run_away(c, cl, 'launch')
+expect('L10 exit 3', rc == 3 and 'default branch' in out, out)
+expect('L10 nothing committed', git(cl, 'rev-parse', 'HEAD') == head, out)
+shutil.rmtree(c['root'])
+
+# L11. A .continuity/ edit already staged doesn't ride along in the WIP commit.
+c = setup(); cl = c['clone']
+git(cl, 'switch', '-q', '-c', 'feat')
+write(f'{cl}/.continuity/away.md', 'b\n')
+write(f'{cl}/.continuity/feature-status.yml', 'features:\n  a:\n    status: polishing\n'); git(cl, 'add', '.continuity/feature-status.yml')
+rc, out = run_away(c, cl, 'launch')
+names = git(cl, 'show', '--name-only', '--format=', 'HEAD').splitlines()
+expect('L11 staged board edit not in WIP', rc == 0 and '.continuity/feature-status.yml' not in names, (out, names))
+shutil.rmtree(c['root'])
+
 # ── park ─────────────────────────────────────────────────────────────────────
 c = setup(); cl = c['clone']
 rc, out = run_away(c, cl, 'park', FAKE_SESSION)
@@ -202,6 +259,9 @@ expect('D1 lists cloud commits', 'step 1' in out and 'away: parked' in out, out)
 # Review Focus 4: a second /back says ALREADY LANDED
 rc, out = run_away(c, cl, 'land', base, *FAST)
 expect('D1b rerun → ALREADY LANDED exit 0', rc == 0 and out.startswith('ALREADY LANDED'), out)
+git(cl, 'push', '-q', 'origin', f'{tip}:refs/heads/claude/real')   # as if the delete had failed
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D1c branch still on origin → ALREADY LANDED', rc == 0 and out.startswith('ALREADY LANDED'), out)
 shutil.rmtree(c['root'])
 
 # D2. Not parked yet → exit 4; --take lands the current tip.
@@ -223,12 +283,14 @@ shutil.rmtree(c['root'])
 # D4. Local .continuity/-only commit after base (the board marker) is replayed on top.
 c, base = launched(); cl = c['clone']
 write(f'{cl}/.continuity/feature-status.yml', 'settings:\n  push_to_default_branch: true\nfeatures:\n  a:\n    status: building\n    away: {session: x}\n')
-git(cl, 'commit', '-qam', 'continuity: away marker')
+git(cl, 'commit', '-qam', 'continuity: away marker'); marker = git(cl, 'rev-parse', 'HEAD')
 tip = cloud_push(c, base, 'real', PARKED)
 rc, out = run_away(c, cl, 'land', base, *FAST)
 expect('D4 exit 0', rc == 0, out)
-expect('D4 marker commit on top of cloud tip', git(cl, 'rev-parse', 'HEAD~1') == tip
-       and git(cl, 'log', '-1', '--format=%s') == 'continuity: away marker', git(cl, 'log', '--oneline', '-3'))
+kept = subprocess.run([GIT, 'merge-base', '--is-ancestor', marker, 'HEAD'], cwd=cl).returncode == 0
+expect('D4 marker keeps its SHA (continuity-save tracks it)', kept, git(cl, 'log', '--oneline', '-4'))
+expect('D4 cloud work on top, parked last', git(cl, 'log', '-1', '--format=%s') == 'away: parked'
+       and git(cl, 'show', 'HEAD:app.js') == 'cloud step 1', git(cl, 'log', '--oneline', '-4'))
 shutil.rmtree(c['root'])
 
 # D5. Local code commit after base → exit 5, nothing moved.
@@ -259,6 +321,12 @@ cloud_push(c, base, 'real', [('.continuity/feature-status.yml', 'features:\n  a:
 rc, out = run_away(c, cl, 'land', base, *FAST)
 expect('D7 exit 5', rc == 5 and 'conflict' in out.lower(), out)
 expect('D7 HEAD restored', git(cl, 'rev-parse', 'HEAD') == head and git(cl, 'status', '--porcelain') == '', out)
+shutil.rmtree(c['root'])
+
+# D9. An option without its value → usage error, not a hang.
+c, base = launched(); cl = c['clone']
+rc, out = run_away(c, cl, 'land', base, '--timeout')
+expect('D9 exit 3, no hang', rc == 3 and 'usage' in out, out)
 shutil.rmtree(c['root'])
 
 # D8 (Review Focus 3). Two descendants: the newer one wins.

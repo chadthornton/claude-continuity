@@ -31,7 +31,7 @@ A feature carries `owner: <worktree-name>` when its chain of steps was relayed t
 
 - **`owner` set and different from this checkout's name** → the chain belongs to another agent. Open the output with one line: `{feature} is owned by {owner} — {in_progress}. Not resuming it here; say "take over {feature}" if that agent is gone.` Skip Fast Resume and Resumed Session for that feature and run the **Next Session Flow**, marking its dashboard row and option `(owned by {owner})`.
 - **`owner` equal to this checkout's name, or absent** → continue normally.
-- **`away` set on a feature** → `/away` handed it to a cloud session, so treat it like a feature owned elsewhere. Open the output with one line: `☁ {feature} — in the cloud since {away.since} ({away.url}). Run /back in the session that sent it, or here on branch {away.branch}.` Skip Fast Resume and Resumed Session for it, and mark its dashboard row `(in the cloud)`.
+- **`away` set on a feature** → `/away` handed it to a cloud session, so treat it like a feature owned elsewhere. Open the output with one line: `☁ {feature} — in the cloud since {away.since} ({away.url}). Run /back in the session that sent it, or in the worktree on branch {away.branch}.` Skip Fast Resume and Resumed Session for it, and mark its dashboard row `(in the cloud)`.
 
 ### Step 1c: Offer a Waiting Mandate
 

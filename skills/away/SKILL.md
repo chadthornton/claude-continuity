@@ -23,11 +23,13 @@ Write it for a capable engineer who has never seen this conversation:
 
 ## Step 2: Launch
 
+`away launch` commits tracked changes only: untracked files stay local, because they may be secrets or data that lives only on this laptop. If this session created new files the cloud needs, `git add` them first, by name. Never add `.env`-style files or data the user keeps local.
+
 ```bash
 <this skill's base directory>/away launch -m "<task, one line>"
 ```
 
-It commits code plus `away.md` as `wip(away): …` on this branch (branching off the default branch first if needed), pushes, starts the cloud session, and prints `AWAY: <session-id> <url> base=<sha> branch=<branch>`.
+It commits code plus `away.md` as `wip(away): …` on this branch (branching off the default branch first if needed), pushes, starts the cloud session, and prints `AWAY: <session-id> <url> base=<sha> branch=<branch>`. A following `NOTE: untracked files stayed local` line lists what the cloud won't have; if one of them is needed, say so in the report.
 
 - `SKIP:` (exit 3): tell the user the reason in one line and stop. Common ones: origin not on GitHub, detached HEAD.
 - `FAILED:` (exit 1): show its output and stop. Don't set a marker, because no session exists.

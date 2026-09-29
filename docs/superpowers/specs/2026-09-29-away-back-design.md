@@ -49,7 +49,7 @@ Triggers: `/back`, "I'm back", "bring it back from the cloud". Reads the marker,
 `away launch [-m "<task one-liner>"]`
 - Requires a git repo whose `origin` is on github.com; otherwise exit 3 with the reason. A bundled upload could not push results back.
 - If on the default branch, first `git switch -c away-<YYYYMMDD-HHMM>` so code never goes to the default branch.
-- `git add -A`, commit `wip(away): <task>` (skipped if nothing changed), `git push -u origin <branch>`.
+- Refuse (exit 3) when origin's default branch can't be determined. Stage tracked changes only (`git add -u`, untracked files stay local and are listed in a NOTE) plus `away.md`; unstage other `.continuity/` edits; commit `wip(away): <task>` even when empty, so the base commit is unique to this /away; `git push -u origin <branch>`.
 - Launch under `script` with the prompt `Read .continuity/away.md and follow it exactly.`, capture the session ID with a regex on `session_[A-Za-z0-9]+`.
 - Print `AWAY: <session-id> <url> base=<sha>`; exit 0. Launch failure: print the CLI's output, exit 1 (the pushed WIP commit is harmless).
 - Test seam: `AWAY_CLAUDE` overrides the `claude` binary.
@@ -61,7 +61,7 @@ Triggers: `/back`, "I'm back", "bring it back from the cloud". Reads the marker,
 `away land <base-sha> [--timeout <sec>=300]`
 - Poll `git ls-remote origin 'refs/heads/claude/*'` every 10s; fetch candidates; the cloud branch is the one whose history contains `<base-sha>`. With several, prefer the newest tip.
 - Done waiting when the tip commit's subject is `away: parked`. On timeout: print the tip and its subject, exit 4.
-- Local commits after `<base-sha>`: if any touches paths outside `.continuity/`, exit 5 and print both sides (no merge). `.continuity/`-only commits (e.g. the session-ID marker save) are replayed on top of the cloud tip with `cherry-pick`.
+- Local commits after `<base-sha>`: if any touches paths outside `.continuity/`, exit 5 and print both sides (no merge). With `.continuity/`-only local commits (e.g. the session-ID marker save), the cloud's commits are cherry-picked on top of them, so the local commits keep the SHAs `continuity-save` tracks. If `away: parked` is already in `<base>..HEAD`, print `ALREADY LANDED` and exit 0 before looking for a branch.
 - Fast-forward the branch to the result, push it, delete the remote `claude/` branch (its content is now contained in the branch), exit 0.
 
 ### `templates/away.md`
@@ -95,7 +95,7 @@ A feature with `away:` renders as `☁ {feature} — in the cloud since {since} 
 | `/back` finds no `claude/*` branch descending from base | Exit 4 after timeout; the cloud may not have pushed yet. Offer Take / Keep waiting (Take is unavailable without a branch) |
 | Parked tip never appears | Exit 4 → ask Take what's there now / Keep waiting |
 | Local code commits made while away | Exit 5, show both sides, stop; the user decides |
-| Cloud edited `.continuity/` beyond `away.md` | `land`'s `.continuity/` cherry-pick may conflict → abort the cherry-pick, exit 5, report |
+| Cloud edited `.continuity/` beyond `away.md` | Replaying the cloud's commits may conflict with local continuity commits → abort the cherry-pick, restore HEAD, exit 5, report |
 | Secrets needed in the cloud | `away.md` `<stops>` tells the cloud to stop and note it |
 
 ## Testing

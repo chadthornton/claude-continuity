@@ -11,7 +11,7 @@ description: Use when the user returns after /away sent this session's task to a
 
 Read `away:` from the feature in `.continuity/feature-status.yml`: `session`, `base` and `branch`. With no board, use the `AWAY: <session-id> <url> base=<sha> branch=<branch>` line from earlier in this conversation. With neither, say `Nothing is away from this checkout.` and stop.
 
-If the current branch isn't `branch`, switch to it first: `git switch <branch>`.
+Run the rest in the worktree that has `branch` checked out. If that's not this one, find it with `git worktree list` and `cd` there; if no worktree has it, `git switch <branch>`.
 
 ## Step 2: Park it
 
