@@ -1,0 +1,89 @@
+#!/bin/bash
+# away — hand this checkout's work to a Claude Code cloud session, and take it back.
+#
+#   away launch [-m "<task>"]                          commit + push this branch, start a cloud session
+#   away park <session-id>                             ask that session to stop at a clean point
+#   away land <base-sha> [--timeout S] [--interval S] [--take]
+#                                                      fast-forward to the cloud's parked claude/* branch
+#
+# The cloud session clones this branch but can only push to a harness-named
+# claude/<slug> branch cut from the same commit, so `land` finds it by ancestry.
+# .continuity/away.md is the brief both sides read; continuity-save never lands it.
+#
+# Exit codes: 0 ok · 1 launch/park/push failed · 3 not usable here · 4 not parked yet · 5 diverged
+# Test seams: AWAY_CLAUDE (claude binary), AWAY_ALLOW_ANY_ORIGIN=1 (skip the github.com check)
+
+set -u
+CLAUDE_BIN="${AWAY_CLAUDE:-claude}"
+PROMPT='Read .continuity/away.md and follow it exactly.'
+PARK_MSG='Stop at the next clean point: commit your work, rewrite <status> and <next> in .continuity/away.md, then make a final commit titled "away: parked" and push.'
+
+die() { echo "$2"; exit "$1"; }
+
+to_root() {
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die 3 "SKIP: not a git repository"
+  cd "$(git rev-parse --show-toplevel)" || exit 3
+}
+
+default_branch() {
+  local d
+  d=$(git symbolic-ref --short -q refs/remotes/origin/HEAD) && { echo "${d#origin/}"; return; }
+  for d in main master; do
+    git show-ref -q --verify "refs/remotes/origin/$d" && { echo "$d"; return; }
+  done
+}
+
+cmd_launch() {
+  local task="work in progress" o
+  OPTIND=1
+  while getopts "m:" o; do
+    case $o in m) task="$OPTARG" ;; *) die 3 "usage: away launch [-m task]" ;; esac
+  done
+  to_root
+  local url; url=$(git remote get-url origin 2>/dev/null) || die 3 "SKIP: no origin remote — the cloud clones from GitHub"
+  case "$url" in
+    *github.com[:/]*) ;;
+    *) [ -n "${AWAY_ALLOW_ANY_ORIGIN:-}" ] || die 3 "SKIP: origin is not on github.com ($url) — a cloud session couldn't push its work back" ;;
+  esac
+  [ -f .continuity/away.md ] || die 3 "SKIP: write .continuity/away.md first"
+  command -v script >/dev/null || die 3 "SKIP: script(1) not found — needed to start a cloud session from a script"
+
+  git fetch -q origin 2>/dev/null
+  local br d; br=$(git symbolic-ref --short -q HEAD) || die 3 "SKIP: detached HEAD — switch to a branch first"
+  d=$(default_branch)
+  if [ "$br" = "$d" ]; then
+    br="away-$(date +%Y%m%d-%H%M)"
+    git switch -q -c "$br" || die 1 "FAILED: could not create branch $br"
+  fi
+
+  # Code and the brief go in the WIP commit; other .continuity/ edits are left
+  # for continuity-save, so they can still land on the default branch.
+  git add -A -- . ':(exclude).continuity' && git add -f -- .continuity/away.md
+  if ! git diff --cached --quiet; then
+    git commit -q -m "wip(away): $task" || die 1 "FAILED: git commit"
+  fi
+  git push -q -u origin "$br" 2>/dev/null || die 1 "FAILED: push of $br was rejected — nothing launched. Pull or rebase, then /away again."
+  local base; base=$(git rev-parse HEAD)
+
+  # Starting a cloud session is interactive-only (`-p --cloud` is refused), so
+  # give it a pseudo-terminal and read the session ID from what it prints.
+  local log; log=$(mktemp)
+  script -q "$log" "$CLAUDE_BIN" --cloud "$PROMPT" </dev/null >/dev/null 2>&1
+  local clean id view esc; esc=$(printf '\033')   # BSD sed has no \x1b
+  clean=$(LC_ALL=C sed -e "s/${esc}\[[0-9;?]*[a-zA-Z]//g" "$log" | tr '\r' '\n')
+  rm -f "$log"
+  id=$(printf '%s\n' "$clean" | grep -Eo 'session_[A-Za-z0-9]+' | head -1)
+  view=$(printf '%s\n' "$clean" | grep -Eo 'https://claude\.ai/code/session_[A-Za-z0-9]+' | head -1)
+  if [ -z "$id" ]; then
+    echo "FAILED: no cloud session started ($br is pushed; nothing else changed). CLI output:"
+    printf '%s\n' "$clean" | grep -v '^[[:space:]]*$' | tail -15 | sed 's/^/  /'
+    exit 1
+  fi
+  echo "AWAY: $id ${view:-https://claude.ai/code/$id} base=$base branch=$br"
+}
+
+cmd="${1:-}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  launch) cmd_launch "$@" ;;
+  *) die 3 "usage: away launch|park|land …" ;;
+esac
