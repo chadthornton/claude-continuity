@@ -1,6 +1,7 @@
 ---
 name: startup
 description: Use when starting a new session on a project with a .continuity/ directory. Renders a feature dashboard, asks what mode and area to work on, loads relevant decisions, and hands off a focused brief. Also use when user says "what should I work on", "start session", "show me the board", or "triage".
+allowed-tools: Agent, Read, Bash, Glob, AskUserQuestion
 ---
 
 # Startup Triage
@@ -26,7 +27,7 @@ It prints everything this skill needs: an identity line (`checkout: <name>  bran
 - **Board line.** `board: local` means this checkout is current. `board: origin/<default> (N continuity commit(s) behind)` means another session landed continuity since this checkout was cut; the script already read the board from origin. Put one line at the top of whatever you show: "Board read from origin/<default> — this checkout is N continuity commit(s) behind." Don't pull or modify the checkout; wrap-up syncs before editing.
 - **Other `.continuity/` files.** To read a handoff or decisions file later, run `<this skill's base directory>/continuity-state show <path under .continuity/>`, e.g. `show decisions/importer.md`. It reads from the same source as the board. Run each `show` as its own call, with nothing chained before or after it.
 - **This checkout's name** is the `checkout:` value. Ownership checks below use it.
-- **A feature's handoff** is `handoffs/{feature}.md`. Older boards may have a single `handoff.md` instead; use it only when the feature has no file of its own. Several relayed agents can run at once, and each reads only its own feature's handoff.
+- **A feature's handoff** is `handoffs/{feature}.md`. Older boards may have a single `handoff.md` instead; count it as this feature's only when the feature has no file of its own AND the legacy file's `<task>` names the feature. Several relayed agents can run at once, and each reads only its own feature's handoff.
 
 If the SessionStart context contains a **CONTINUITY NOT LANDED** notice, relay it in one line at the top of the output: those commits live only on a local branch and aren't on this board.
 
@@ -35,7 +36,7 @@ If the SessionStart context contains a **CONTINUITY NOT LANDED** notice, relay i
 A feature carries `owner: <worktree-name>` when its chain of steps was relayed to another agent. This checkout's name is the `checkout:` value from Step 1.
 
 - **`owner` set and different from this checkout's name** → the chain belongs to another agent. Open the output with one line: `{feature} is owned by {owner} — {in_progress}. Not resuming it here; say "take over {feature}" if that agent is gone.` Skip Fast Resume and Resumed Session for that feature and run the **Next Session Flow**, marking its dashboard row and option `(owned by {owner})`.
-- **`owner` equal to this checkout's name** → this checkout was handed that feature, usually by a relay that started it with `/startup`. Go straight to the **Fast Resume Flow** for that feature, whatever `last_session` says, and ignore features owned by other checkouts.
+- **`owner` equal to this checkout's name, with work left** (the feature has `in_progress` or a handoff) → this checkout was handed that feature, usually by a relay that started it with `/startup`. Go straight to the **Fast Resume Flow** for it, whatever `last_session` says, and ignore features owned by other checkouts. If this checkout owns several such features, resume the one with the most recent `mandate` date and mark the others `(yours, waiting)` in one line. An owned feature with no `in_progress` and no handoff is finished work: continue normally.
 - **`owner` absent** → continue normally.
 - **`away` set on a feature** → `/away` handed it to a cloud session, so treat it like a feature owned elsewhere. Open the output with one line: `☁ {feature} — in the cloud since {away.since} ({away.url}). Run /back in the session that sent it, or in the worktree on branch {away.branch}.` Skip Fast Resume and Resumed Session for it, and mark its dashboard row `(in the cloud)`.
 

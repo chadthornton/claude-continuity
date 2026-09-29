@@ -11,8 +11,11 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 - `hooks/worktree-remove.sh` — blocks worktree removal that would lose `.continuity/` edits
 - `hooks/pre-compact.sh` — backs up transcript JSONL before compaction
 - `skills/startup/SKILL.md` — session triage: dashboard + mode/area pick + focused brief
+- `skills/startup/continuity-state` — all state startup reads in one allowlistable call; `show <path>` reads a .continuity file from the same source
 - `skills/wrap-up/SKILL.md` — session end: update status + decisions + handoff if mid-stream
 - `skills/wrap-up/continuity-save` — commits only `.continuity/`; opt-in lands it on origin/<default> without shipping code
+- `skills/away/` — `/away`: hand this session's task to a cloud session (`away launch|park|land` script)
+- `skills/back/SKILL.md` — `/back`: park the cloud session, fast-forward its commits, brief
 - `commands/continuity-init.md` — scaffold `.continuity/` in a new project
 - `templates/` — starter files for new projects
 - `docs/` — design brief, proposal, and conversation history
@@ -22,7 +25,8 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 - `feature-status.yml` — machine-readable dashboard (~20 lines)
 - `decisions/{feature}.md` — decided + open items per feature (~30 lines each)
 - `last-activity.txt` — auto-written by SessionEnd hook (transient)
-- `handoff.md` — only exists when mid-stream on a task
+- `handoffs/{feature}.md` — one per feature, only while it's mid-stream or relayed (older boards: a single `handoff.md`)
+- `away.md` — `/away`'s brief to a cloud session; rides on the feature branch only, never landed
 
 Durability: `.continuity/` is tracked in git and is only shared once it reaches `origin/<default>`. Scenario tests for `continuity-save` and the hooks should build a bare remote + clone + worktree and assert that code never reaches the default branch.
 </architecture>

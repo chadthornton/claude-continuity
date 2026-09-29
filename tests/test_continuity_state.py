@@ -88,5 +88,38 @@ rc, out = state(root)
 expect('S5 exit 0, local, quiet', rc == 0 and 'board: local' in out and 'fatal' not in out, out)
 shutil.rmtree(root)
 
+# S6. No git at all: board, handoffs and last activity still print; git sections say so.
+plain = tempfile.mkdtemp()
+write(f'{plain}/.continuity/feature-status.yml', 'features:\n  a: {}\n')
+write(f'{plain}/.continuity/handoffs/a.md', 'h\n')
+rc, out = state(plain)
+expect('S6 exit 0 without git', rc == 0, out)
+expect('S6 board printed', 'features:' in section(out, 'feature-status.yml'), out)
+expect('S6 handoff listed', section(out, 'handoffs') == '.continuity/handoffs/a.md', out)
+expect('S6 git sections marked', section(out, 'git log') == '(not a git repository)', out)
+rc, out = state(plain, 'show', 'handoffs/a.md')
+expect('S6 show works without git', rc == 0 and out.strip() == 'h', out)
+shutil.rmtree(plain)
+
+# S7. This checkout's own landed saves don't make it look stale.
+root, remote, clone, wt = setup()
+write(f'{wt}/.continuity/decisions/a.md', '# a\n')
+rc, o = save(wt)
+rc, out = state(wt)
+expect('S7 own landed save → board local', 'board: local' in out, (o, out))
+write(f'{clone}/.continuity/decisions/p.md', '# peer\n')
+git(clone, 'pull', '-q', 'origin', 'master'); git(clone, 'add', '-A'); git(clone, 'commit', '-qm', 'peer'); git(clone, 'push', '-q', 'origin', 'master')
+rc, out = state(wt)
+expect('S7 a peer commit → stale, counted once', 'board: origin/master (1 continuity commit(s) behind)' in out, out)
+shutil.rmtree(root)
+
+# S8. show refuses paths that leave .continuity/.
+root, remote, clone, wt = setup()
+write(f'{wt}/.env', 'TOKEN=secret\n')
+for bad in ['../.env', '/etc/hosts', 'decisions/../../.env']:
+    rc, out = state(wt, 'show', bad)
+    expect(f'S8 refuses {bad}', rc == 3 and 'secret' not in out and 'localhost' not in out, out)
+shutil.rmtree(root)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

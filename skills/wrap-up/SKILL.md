@@ -144,7 +144,7 @@ How to confirm it works.
 
 Write this to `.continuity/handoffs/{feature}.md`, one file per feature, so parallel agents never overwrite each other's handoff. Keep it minimal — just enough for the next Claude to continue without re-reading the whole conversation.
 
-If the session ended at a clean stopping point, delete that feature's handoff if it exists — it's stale. A legacy `.continuity/handoff.md` for this feature goes too.
+If the session ended at a clean stopping point, delete that feature's handoff if it exists — it's stale. Delete a legacy `.continuity/handoff.md` only if its `<task>` names this feature.
 
 ### Step 6: Make It Durable
 
@@ -211,7 +211,7 @@ Writing the mandate:
 3. Once every qualifying feature has its mandate, run continuity-save once (`-m "continuity: mandate {features}"`).
 4. Add a line per feature to the Step 7 summary: `MANDATE: {feature} steps {first}–{last} left for the next session (say "drop the {feature} mandate" to remove)`.
 
-**Offering a relay.** If `command -v agent-spawn` succeeds, ask once with AskUserQuestion. With one mandate: **"Continue {feature} steps {first}–{last} with a new agent now, or leave it for the next session?"** Options: **Continue with a new agent** / **Leave it for the next session**. With several: **"Which of these should new agents continue now?"** with `multiSelect: true` and one option per mandated feature (`{feature}: steps {first}–{last}`, up to four); selecting none leaves them all for the next session. With no spawner, don't ask.
+**Offering a relay.** If `command -v agent-spawn` succeeds, ask once with AskUserQuestion. With one mandate: **"Continue {feature} steps {first}–{last} with a new agent now, or leave it for the next session?"** Options: **Continue with a new agent** / **Leave it for the next session**. With several: **"Which of these should new agents continue now?"** with `multiSelect: true` and one option per mandated feature (`{feature}: steps {first}–{last}`); selecting none leaves them all for the next session. The question holds four options at most: with more mandates, offer the four features this session worked on most, and name the rest in the summary as left for the next session. With no spawner, don't ask.
 
 For the features chosen, relay them all in one save, then spawn one agent per feature:
 
