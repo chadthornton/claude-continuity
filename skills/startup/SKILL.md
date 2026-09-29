@@ -15,19 +15,23 @@ The project must have a `.continuity/` directory. Check for `.continuity/feature
 
 ### Step 1: Gather State
 
-Read these files (all are small — do this in parallel):
+Run exactly one command, with nothing added before or after it:
 
-1. `.continuity/feature-status.yml` — feature areas, statuses, next moves
-2. `.continuity/last-activity.txt` — if it exists, check for stale/unfinished state
-3. Run `git log --oneline -5` — recent commits
-4. Run `git diff --name-only` — uncommitted changes
-5. **Freshness check** (git repo with an `origin` remote only): `git fetch -q origin <default>` (default = `git symbolic-ref --short refs/remotes/origin/HEAD`; skip silently if the fetch fails or offline), then `git log --oneline HEAD..origin/<default> -- .continuity`. If that lists commits, this checkout's board is **stale** — another session landed continuity since it was cut. Read `feature-status.yml` (and any decisions file you load later) from origin instead: `git show origin/<default>:.continuity/feature-status.yml`. Put one line at the top of whatever you show: "Board read from origin/<default> — this checkout is N continuity commit(s) behind." Don't pull or modify the checkout; wrap-up syncs before editing.
+```bash
+<this skill's base directory>/continuity-state
+```
+
+It prints everything this skill needs: an identity line (`checkout: <name>  branch: <branch>`), a `board:` line, then the sections `feature-status.yml`, `handoffs`, `last-activity.txt`, `git log` and `uncommitted`. Don't gather state with your own shell commands. A relayed agent that composes a compound command stalls on a permission prompt before it does anything.
+
+- **Board line.** `board: local` means this checkout is current. `board: origin/<default> (N continuity commit(s) behind)` means another session landed continuity since this checkout was cut; the script already read the board from origin. Put one line at the top of whatever you show: "Board read from origin/<default> — this checkout is N continuity commit(s) behind." Don't pull or modify the checkout; wrap-up syncs before editing.
+- **Other `.continuity/` files.** To read a handoff or decisions file later, run `<this skill's base directory>/continuity-state show <path under .continuity/>`, e.g. `show decisions/importer.md`. It reads from the same source as the board.
+- **This checkout's name** is the `checkout:` value. Ownership checks below use it.
 
 If the SessionStart context contains a **CONTINUITY NOT LANDED** notice, relay it in one line at the top of the output: those commits live only on a local branch and aren't on this board.
 
 ### Step 1b: Check Ownership
 
-A feature carries `owner: <worktree-name>` when its chain of steps was relayed to another agent. This checkout's name is `basename "$(git rev-parse --show-toplevel)"`.
+A feature carries `owner: <worktree-name>` when its chain of steps was relayed to another agent. This checkout's name is the `checkout:` value from Step 1.
 
 - **`owner` set and different from this checkout's name** → the chain belongs to another agent. Open the output with one line: `{feature} is owned by {owner} — {in_progress}. Not resuming it here; say "take over {feature}" if that agent is gone.` Skip Fast Resume and Resumed Session for that feature and run the **Next Session Flow**, marking its dashboard row and option `(owned by {owner})`.
 - **`owner` equal to this checkout's name, or absent** → continue normally.
@@ -37,7 +41,7 @@ A feature carries `owner: <worktree-name>` when its chain of steps was relayed t
 
 A feature carries `mandate: <date>` when a past wrap-up left its next steps as a commission for whichever session comes next. If a feature has `mandate` and **no `owner`**, it leads the output whatever its age. If several do, take the most recent `mandate` date and mark the others `(mandate waiting)` on the board.
 
-Read `.continuity/handoff.md` (from origin when the board is stale, per Step 1) and show:
+Read the handoff with `<this skill's base directory>/continuity-state show handoff.md` (it reads from origin when the board is stale) and show:
 
 > **Commissioned:** {feature} steps {first}–{last} (left {mandate date})
 >
@@ -53,7 +57,7 @@ Then ask with AskUserQuestion: **"Take the {feature} mandate?"** Options: **Take
 
 - **Take it** → claim it before any work starts:
   1. If the board is stale, sync `.continuity/` from origin first, the same way wrap-up's Step 0 does.
-  2. Set `owner` to this checkout's name (`basename "$(git rev-parse --show-toplevel)"`) on the feature.
+  2. Set `owner` to this checkout's name (the `checkout:` value from Step 1) on the feature.
   3. Run `<this skill's base directory>/../wrap-up/continuity-save -m "continuity: {checkout} takes the {feature} mandate"`.
   4. If it reports `CONFLICT`, another session claimed the mandate first. Say so and show the board. If it reports `SAVED LOCALLY` or `SAVED ON BRANCH ONLY`, the claim hasn't reached origin, so other checkouts still see the mandate as unclaimed. Put one line in the brief: `Claimed in this checkout only — other checkouts can still take it until continuity reaches origin/{default}.`
   5. Otherwise, compose the Fast Resume brief for this feature and stop.
@@ -84,11 +88,11 @@ Then jump to the matching flow below.
 **Triggers when ALL of these are true:**
 - `in_progress` is set in feature-status.yml
 - `last_session.date` is today or yesterday
-- A `handoff.md` file exists OR there are uncommitted changes (`git diff`)
+- A `handoff.md` file exists OR there are uncommitted changes (Step 1's `uncommitted` section)
 
 The user was just here and left mid-stream. Don't show a dashboard. Don't ask questions. Get them back to work immediately.
 
-1. Read `.continuity/handoff.md` if it exists (the `<first-action>` block has the next step)
+1. If Step 1 listed `.continuity/handoff.md`, read it with `continuity-state show handoff.md` (the `<first-action>` block has the next step)
 2. Read `decisions/{feature}.md` for the in-progress feature
 3. Read the `next_steps` list from feature-status.yml for the in-progress feature
 4. Compose a single brief:
@@ -231,7 +235,7 @@ Once the user picks, determine whether it's a feature or a workflow:
 
 #### Step 6: Load Decisions and Compose Brief
 
-Read `.continuity/decisions/{chosen-feature}.md` if a feature was selected.
+Read the decisions file with `<this skill's base directory>/continuity-state show decisions/{chosen-feature}.md` if a feature was selected.
 
 Compose a focused brief (~500 tokens max) containing:
 
@@ -267,7 +271,7 @@ Same as Next Session Flow Step 3 (phase-aware table). But before asking what to 
 
 Pull this from:
 - `last_session.summary` and `last_session.feature` in the YAML
-- `git log --oneline -5`
+- Step 1's `git log` section
 - The "Open" section of `decisions/{last_session.feature}.md` if it exists
 - The "Not yet specified" section of that decisions file, if present (show the first 1-2 items; skip the line entirely if the section is absent or empty)
 - The top-level `gotchas` list in `feature-status.yml`, if present and non-empty (durable project facts worth reloading after time away). Load this **only** in cold return — the other modes skip it to protect the budget.

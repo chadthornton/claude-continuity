@@ -1,0 +1,69 @@
+#!/bin/bash
+# continuity-state — everything /startup reads, in ONE command.
+#
+# A freshly spawned agent that composes its own compound shell to gather state
+# stalls on a "cannot be statically analyzed" permission prompt before doing
+# anything. One fixed script call is easy to allowlist and never prompts twice.
+#
+#   continuity-state              print the state sections below
+#   continuity-state show <path>  print .continuity/<path> from the same source
+#                                 the board came from (origin when stale)
+#
+# Output: an identity line, a board line, then '--- <name>' sections:
+#   feature-status.yml · handoffs · last-activity.txt · git log · uncommitted
+# The board is read from origin/<default> when that has continuity commits this
+# checkout lacks ("stale"); the checkout itself is never modified.
+#
+# Exit codes: 0 ok · 1 `show` path not found · 3 not usable here
+
+set -u
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "SKIP: not a git repository"; exit 3; }
+TOP=$(git rev-parse --show-toplevel)
+cd "$TOP" || exit 3
+[ -d .continuity ] || { echo "SKIP: no .continuity/ here — run /continuity-init to start tracking"; exit 3; }
+
+# Board source: origin/<default> if it has continuity commits we don't, else local.
+SRC="" BEHIND=0
+D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null)
+if [ -n "$D_REF" ]; then
+  git fetch -q origin "${D_REF#origin/}" 2>/dev/null
+  BEHIND=$(git rev-list --count "HEAD..$D_REF" -- .continuity 2>/dev/null || echo 0)
+  [ "$BEHIND" -gt 0 ] && SRC="$D_REF"
+fi
+
+# read_c <path under .continuity> — from origin when stale, else the working copy.
+read_c() {
+  if [ -n "$SRC" ]; then git show "$SRC:.continuity/$1" 2>/dev/null
+  else cat ".continuity/$1" 2>/dev/null
+  fi
+}
+
+if [ "${1:-}" = "show" ]; then
+  [ -n "${2:-}" ] || { echo "usage: continuity-state show <path under .continuity/>"; exit 3; }
+  read_c "$2" || { echo "not found: .continuity/$2${SRC:+ on $SRC}"; exit 1; }
+  exit 0
+fi
+
+echo "checkout: $(basename "$TOP")  branch: $(git symbolic-ref --short -q HEAD || echo '(detached)')"
+if [ -n "$SRC" ]; then echo "board: $SRC ($BEHIND continuity commit(s) behind)"; else echo "board: local"; fi
+
+echo "--- feature-status.yml"
+read_c feature-status.yml || echo "(missing)"
+
+echo "--- handoffs"
+if [ -n "$SRC" ]; then
+  h=$(git ls-tree -r --name-only "$SRC" -- .continuity/handoff.md .continuity/handoffs 2>/dev/null)
+else
+  h=$(ls -1 .continuity/handoff.md .continuity/handoffs/*.md 2>/dev/null)
+fi
+echo "${h:-(none)}"
+
+echo "--- last-activity.txt"
+tail -20 .continuity/last-activity.txt 2>/dev/null || echo "(none)"
+
+echo "--- git log"
+git log --oneline -5 2>/dev/null
+
+echo "--- uncommitted"
+u=$(git diff --name-only HEAD 2>/dev/null)
+echo "${u:-(none)}"

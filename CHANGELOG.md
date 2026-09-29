@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Relayed agents no longer stall on their first command** — startup gathers state with one bundled script, `continuity-state` (identity, board from origin when stale, handoffs, last activity, log, uncommitted; `show <path>` reads any `.continuity/` file from the same source), instead of shell the agent composes. Why: in trip-planner all three relayed agents sat on a "cannot be statically analyzed" permission prompt from startup's compound state-gathering command.
+
 ## [0.11.0] - 2026-09-29
 
 ### Added
