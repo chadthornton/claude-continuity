@@ -14,7 +14,11 @@ The project must have a `.continuity/` directory with `feature-status.yml`. If n
 
 ## Flow
 
-**Run this as a subagent** to protect the main session's context. The subagent does the work and returns the short confirmation in Step 8. This is critical — the same pattern `/startup` uses. Pass the subagent this script's resolved path for Step 7: `${CLAUDE_PLUGIN_ROOT}/skills/wrap-up/continuity-save`.
+**Run this as a subagent** to protect the main session's context. The subagent does the work and returns the short confirmation in Step 8. This is critical — the same pattern `/startup` uses. Before dispatching, resolve the save script's absolute path and pass it to the subagent for Step 7. The path is `${CLAUDE_PLUGIN_ROOT}/skills/wrap-up/continuity-save`. If that still reads literally `${CLAUDE_PLUGIN_ROOT}`, resolve it with:
+
+```bash
+ls -d ~/.claude/plugins/cache/*/claude-continuity/*/skills/wrap-up/continuity-save | sort -V | tail -1
+```
 
 ### Step 1: Infer the Active Feature
 
@@ -80,7 +84,7 @@ Categorize:
 Run wrap-up's save script so the checkpoint reaches other checkouts, not just this working tree:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/wrap-up/continuity-save -m "continuity: checkpoint {feature}"
+<continuity-save path from the main session> -m "continuity: checkpoint {feature}"
 ```
 
 It commits only `.continuity/` and, when `feature-status.yml` has `settings: { push_to_default_branch: true }`, lands that commit on `origin/<default>` without shipping any code on this branch. Keep its **first output line** for the confirmation. Whatever it prints — `SAVED LOCALLY`, `CONFLICT`, `SKIP` — report the line as-is and move on. Don't resolve, retry, or ask: a conflict waits for the next `/wrap-up`, and the commit is safe on this branch meanwhile.
