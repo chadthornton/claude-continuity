@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+- **`/checkpoint` saves with `continuity-save`** — it now ends by committing `.continuity/` and, with `push_to_default_branch`, landing it on `origin/<default>`, then reports the script's first line. Still zero questions, and a conflict is reported rather than resolved. Why: a feature-branch session checkpointed for a day while the default branch's board stayed stale, so a relay spawned from it would have redone shipped work.
+- **Relay starts the new agent on `/startup`** (wrap-up Step 6b) — it calls `agent-spawn {name} --prompt "/startup"` (name first, so an older agent-spawn ignores the flag) and drops the follow-up cross-session message. Why: spawned sessions sat idle at a bare prompt, and the nudge message could be held for approval.
+- **Relay summary gives the switch command** — when agent-spawn prints `Find it: muxy switch-worktree <path>`, wrap-up's summary adds `Switch to it: muxy switch-worktree <path>`. Why: the tab opens in its own worktree's Muxy view, and that hint only reached the calling agent, not the user.
+
 ## [0.9.0] - 2026-09-29
 
 ### Added

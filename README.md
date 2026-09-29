@@ -57,7 +57,7 @@ There's no shortage of context-management approaches: CLAUDE.md, AGENTS.md, memo
 3. Runs the retrospect — "what might the next Claude miss?", graded 1–10
 4. Writes a handoff block if you're stopping mid-task
 
-`/checkpoint` is the zero-question version: it infers the active feature, captures what's changed, and nudges you when context is getting full enough to `/clear`.
+`/checkpoint` is the zero-question version: it infers the active feature, captures what's changed, saves it with `continuity-save` (landing it on the default branch when `push_to_default_branch` is set), and nudges you when context is getting full enough to `/clear`.
 
 ## What gets tracked
 

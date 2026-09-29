@@ -217,7 +217,8 @@ On **Continue with a new agent**:
 1. Pick a name: `{feature}-{N}` with the lowest N ≥ 1 for which `.claude/worktrees/{feature}-{N}` does not exist.
 2. Set `owner: {name}` on the feature, and in handoff.md's first action use the branch `{name}-step-{first}`.
 3. Run continuity-save (`-m "continuity: relay {feature} steps {first}–{last} to {name}"`). If it reports `CONFLICT`, stop and resolve before spawning: the new agent would read a board without its handoff.
-4. Run `agent-spawn {name}` from the repo root and report its output line in place of the MANDATE line: `RELAY: {name} spawned — owns steps {first}–{last}`. If the new session appears in ListAgents, you may send it one line — "You own {feature}; run /startup, it resumes from handoff.md" — but don't wait for it. handoff.md is the source of truth, and the agent resumes from it without the message.
+4. Run `agent-spawn {name} --prompt "/startup"` from the repo root, name first: an older agent-spawn reads only its first argument and ignores the rest. The new session opens already running `/startup`, which resumes from handoff.md. Don't message it afterwards: a cross-session message can sit waiting for approval, and handoff.md already carries everything.
+5. In place of the MANDATE line, report `RELAY: {name} spawned — owns steps {first}–{last}`. If agent-spawn printed a `Find it: muxy switch-worktree <path>` line, add `Switch to it: muxy switch-worktree <path>` with that exact path, since the new tab opens in its own worktree's view, not the one the user is looking at. Otherwise add agent-spawn's own instruction line (e.g. `wt {name}`) as-is.
 
 **Dropping a mandate.** When the user asks to drop one, remove `mandate` and `in_progress` from the feature, delete `.continuity/handoff.md`, and run continuity-save.
 

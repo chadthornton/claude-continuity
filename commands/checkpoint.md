@@ -14,7 +14,7 @@ The project must have a `.continuity/` directory with `feature-status.yml`. If n
 
 ## Flow
 
-**Run this as a subagent** to protect the main session's context. The subagent does the work and returns a 2-3 line confirmation. This is critical — the same pattern `/startup` uses.
+**Run this as a subagent** to protect the main session's context. The subagent does the work and returns the short confirmation in Step 8. This is critical — the same pattern `/startup` uses. Pass the subagent this script's resolved path for Step 7: `${CLAUDE_PLUGIN_ROOT}/skills/wrap-up/continuity-save`.
 
 ### Step 1: Infer the Active Feature
 
@@ -75,14 +75,25 @@ Categorize:
 - **Medium** (60k-120k tokens): Getting full, clearing soon would help
 - **High** (over 120k tokens): Should clear soon to avoid compaction
 
-### Step 7: Confirm With Context Nudge
+### Step 7: Save It
 
-Return a brief confirmation to the main session. Three lines max:
+Run wrap-up's save script so the checkpoint reaches other checkouts, not just this working tree:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/wrap-up/continuity-save -m "continuity: checkpoint {feature}"
+```
+
+It commits only `.continuity/` and, when `feature-status.yml` has `settings: { push_to_default_branch: true }`, lands that commit on `origin/<default>` without shipping any code on this branch. Keep its **first output line** for the confirmation. Whatever it prints — `SAVED LOCALLY`, `CONFLICT`, `SKIP` — report the line as-is and move on. Don't resolve, retry, or ask: a conflict waits for the next `/wrap-up`, and the commit is safe on this branch meanwhile.
+
+### Step 8: Confirm With Context Nudge
+
+Return a brief confirmation to the main session:
 
 ```
 Checkpointed {feature}: {N} decisions saved, {N} questions added.
 Next: {updated next field}
 Blind spots ({grade}/10): {1-2 most notable items, inline}
+Saved: {continuity-save's first line}
 Context: ~{N}k tokens. {nudge}
 ```
 
@@ -95,15 +106,16 @@ Or if nothing meaningful to capture:
 
 ```
 Checkpointed {feature}: no new decisions found. Status unchanged.
+Saved: {continuity-save's first line}
 Context: ~{N}k tokens. {nudge}
 ```
 
 ## Guidelines
 
 - **Zero questions asked.** This must complete without user input.
-- **Under 30 seconds.** If it takes longer, you're doing too much.
+- **Under 30 seconds.** If it takes longer, you're doing too much. The save is one command; don't add checks around it.
 - **Subagent execution.** Protect the main session's context budget.
 - **Decisions need rationale.** "Use X" is not a decision. "Use X — because Y" is.
 - **Prune, don't accumulate.** The decisions file is a living doc, not an append-only log.
 - **Session continues after.** This is NOT a wrap-up. Don't write handoff blocks or change feature status.
-- **Stays local — no commit, no push.** Checkpoint edits are uncommitted by design; `/wrap-up`'s Make It Durable step (`continuity-save`) commits and lands them. Until then the `WorktreeRemove` hook refuses to delete a worktree holding them.
+- **Always ends with `continuity-save`.** An uncommitted checkpoint leaves the default branch's board stale for every other checkout, so a relay spawned from it could redo shipped work. The save commits only `.continuity/`, never code.
