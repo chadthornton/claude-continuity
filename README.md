@@ -39,6 +39,8 @@ There's no shortage of context-management approaches: CLAUDE.md, AGENTS.md, memo
 | `/startup` | Beginning of session | Reads continuity state, hands the new Claude a focused brief |
 | `/wrap-up` | End of session | Captures decisions, flags blind spots, writes handoff if mid-task |
 | `/checkpoint` | Whenever | Saves progress mid-session without interrupting work |
+| `/away` | Leaving mid-task | Sends this session's task to a Claude Code cloud session so it keeps going with the lid closed |
+| `/back` | Returning | Stops the cloud session at a clean point and fast-forwards its commits into this worktree |
 | `/continuity-prune` | When state bloats | Proposes stale/over-budget items to remove — you confirm |
 | `/continuity-init` | New project | Scaffolds `.continuity/` |
 | `/continuity-recover` | After a crash | Reconstructs state from the session transcript |
