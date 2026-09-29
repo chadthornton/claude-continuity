@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- **One handoff per feature** — handoffs live at `.continuity/handoffs/{feature}.md` (a legacy `handoff.md` is still read). Wrap-up can relay several mandated features at once (one question, one save, one agent each), and a relayed agent's `/startup` resumes the feature whose `owner` is its checkout. Why: parallel relays in trip-planner had to improvise per-feature files because a second relay's `handoff.md` would overwrite the first's. Scenario: two features relayed in one save with separate handoffs; the `widgets-1` checkout resumed widgets from its own file and ignored `reports`.
+
 ### Fixed
 - **Relayed agents no longer stall on their first command** — startup gathers state with one bundled script, `continuity-state` (identity, board from origin when stale, handoffs, last activity, log, uncommitted; `show <path>` reads any `.continuity/` file from the same source), instead of shell the agent composes. Why: in trip-planner all three relayed agents sat on a "cannot be statically analyzed" permission prompt from startup's compound state-gathering command.
 

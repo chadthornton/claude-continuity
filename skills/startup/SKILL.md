@@ -24,8 +24,9 @@ Run exactly one command, with nothing added before or after it:
 It prints everything this skill needs: an identity line (`checkout: <name>  branch: <branch>`), a `board:` line, then the sections `feature-status.yml`, `handoffs`, `last-activity.txt`, `git log` and `uncommitted`. Don't gather state with your own shell commands. A relayed agent that composes a compound command stalls on a permission prompt before it does anything.
 
 - **Board line.** `board: local` means this checkout is current. `board: origin/<default> (N continuity commit(s) behind)` means another session landed continuity since this checkout was cut; the script already read the board from origin. Put one line at the top of whatever you show: "Board read from origin/<default> — this checkout is N continuity commit(s) behind." Don't pull or modify the checkout; wrap-up syncs before editing.
-- **Other `.continuity/` files.** To read a handoff or decisions file later, run `<this skill's base directory>/continuity-state show <path under .continuity/>`, e.g. `show decisions/importer.md`. It reads from the same source as the board.
+- **Other `.continuity/` files.** To read a handoff or decisions file later, run `<this skill's base directory>/continuity-state show <path under .continuity/>`, e.g. `show decisions/importer.md`. It reads from the same source as the board. Run each `show` as its own call, with nothing chained before or after it.
 - **This checkout's name** is the `checkout:` value. Ownership checks below use it.
+- **A feature's handoff** is `handoffs/{feature}.md`. Older boards may have a single `handoff.md` instead; use it only when the feature has no file of its own. Several relayed agents can run at once, and each reads only its own feature's handoff.
 
 If the SessionStart context contains a **CONTINUITY NOT LANDED** notice, relay it in one line at the top of the output: those commits live only on a local branch and aren't on this board.
 
@@ -34,14 +35,15 @@ If the SessionStart context contains a **CONTINUITY NOT LANDED** notice, relay i
 A feature carries `owner: <worktree-name>` when its chain of steps was relayed to another agent. This checkout's name is the `checkout:` value from Step 1.
 
 - **`owner` set and different from this checkout's name** → the chain belongs to another agent. Open the output with one line: `{feature} is owned by {owner} — {in_progress}. Not resuming it here; say "take over {feature}" if that agent is gone.` Skip Fast Resume and Resumed Session for that feature and run the **Next Session Flow**, marking its dashboard row and option `(owned by {owner})`.
-- **`owner` equal to this checkout's name, or absent** → continue normally.
+- **`owner` equal to this checkout's name** → this checkout was handed that feature, usually by a relay that started it with `/startup`. Go straight to the **Fast Resume Flow** for that feature, whatever `last_session` says, and ignore features owned by other checkouts.
+- **`owner` absent** → continue normally.
 - **`away` set on a feature** → `/away` handed it to a cloud session, so treat it like a feature owned elsewhere. Open the output with one line: `☁ {feature} — in the cloud since {away.since} ({away.url}). Run /back in the session that sent it, or in the worktree on branch {away.branch}.` Skip Fast Resume and Resumed Session for it, and mark its dashboard row `(in the cloud)`.
 
 ### Step 1c: Offer a Waiting Mandate
 
 A feature carries `mandate: <date>` when a past wrap-up left its next steps as a commission for whichever session comes next. If a feature has `mandate` and **no `owner`**, it leads the output whatever its age. If several do, take the most recent `mandate` date and mark the others `(mandate waiting)` on the board.
 
-Read the handoff with `<this skill's base directory>/continuity-state show handoff.md` (it reads from origin when the board is stale) and show:
+Read that feature's handoff with `<this skill's base directory>/continuity-state show handoffs/{feature}.md` (it reads from origin when the board is stale; fall back to `show handoff.md`) and show:
 
 > **Commissioned:** {feature} steps {first}–{last} (left {mandate date})
 >
@@ -62,7 +64,7 @@ Then ask with AskUserQuestion: **"Take the {feature} mandate?"** Options: **Take
   4. If it reports `CONFLICT`, another session claimed the mandate first. Say so and show the board. If it reports `SAVED LOCALLY` or `SAVED ON BRANCH ONLY`, the claim hasn't reached origin, so other checkouts still see the mandate as unclaimed. Put one line in the brief: `Claimed in this checkout only — other checkouts can still take it until continuity reaches origin/{default}.`
   5. Otherwise, compose the Fast Resume brief for this feature and stop.
 - **Not now** → continue to Step 2 as usual, with that feature's row marked `(mandate waiting)`. The mandate stays for a later session.
-- **Drop it** → remove `mandate` and `in_progress` from the feature, delete `.continuity/handoff.md`, run continuity-save as above with `-m "continuity: drop the {feature} mandate"`, then continue to Step 2.
+- **Drop it** → remove `mandate` and `in_progress` from the feature, delete its handoff (`.continuity/handoffs/{feature}.md`, or a legacy `.continuity/handoff.md`), run continuity-save as above with `-m "continuity: drop the {feature} mandate"`, then continue to Step 2.
 
 A mandate with an `owner` is not offered here. Step 1b already shows it as owned when the owner is another checkout, and it resumes normally when the owner is this one.
 
@@ -74,7 +76,7 @@ Determine which of three modes applies. This shapes the entire flow.
 
 An `in_progress` feature owned by another checkout (Step 1b), or carrying a mandate the user answered **Not now** or **Drop it** to (Step 1c), counts as not set here.
 
-1. If `in_progress` is set AND `last_session.date` is today or yesterday AND (`handoff.md` exists OR uncommitted changes) → **fast resume**
+1. If `in_progress` is set AND `last_session.date` is today or yesterday AND (that feature's handoff exists OR uncommitted changes) → **fast resume**
 2. If `in_progress` is set, OR (uncommitted changes exist AND last session < 3 days ago) → **resumed session**
 3. If `last_session.date` is null or ≥ 3 days ago → **cold return**
 4. Otherwise (recent session, clean stop) → **next session**
@@ -88,11 +90,11 @@ Then jump to the matching flow below.
 **Triggers when ALL of these are true:**
 - `in_progress` is set in feature-status.yml
 - `last_session.date` is today or yesterday
-- A `handoff.md` file exists OR there are uncommitted changes (Step 1's `uncommitted` section)
+- The feature's handoff exists OR there are uncommitted changes (Step 1's `uncommitted` section)
 
 The user was just here and left mid-stream. Don't show a dashboard. Don't ask questions. Get them back to work immediately.
 
-1. If Step 1 listed `.continuity/handoff.md`, read it with `continuity-state show handoff.md` (the `<first-action>` block has the next step)
+1. If Step 1 listed the feature's handoff, read it with `continuity-state show handoffs/{feature}.md` (or `show handoff.md` for a legacy one); its `<first-action>` block has the next step
 2. Read `decisions/{feature}.md` for the in-progress feature
 3. Read the `next_steps` list from feature-status.yml for the in-progress feature
 4. Compose a single brief:
