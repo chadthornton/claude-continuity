@@ -142,9 +142,9 @@ How to confirm it works.
 </handoff>
 ```
 
-Write this to `.continuity/handoff.md`. Keep it minimal — just enough for the next Claude to continue without re-reading the whole conversation.
+Write this to `.continuity/handoffs/{feature}.md`, one file per feature, so parallel agents never overwrite each other's handoff. Keep it minimal — just enough for the next Claude to continue without re-reading the whole conversation.
 
-If the session ended at a clean stopping point, delete `.continuity/handoff.md` if it exists — it's stale.
+If the session ended at a clean stopping point, delete that feature's handoff if it exists — it's stale. Delete a legacy `.continuity/handoff.md` only if its `<task>` names this feature.
 
 ### Step 6: Make It Durable
 
@@ -158,6 +158,7 @@ Invoke it by its absolute path (it is executable) — not via `bash <script>`, w
 
 - commits **only** `.continuity/` (never `last-activity.txt`, never code, and leaves anything else the user staged untouched);
 - if the project opted in with `settings: { push_to_default_branch: true }` in `feature-status.yml`, lands those commits on `origin/<default>` — re-applying just the `.continuity/` diff with a three-way `git merge-tree`, so code on the current branch is never shipped. It fast-forwards only, never forces, and stamps each landed commit with a `Continuity-Source:` trailer;
+- after landing from a feature branch, adds one `continuity: sync` commit so the branch's `.continuity/` matches `origin/<default>`. The branch's PR then can't conflict on continuity files unless the board moves again before it merges, and the next save re-syncs it. The sync commit carries a `Continuity-Sync:` trailer and is never landed again;
 - without the setting, commits on the current branch and says whether that is on the default branch.
 
 Invoking wrap-up is consent to commit (and, when opted in, push) `.continuity/` — nothing else.
@@ -172,7 +173,7 @@ A `WorktreeRemove` hook refuses to delete a worktree with uncommitted or unlande
 
 ### Step 6b: Leave a Mandate (and offer a relay)
 
-When the next steps are clear enough to hand over cold, write them down as a **mandate**: a commission for whichever session picks the work up next, now or days later. Write one without asking when **all** of these hold for the worked-on feature:
+When the next steps are clear enough to hand over cold, write them down as a **mandate**: a commission for whichever session picks the work up next, now or days later. Check each feature this session worked on. Write one without asking when **all** of these hold for it:
 
 - it has **2 or more** not-done steps;
 - the first not-done step has no `gate:`;
@@ -183,8 +184,8 @@ The **chain** is the run of not-done steps from the first one up to, but not inc
 
 Writing the mandate:
 
-1. On the feature, set `mandate: {today}` and `in_progress: "Steps {first}–{last} per handoff.md"`. Leave `owner` unset: the session that takes the mandate claims it.
-2. Write `.continuity/handoff.md` in the relay shape:
+1. On the feature, set `mandate: {today}` and `in_progress: "Steps {first}–{last} per handoffs/{feature}.md"`. Leave `owner` unset: the session that takes the mandate claims it.
+2. Write `.continuity/handoffs/{feature}.md` in the relay shape:
 
 ```xml
 <handoff>
@@ -207,20 +208,20 @@ Writing the mandate:
 </handoff>
 ```
 
-3. Run continuity-save again (`-m "continuity: mandate {feature} steps {first}–{last}"`).
-4. Add a line to the Step 7 summary: `MANDATE: {feature} steps {first}–{last} left for the next session (say "drop the {feature} mandate" to remove)`.
+3. Once every qualifying feature has its mandate, run continuity-save once (`-m "continuity: mandate {features}"`).
+4. Add a line per feature to the Step 7 summary: `MANDATE: {feature} steps {first}–{last} left for the next session (say "drop the {feature} mandate" to remove)`.
 
-**Offering a relay.** If `command -v agent-spawn` succeeds, ask once with AskUserQuestion: **"Continue {feature} steps {first}–{last} with a new agent now, or leave it for the next session?"** Options: **Continue with a new agent** / **Leave it for the next session**. With no spawner, don't ask.
+**Offering a relay.** If `command -v agent-spawn` succeeds, ask once with AskUserQuestion. With one mandate: **"Continue {feature} steps {first}–{last} with a new agent now, or leave it for the next session?"** Options: **Continue with a new agent** / **Leave it for the next session**. With several: **"Which of these should new agents continue now?"** with `multiSelect: true` and one option per mandated feature (`{feature}: steps {first}–{last}`); selecting none leaves them all for the next session. The question holds four options at most: with more mandates, offer the four features this session worked on most, and name the rest in the summary as left for the next session. With no spawner, don't ask.
 
-On **Continue with a new agent**:
+For the features chosen, relay them all in one save, then spawn one agent per feature:
 
-1. Pick a name: `{feature}-{N}` with the lowest N ≥ 1 for which `.claude/worktrees/{feature}-{N}` does not exist.
-2. Set `owner: {name}` on the feature, and in handoff.md's first action use the branch `{name}-step-{first}`.
-3. Run continuity-save (`-m "continuity: relay {feature} steps {first}–{last} to {name}"`). If it reports `CONFLICT`, stop and resolve before spawning: the new agent would read a board without its handoff.
-4. Run `agent-spawn {name} --prompt "/startup"` from the repo root, name first: an older agent-spawn reads only its first argument and ignores the rest. The new session opens already running `/startup`, which resumes from handoff.md. Don't message it afterwards: a cross-session message can sit waiting for approval, and handoff.md already carries everything.
-5. In place of the MANDATE line, report `RELAY: {name} spawned — owns steps {first}–{last}`. If agent-spawn printed a `Find it: <command>` line, add `Switch to it: <command>` with the command copied exactly (it addresses the worktree by path, because Muxy labels worktrees by branch and the relay renames the branch). The tab opens in the user's current view of the project, or the main checkout's view when they're elsewhere, so this line is how they reach it from another project. Otherwise add agent-spawn's own instruction line (e.g. `wt {name} -- /startup`) as-is.
+1. Pick a name per feature: `{feature}-{N}` with the lowest N ≥ 1 for which `.claude/worktrees/{feature}-{N}` does not exist.
+2. Set `owner: {name}` on each feature, and in its handoff's first action use the branch `{name}-step-{first}`.
+3. Run continuity-save once (`-m "continuity: relay {features} to {names}"`). If it reports `CONFLICT`, stop and resolve before spawning: the new agents would read a board without their handoffs.
+4. Per feature, run `agent-spawn {name} --prompt "/startup"` from the repo root, name first: an older agent-spawn reads only its first argument and ignores the rest. The new session opens already running `/startup`, finds the feature whose `owner` is its checkout name, and resumes from `handoffs/{feature}.md`. Don't message it afterwards: a cross-session message can sit waiting for approval, and the handoff already carries everything.
+5. In place of each MANDATE line, report `RELAY: {name} spawned — owns {feature} steps {first}–{last}`. After the last spawn, add one line: `Check on them without switching: agent-spawn status`. If agent-spawn printed a `Find it: <command>` line, add `Switch to it: <command>` with the command copied exactly (it addresses the worktree by path, because Muxy labels worktrees by branch and the relay renames the branch). The tab opens in the user's current view of the project, or the main checkout's view when they're elsewhere, so this line is how they reach it from another project. Otherwise add agent-spawn's own instruction line (e.g. `wt {name} -- /startup`) as-is.
 
-**Dropping a mandate.** When the user asks to drop one, remove `mandate` and `in_progress` from the feature, delete `.continuity/handoff.md`, and run continuity-save.
+**Dropping a mandate.** When the user asks to drop one, remove `mandate` and `in_progress` from the feature, delete `.continuity/handoffs/{feature}.md` (or a legacy `handoff.md`), and run continuity-save.
 
 ### Step 6c: Clear Finished Worktrees
 
@@ -245,7 +246,7 @@ Print a brief summary of what was updated:
 Updated .continuity/:
   feature-status.yml — Canvas Types: exploring → building
   decisions/canvas-types.md — +1 decided, +2 open, -1 resolved
-  handoff.md — removed (clean stop)
+  handoffs/canvas-types.md — removed (clean stop)
   SAVED: 5ee1f0c landed on origin/master (from feature-x)
   MANDATE: canvas-types steps 3–5 left for the next session (say "drop the canvas-types mandate" to remove)
   WORKTREES: removed 2 finished (agent-a1b2, agent-c3d4)

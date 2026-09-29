@@ -70,7 +70,7 @@ Continuity tracks your project as a handful of **features** — the workstreams 
   feature-status.yml       # Dashboard: features, status, dependencies, next steps
   decisions/
     {feature}.md           # What's decided, what's open (per feature)
-  handoff.md               # Only exists when stopping mid-task
+  handoffs/{feature}.md    # Only exists when a feature stops mid-task or is relayed
 ```
 
 The feature-status file is the dashboard:

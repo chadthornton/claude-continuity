@@ -185,5 +185,84 @@ expect('9 resolve landed decisions', remote_file(clone, '.continuity/decisions/r
 expect('9 resolve left away.md off master', remote_file(clone, '.continuity/away.md') == '', r.stdout)
 shutil.rmtree(root)
 
+# 10. The PR-conflict case from trip-planner: the branch saved, then master's board
+#     moved on. After the branch's next save it must match master, so a PR merges clean.
+def pr_merges_clean(clone):
+    git(clone, 'fetch', '-q', 'origin')
+    r = subprocess.run([GIT, 'merge-tree', '--write-tree', 'origin/master', 'origin/feature'], cwd=clone, env=ENV, capture_output=True, text=True)
+    return r.returncode == 0, r.stdout
+root, remote, clone, wt = setup()
+write(f'{wt}/app.js', 'feature code\n'); git(wt, 'commit', '-qam', 'feature code')
+write(f'{wt}/.continuity/feature-status.yml', STATUS.format(push='true').replace('summary: base', 'summary: s1'))
+rc, out = save(wt)
+expect('10 first save landed', rc == 0 and 'landed' in out, out)
+git(clone, 'pull', '-q', 'origin', 'master')
+write(f'{clone}/.continuity/feature-status.yml', STATUS.format(push='true').replace('summary: base', 'summary: PEER'))
+git(clone, 'commit', '-qam', 'peer moves the board'); git(clone, 'push', '-q', 'origin', 'master')
+write(f'{wt}/.continuity/decisions/b.md', '# b\n')
+rc, out = save(wt)
+expect('10 second save exit 0', rc == 0, out)
+git(wt, 'push', '-q', 'origin', 'feature')          # the user pushes the branch for a PR
+ok, detail = pr_merges_clean(clone)
+expect('10 PR merges clean after the save', ok, detail)
+expect('10 branch .continuity == master .continuity',
+       git(wt, 'rev-parse', 'HEAD:.continuity') == git(clone, 'rev-parse', 'origin/master:.continuity'), out)
+expect('10 sync commit carries the trailer', 'Continuity-Sync:' in git(wt, 'log', '-1', '--format=%B'), git(wt, 'log', '-1', '--format=%B'))
+expect('10 code untouched on master', remote_file(clone, 'app.js') == 'v1', out)
+# 11. The sync commit is never landed again, nor flagged.
+head_before = git(clone, 'rev-parse', 'origin/master')
+rc, out = save(wt)
+expect('11 rerun lands nothing new', rc == 0 and 'nothing new' in out, out)
+git(clone, 'fetch', '-q', 'origin')
+expect('11 master unchanged', git(clone, 'rev-parse', 'origin/master') == head_before, out)
+r = subprocess.run(['bash', os.path.join(ROOT, 'hooks', 'worktree-remove.sh')], input='{"worktree_path": "%s"}' % wt, env=ENV, capture_output=True, text=True)
+expect('11 worktree-remove allows', r.returncode == 0, r.stderr)
+r = subprocess.run(['bash', os.path.join(ROOT, 'hooks', 'session-start.sh')], input='{"cwd": "%s"}' % clone, env=ENV, capture_output=True, text=True)
+expect('11 session-start silent', r.stdout.strip() == '', r.stdout)
+shutil.rmtree(root)
+
+# 12. A skipped mixed commit blocks the sync, so its .continuity edits aren't dropped.
+root, remote, clone, wt = setup()
+write(f'{wt}/app.js', 'v2\n'); write(f'{wt}/.continuity/decisions/mixed.md', '# mixed\n')
+git(wt, 'add', '-A'); git(wt, 'commit', '-qm', 'mixed')
+write(f'{wt}/.continuity/decisions/c.md', '# c\n')
+rc, out = save(wt)
+expect('12 mixed file kept on branch', os.path.exists(f'{wt}/.continuity/decisions/mixed.md'), out)
+expect('12 no sync commit on the branch', git(wt, 'log', '--grep=Continuity-Sync', '--format=%h', 'origin/master..HEAD') == '', out)
+shutil.rmtree(root)
+
+# 13. On the default branch itself there is nothing to sync.
+root, remote, clone, wt = setup()
+write(f'{clone}/.continuity/decisions/d.md', '# d\n')
+rc, out = save(clone)
+expect('13 no sync commit on master', rc == 0 and git(clone, 'log', '--grep=Continuity-Sync', '--format=%h') == '', out)
+shutil.rmtree(root)
+
+# 14. Merging origin/master into the branch (the usual PR fix) must not disable the sync.
+root, remote, clone, wt = setup()
+write(f'{wt}/.continuity/feature-status.yml', STATUS.format(push='true').replace('summary: base', 'summary: s1'))
+rc, out = save(wt)
+git(clone, 'pull', '-q', 'origin', 'master')
+write(f'{clone}/.continuity/decisions/p.md', '# peer\n'); write(f'{clone}/lib.js', 'peer code\n')
+git(clone, 'add', '-A'); git(clone, 'commit', '-qm', 'peer'); git(clone, 'push', '-q', 'origin', 'master')
+write(f'{wt}/.continuity/decisions/f.md', '# f, committed but not yet landed\n'); git(wt, 'add', '-A'); git(wt, 'commit', '-qm', 'continuity: f')
+git(wt, 'fetch', '-q', 'origin'); git(wt, 'merge', '-q', '--no-edit', 'origin/master')
+write(f'{wt}/.continuity/decisions/e.md', '# e\n')
+rc, out = save(wt)
+expect('14 merge not reported as mixed', 'skipped commits' not in out, out)
+expect('14 branch synced with master', git(wt, 'rev-parse', 'HEAD:.continuity') == git(wt, 'rev-parse', 'origin/master:.continuity'), out)
+shutil.rmtree(root)
+
+# 15. While /away's brief is on the branch, no sync (it would widen /back's replay).
+root, remote, clone, wt = setup()
+write(f'{wt}/.continuity/away.md', '<away/>\n'); git(wt, 'add', '-f', '.continuity/away.md'); git(wt, 'commit', '-qm', 'wip(away): x')
+git(clone, 'pull', '-q', 'origin', 'master')
+write(f'{clone}/.continuity/decisions/p.md', '# peer\n'); git(clone, 'add', '-A'); git(clone, 'commit', '-qm', 'peer'); git(clone, 'push', '-q', 'origin', 'master')
+write(f'{wt}/.continuity/feature-status.yml', STATUS.format(push='true').replace('summary: base', 'summary: away'))
+rc, out = save(wt)
+expect('15 marker landed', rc == 0 and 'landed' in out, out)
+expect('15 no sync while away', git(wt, 'log', '--grep=Continuity-Sync', '--format=%h', 'origin/master..HEAD') == '', out)
+shutil.rmtree(root)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

@@ -139,8 +139,8 @@ Using the subagent's summary, prepare the artifacts to write. Read the current s
   - Don't duplicate entries that already exist
   - Prune if the file would exceed ~30 lines (old decided items absorbed into codebase can go; git history is the archive)
 
-#### handoff.md
-- Only create this if the session ended mid-stream (abrupt ending with unfinished work)
+#### handoffs/{feature}.md
+- Only create this if the session ended mid-stream (abrupt ending with unfinished work). One file per feature: `.continuity/handoffs/{feature}.md`
 - Follow the handoff format from the wrap-up skill:
 
 ```xml
@@ -163,7 +163,7 @@ How to confirm it works.
 </handoff>
 ```
 
-- If the session ended cleanly and a `handoff.md` exists, note this to the user but don't delete it — let them decide (the original session may have had context we don't).
+- If the session ended cleanly and that feature's handoff exists (or a legacy `handoff.md`), note this to the user but don't delete it — let them decide (the original session may have had context we don't).
 
 ### Step 5: Preview Before Writing
 
@@ -189,7 +189,7 @@ Print a summary in the same format as wrap-up:
 Recovered from session {session-id}:
   feature-status.yml — {feature}: {old-status} → {new-status}
   decisions/{feature}.md — +{n} decided, +{n} open
-  handoff.md — created (session ended mid-stream)
+  handoffs/{feature}.md — created (session ended mid-stream)
 ```
 
 ## Edge Cases

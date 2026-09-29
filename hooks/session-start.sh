@@ -30,6 +30,7 @@ lines=""
 count=0
 for c in $(git rev-list --since=14.days --branches --not "$D_REF" -- .continuity "$EXCL" "$AWAYX"); do
   printf '%s\n' "$landed" | grep -qx "$c" && continue
+  git log -1 --format=%B "$c" | grep -q '^Continuity-Sync:' && continue   # re-sync of origin's board
   # Commits mixing code and .continuity land when their branch merges; only
   # continuity-only commits are the ones continuity-save exists to land.
   files=$(git diff-tree --no-commit-id --name-only -r "$c")

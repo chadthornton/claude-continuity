@@ -1,0 +1,108 @@
+#!/bin/bash
+# continuity-state — everything /startup reads, in ONE command.
+#
+# A freshly spawned agent that composes its own compound shell to gather state
+# stalls on a "cannot be statically analyzed" permission prompt before doing
+# anything. One fixed script call is easy to allowlist and never prompts twice.
+#
+#   continuity-state              print the state sections below
+#   continuity-state show <path>  print .continuity/<path> from the same source
+#                                 the board came from (origin when stale)
+#
+# Output: an identity line, a board line, then '--- <name>' sections:
+#   feature-status.yml · handoffs · last-activity.txt · git log · uncommitted
+# The board is read from origin/<default> when origin has continuity commits
+# from OTHER sessions that this checkout lacks ("stale"). This checkout's own
+# saves, which continuity-save re-creates on origin with a Continuity-Source
+# trailer, don't count. The checkout itself is never modified. Works without
+# git too (board, handoffs and last activity only).
+#
+# Exit codes: 0 ok · 1 `show` path not found · 3 not usable here
+
+set -u
+EXCL=':(exclude).continuity/last-activity.txt'
+AWAYX=':(exclude).continuity/away.md'
+IN_GIT=""
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  IN_GIT=1
+  TOP=$(git rev-parse --show-toplevel)
+else
+  TOP=$PWD
+fi
+cd "$TOP" || exit 3
+[ -d .continuity ] || { echo "SKIP: no .continuity/ here — run /continuity-init to start tracking"; exit 3; }
+
+# Board source: origin/<default> if other sessions landed continuity we lack.
+SRC="" BEHIND=0
+D_REF=""
+[ -n "$IN_GIT" ] && D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null)
+if [ -n "$D_REF" ]; then
+  if [ "${1:-}" != "show" ]; then   # `show` reuses the ref the first call fetched
+    # Never prompt or hang: extend the user's own ssh command, don't replace it.
+    ssh_cmd="${GIT_SSH_COMMAND:-$(git config core.sshCommand 2>/dev/null || echo ssh)}"
+    GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="$ssh_cmd -o BatchMode=yes -o ConnectTimeout=5" \
+      git fetch -q origin "${D_REF#origin/}" 2>/dev/null
+  fi
+  if ! git diff --quiet HEAD "$D_REF" -- .continuity "$EXCL" "$AWAYX" 2>/dev/null; then
+    # origin tips this branch already copied in via continuity-save's sync commits
+    synced=$(git log HEAD -n 200 --format='%(trailers:key=Continuity-Sync,valueonly)' 2>/dev/null | grep -v '^$')
+    for c in $(git rev-list "HEAD..$D_REF" -- .continuity 2>/dev/null); do
+      src=$(git log -1 --format='%(trailers:key=Continuity-Source,valueonly)' "$c" | head -1)
+      [ -n "$src" ] && git merge-base --is-ancestor "$src" HEAD 2>/dev/null && continue   # our own save
+      absorbed=""
+      for s in $synced; do git merge-base --is-ancestor "$c" "$s" 2>/dev/null && { absorbed=1; break; }; done
+      [ -n "$absorbed" ] && continue                                                      # already synced in
+      BEHIND=$((BEHIND + 1))
+    done
+    [ "$BEHIND" -gt 0 ] && SRC="$D_REF"
+  fi
+fi
+
+# read_c <path under .continuity> — from origin when stale, else the working copy.
+read_c() {
+  if [ -n "$SRC" ]; then git show "$SRC:.continuity/$1" 2>/dev/null
+  else cat ".continuity/$1" 2>/dev/null
+  fi
+}
+
+if [ "${1:-}" = "show" ]; then
+  p="${2:-}"
+  [ -n "$p" ] || { echo "usage: continuity-state show <path under .continuity/>"; exit 3; }
+  case "/$p/" in
+    */../*|//*) echo "refused: $p — only paths inside .continuity/"; exit 3 ;;
+  esac
+  read_c "$p" || { echo "not found: .continuity/$p${SRC:+ on $SRC}"; exit 1; }
+  exit 0
+fi
+
+if [ -n "$IN_GIT" ]; then
+  echo "checkout: $(basename "$TOP")  branch: $(git symbolic-ref --short -q HEAD || echo '(detached)')"
+else
+  echo "checkout: $(basename "$TOP")  branch: (no git)"
+fi
+if [ -n "$SRC" ]; then echo "board: $SRC ($BEHIND continuity commit(s) behind)"; else echo "board: local"; fi
+
+echo "--- feature-status.yml"
+read_c feature-status.yml || echo "(missing)"
+
+echo "--- handoffs"
+if [ -n "$SRC" ]; then
+  h=$(git ls-tree -r --name-only "$SRC" -- .continuity/handoff.md .continuity/handoffs 2>/dev/null)
+else
+  h=$(ls -1 .continuity/handoff.md .continuity/handoffs/*.md 2>/dev/null)
+fi
+echo "${h:-(none)}"
+
+echo "--- last-activity.txt"
+tail -20 .continuity/last-activity.txt 2>/dev/null || echo "(none)"
+
+echo "--- git log"
+if [ -n "$IN_GIT" ]; then git log --oneline -5 2>/dev/null; else echo "(not a git repository)"; fi
+
+echo "--- uncommitted"
+if [ -n "$IN_GIT" ]; then
+  u=$(git diff --name-only HEAD 2>/dev/null)
+  echo "${u:-(none)}"
+else
+  echo "(not a git repository)"
+fi
