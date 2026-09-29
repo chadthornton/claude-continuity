@@ -24,14 +24,17 @@ grep -Eq '^[[:space:]]*push_to_default_branch:[[:space:]]*true' .continuity/feat
 D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD) || exit 0
 
 EXCL=':(exclude).continuity/last-activity.txt'
+AWAYX=':(exclude).continuity/away.md'
 landed=$(git log "$D_REF" -n 500 --format='%(trailers:key=Continuity-Source,valueonly)' | grep -v '^$')
 lines=""
 count=0
-for c in $(git rev-list --since=14.days --branches --not "$D_REF" -- .continuity "$EXCL"); do
+for c in $(git rev-list --since=14.days --branches --not "$D_REF" -- .continuity "$EXCL" "$AWAYX"); do
   printf '%s\n' "$landed" | grep -qx "$c" && continue
   # Commits mixing code and .continuity land when their branch merges; only
   # continuity-only commits are the ones continuity-save exists to land.
-  git diff-tree --no-commit-id --name-only -r "$c" | grep -qv '^\.continuity/' && continue
+  files=$(git diff-tree --no-commit-id --name-only -r "$c")
+  printf '%s\n' "$files" | grep -qv '^\.continuity/' && continue
+  printf '%s\n' "$files" | grep -qx '\.continuity/away\.md' && continue
   count=$((count + 1))
   if [ $count -le 3 ]; then
     br=$(git branch --contains "$c" --format='%(refname:short)' | head -1)

@@ -1,0 +1,190 @@
+#!/bin/bash
+# away — hand this checkout's work to a Claude Code cloud session, and take it back.
+#
+#   away launch [-m "<task>"]                          commit + push this branch, start a cloud session
+#   away park <session-id>                             ask that session to stop at a clean point
+#   away land <base-sha> [--timeout S] [--interval S] [--take]
+#                                                      fast-forward to the cloud's parked claude/* branch
+#
+# The cloud session clones this branch but can only push to a harness-named
+# claude/<slug> branch cut from the same commit, so `land` finds it by ancestry.
+# .continuity/away.md is the brief both sides read; continuity-save never lands it.
+#
+# Exit codes: 0 ok · 1 launch/park/push failed · 3 not usable here · 4 not parked yet · 5 diverged
+# Test seams: AWAY_CLAUDE (claude binary), AWAY_ALLOW_ANY_ORIGIN=1 (skip the github.com check)
+
+set -u
+CLAUDE_BIN="${AWAY_CLAUDE:-claude}"
+PROMPT='Read .continuity/away.md and follow it exactly.'
+PARK_MSG='Stop at the next clean point: commit your work, rewrite <status> and <next> in .continuity/away.md, then make a final commit titled "away: parked" and push.'
+
+die() { echo "$2"; exit "$1"; }
+
+to_root() {
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die 3 "SKIP: not a git repository"
+  cd "$(git rev-parse --show-toplevel)" || exit 3
+}
+
+default_branch() {
+  local d
+  d=$(git symbolic-ref --short -q refs/remotes/origin/HEAD) && { echo "${d#origin/}"; return; }
+  for d in main master; do
+    git show-ref -q --verify "refs/remotes/origin/$d" && { echo "$d"; return; }
+  done
+}
+
+cmd_launch() {
+  local task="work in progress" o
+  OPTIND=1
+  while getopts "m:" o; do
+    case $o in m) task="$OPTARG" ;; *) die 3 "usage: away launch [-m task]" ;; esac
+  done
+  to_root
+  local url; url=$(git remote get-url origin 2>/dev/null) || die 3 "SKIP: no origin remote — the cloud clones from GitHub"
+  case "$url" in
+    *github.com[:/]*) ;;
+    *) [ -n "${AWAY_ALLOW_ANY_ORIGIN:-}" ] || die 3 "SKIP: origin is not on github.com ($url) — a cloud session couldn't push its work back" ;;
+  esac
+  [ -f .continuity/away.md ] || die 3 "SKIP: write .continuity/away.md first"
+  command -v script >/dev/null || die 3 "SKIP: script(1) not found — needed to start a cloud session from a script"
+
+  git fetch -q origin 2>/dev/null
+  local br d; br=$(git symbolic-ref --short -q HEAD) || die 3 "SKIP: detached HEAD — switch to a branch first"
+  d=$(default_branch)
+  [ -n "$d" ] || die 3 "SKIP: can't tell origin's default branch, so can't keep code off it — run: git remote set-head origin -a"
+  if [ "$br" = "$d" ]; then
+    br="away-$(date +%Y%m%d-%H%M)"
+    git switch -q -c "$br" || die 1 "FAILED: could not create branch $br"
+  fi
+
+  # Tracked changes and the brief go in the WIP commit. Untracked files stay
+  # out (they may be secrets or local-only data); /away stages new files the
+  # session created itself. Other .continuity/ edits, even ones already staged,
+  # are left for continuity-save so they can still land on the default branch.
+  # The commit is made even when empty: a base commit unique to this /away is
+  # how `land` tells this session's claude/* branch from any other.
+  git reset -q -- .continuity 2>/dev/null
+  git add -u -- . ':(exclude).continuity' && git add -f -- .continuity/away.md
+  git commit -q --allow-empty -m "wip(away): $task" || die 1 "FAILED: git commit"
+  git push -q -u origin "$br" 2>/dev/null || die 1 "FAILED: push of $br was rejected — nothing launched. Pull or rebase, then /away again."
+  local base; base=$(git rev-parse HEAD)
+  local left; left=$(git ls-files --others --exclude-standard -- . ':(exclude).continuity' | tr '\n' ' ')
+
+  # Starting a cloud session is interactive-only (`-p --cloud` is refused), so
+  # give it a pseudo-terminal and read the session ID from what it prints.
+  local log; log=$(mktemp)
+  if script --version 2>/dev/null | grep -q util-linux; then   # Linux: command via -c
+    script -q -c "$(printf '%q ' "$CLAUDE_BIN" --cloud "$PROMPT")" "$log" </dev/null >/dev/null 2>&1
+  else                                                          # macOS/BSD
+    script -q "$log" "$CLAUDE_BIN" --cloud "$PROMPT" </dev/null >/dev/null 2>&1
+  fi
+  local clean id view esc; esc=$(printf '\033')   # BSD sed has no \x1b
+  clean=$(LC_ALL=C sed -e "s/${esc}\[[0-9;?]*[a-zA-Z]//g" "$log" | tr '\r' '\n')
+  rm -f "$log"
+  # Trust only a created session's View URL, never any "session_…" word.
+  view=$(printf '%s\n' "$clean" | grep -Eo 'https://claude\.ai/code/session_[A-Za-z0-9]+' | head -1)
+  id=${view##*/}
+  if [ -z "$view" ] || ! printf '%s\n' "$clean" | grep -q 'Created cloud session'; then
+    echo "FAILED: no cloud session started ($br is pushed; nothing else changed). CLI output:"
+    printf '%s\n' "$clean" | grep -v '^[[:space:]]*$' | tail -15 | sed 's/^/  /'
+    exit 1
+  fi
+  echo "AWAY: $id $view base=$base branch=$br"
+  if [ -n "$left" ]; then echo "  NOTE: untracked files stayed local (not in the cloud): $left"; fi
+}
+
+cmd_park() {
+  [ -n "${1:-}" ] || die 3 "usage: away park <session-id>"
+  local out
+  out=$("$CLAUDE_BIN" -p "$PARK_MSG" --cloud "$1" --output-format json </dev/null 2>&1)
+  if printf '%s' "$out" | grep -Eq '"ok":[[:space:]]*true'; then
+    echo "PARKING: asked $1 to stop at a clean point"
+    exit 0
+  fi
+  echo "FAILED: $out"
+  exit 1
+}
+
+cmd_land() {
+  local base="${1:-}"; [ $# -gt 0 ] && shift
+  local timeout=300 interval=10 take=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --timeout)  [ $# -ge 2 ] || die 3 "usage: away land <base-sha> [--timeout S] [--interval S] [--take]"; timeout="$2"; shift 2 ;;
+      --interval) [ $# -ge 2 ] || die 3 "usage: away land <base-sha> [--timeout S] [--interval S] [--take]"; interval="$2"; shift 2 ;;
+      --take)     take=1; shift ;;
+      *) die 3 "usage: away land <base-sha> [--timeout S] [--interval S] [--take]" ;;
+    esac
+  done
+  [ -n "$base" ] || die 3 "usage: away land <base-sha> [--timeout S] [--interval S] [--take]"
+  to_root
+  git cat-file -e "$base^{commit}" 2>/dev/null || die 3 "SKIP: $base is not a commit in this repository"
+  local br; br=$(git symbolic-ref --short -q HEAD) || die 3 "SKIP: detached HEAD — switch to the branch you ran /away on"
+  [ -z "$(git status --porcelain --untracked-files=no)" ] \
+    || die 5 "DIVERGED: uncommitted changes here — commit them, then run /back again"
+  # The parked commit already in this branch's history means an earlier land
+  # finished, even if its claude/* branch is still on origin.
+  if git log --format=%s "$base..HEAD" | grep -qx 'away: parked'; then
+    echo "ALREADY LANDED: $br already holds the cloud's parked work ($(git rev-parse --short HEAD))"
+    exit 0
+  fi
+
+  local deadline=$(( $(date +%s) + timeout )) cand tip subj ref
+  while :; do
+    cand=""
+    git fetch -q --prune origin '+refs/heads/claude/*:refs/remotes/origin/claude/*' 2>/dev/null
+    for ref in $(git for-each-ref --sort=-committerdate --format='%(refname)' refs/remotes/origin/claude/); do
+      git merge-base --is-ancestor "$base" "$ref" && { cand="$ref"; break; }
+    done
+    if [ -n "$cand" ]; then
+      tip=$(git rev-parse "$cand"); subj=$(git log -1 --format=%s "$cand")
+      [ "$subj" = "away: parked" ] || [ -n "$take" ] && break
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      if [ -n "$cand" ]; then
+        echo "NOT PARKED: ${cand#refs/remotes/origin/} is at $(git rev-parse --short "$cand") \"$subj\" — the cloud is still working"
+      else
+        echo "NOT PARKED: no claude/* branch builds on $(git rev-parse --short "$base") yet"
+      fi
+      exit 4
+    fi
+    sleep "$interval"
+  done
+  local cbranch=${cand#refs/remotes/origin/}
+
+  # Local commits since /away: code means someone worked here too — stop.
+  # .continuity/-only ones (the board marker) stay as they are: the cloud's
+  # commits are replayed on top of them, so their SHAs — which continuity-save
+  # tracks via Continuity-Source trailers — never change.
+  local c locals; locals=$(git rev-list --reverse "$base..HEAD")
+  for c in $locals; do
+    if git diff-tree --no-commit-id --name-only -r "$c" | grep -qv '^\.continuity/'; then
+      echo "DIVERGED: this branch has code commits since /away — merge by hand. Cloud work is on $cbranch."
+      git log --format='  cloud: %h %s' "$base..$tip"
+      git log --format='  local: %h %s' "$base..HEAD"
+      exit 5
+    fi
+  done
+  local orig; orig=$(git rev-parse HEAD)
+  if [ -z "$locals" ]; then
+    git merge -q --ff-only "$tip" || die 1 "FAILED: could not fast-forward $br to $cbranch"
+  elif ! git cherry-pick "$base..$tip" >/dev/null 2>&1; then
+    git cherry-pick --abort 2>/dev/null
+    git reset -q --keep "$orig"
+    die 5 "DIVERGED: the cloud's commits conflict with local continuity commits (cherry-pick conflict) — nothing moved. Cloud work is on $cbranch."
+  fi
+
+  git push -q origin "HEAD:refs/heads/$br" 2>/dev/null \
+    || die 1 "FAILED: landed locally, but pushing $br was rejected — cloud work is on $cbranch"
+  git push -q origin --delete "$cbranch" 2>/dev/null || echo "  NOTE: couldn't delete $cbranch on origin"
+  echo "LANDED: $(git rev-list --count "$base..$tip") cloud commit(s) from $cbranch onto $br (now $(git rev-parse --short HEAD))"
+  git log --reverse --format='  %h %s' "$orig..HEAD"
+}
+
+cmd="${1:-}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  launch) cmd_launch "$@" ;;
+  park)   cmd_park "$@" ;;
+  land)   cmd_land "$@" ;;
+  *) die 3 "usage: away launch|park|land …" ;;
+esac

@@ -74,5 +74,16 @@ expect('ss silent after landing (trailer match)', out == '', out)
 rc, out, err = hook('worktree-remove.sh', {'worktree_path': wt2})
 expect('wr allows after landing', rc == 0, (rc, err))
 
+# away.md is branch content, not continuity state: neither hook reports it
+root3, _, clone3, wt3 = setup()
+write(f'{wt3}/.continuity/away.md', '<away>brief</away>\n')
+rc, out, err = hook('worktree-remove.sh', {'worktree_path': wt3})
+expect('wr ignores uncommitted away.md', rc == 0, (rc, err))
+git(wt3, 'add', '-f', '.continuity/away.md'); git(wt3, 'commit', '-qm', 'wip(away): x')
+rc, out, err = hook('worktree-remove.sh', {'worktree_path': wt3})
+expect('wr ignores committed away.md', rc == 0, (rc, err))
+rc, out, err = hook('session-start.sh', {'cwd': clone3})
+expect('ss ignores away.md commits', out == '', out)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)
