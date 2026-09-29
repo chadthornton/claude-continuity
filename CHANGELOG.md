@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-29
+
 ### Changed
 - **One handoff per feature** — handoffs live at `.continuity/handoffs/{feature}.md` (a legacy `handoff.md` is still read). Wrap-up can relay several mandated features at once (one question, one save, one agent each), and a relayed agent's `/startup` resumes the feature whose `owner` is its checkout. Why: parallel relays in trip-planner had to improvise per-feature files because a second relay's `handoff.md` would overwrite the first's. Scenario: two features relayed in one save with separate handoffs; the `widgets-1` checkout resumed widgets from its own file and ignored `reports`.
 
