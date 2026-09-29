@@ -160,7 +160,114 @@ expect('P2 failure exit 1', rc == 1 and 'Session not found' in out, out)
 rc, out = run_away(c, cl, 'park')
 expect('P3 no id → exit 3', rc == 3, out)
 shutil.rmtree(c['root'])
-# LAND_TESTS
+# ── land ─────────────────────────────────────────────────────────────────────
+def launched():
+    """A context whose clone has run `away launch` on branch feat → (ctx, base sha)."""
+    c = setup(); cl = c['clone']
+    git(cl, 'switch', '-q', '-c', 'feat')
+    write(f'{cl}/.continuity/away.md', '<away><status>Not started.</status></away>\n'); write(f'{cl}/app.js', 'wip\n')
+    rc, out = run_away(c, cl, 'launch', '-m', 't')
+    assert rc == 0, out
+    return c, git(cl, 'rev-parse', 'HEAD')
+
+
+def cloud_push(c, start, branch, commits, date=None):
+    """Play the cloud: from commit `start`, push claude/<branch> with [(path, text, subject)]."""
+    d = tempfile.mkdtemp(dir=c['root'])
+    git(c['root'], 'clone', '-q', c['remote'], d)
+    git(d, 'checkout', '-q', '-b', f'claude/{branch}', start)
+    env = dict(BASE_ENV, **({'GIT_COMMITTER_DATE': date, 'GIT_AUTHOR_DATE': date} if date else {}))
+    for path, text, subject in commits:
+        write(f'{d}/{path}', text); git(d, 'add', '-A', env=env); git(d, 'commit', '-qm', subject, env=env)
+    git(d, 'push', '-q', 'origin', f'claude/{branch}')
+    return git(d, 'rev-parse', 'HEAD')
+
+
+FAST = ('--timeout', '2', '--interval', '1')
+PARKED = [('app.js', 'cloud step 1\n', 'step 1'),
+          ('.continuity/away.md', '<away><status>Did step 1.</status></away>\n', 'away: parked')]
+
+# D1. Picks the descendant among decoys, fast-forwards, pushes, deletes the claude/ branch.
+c, base = launched(); cl = c['clone']
+init = git(cl, 'rev-parse', 'origin/main')
+cloud_push(c, init, 'decoy', [('app.js', 'decoy\n', 'away: parked')])
+tip = cloud_push(c, base, 'real', PARKED)
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D1 exit 0', rc == 0 and out.startswith('LANDED: 2 cloud commit(s) from claude/real onto feat'), out)
+expect('D1 HEAD is the cloud tip', git(cl, 'rev-parse', 'HEAD') == tip, out)
+expect('D1 branch pushed', git(cl, 'ls-remote', 'origin', 'refs/heads/feat').split()[0] == tip, out)
+remote_heads = git(cl, 'ls-remote', 'origin', 'refs/heads/claude/*')
+expect('D1 claude/real deleted, decoy kept', 'claude/real' not in remote_heads and 'claude/decoy' in remote_heads, remote_heads)
+expect('D1 lists cloud commits', 'step 1' in out and 'away: parked' in out, out)
+# Review Focus 4: a second /back says ALREADY LANDED
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D1b rerun → ALREADY LANDED exit 0', rc == 0 and out.startswith('ALREADY LANDED'), out)
+shutil.rmtree(c['root'])
+
+# D2. Not parked yet → exit 4; --take lands the current tip.
+c, base = launched(); cl = c['clone']
+tip = cloud_push(c, base, 'busy', [('app.js', 'half\n', 'step 1')])
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D2 exit 4', rc == 4 and out.startswith('NOT PARKED') and 'claude/busy' in out and '"step 1"' in out, out)
+expect('D2 HEAD unchanged', git(cl, 'rev-parse', 'HEAD') == base, out)
+rc, out = run_away(c, cl, 'land', base, '--take', *FAST)
+expect('D2 --take lands', rc == 0 and git(cl, 'rev-parse', 'HEAD') == tip, out)
+shutil.rmtree(c['root'])
+
+# D3. No claude/* branch yet → exit 4.
+c, base = launched(); cl = c['clone']
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D3 exit 4', rc == 4 and 'no claude/* branch builds on' in out, out)
+shutil.rmtree(c['root'])
+
+# D4. Local .continuity/-only commit after base (the board marker) is replayed on top.
+c, base = launched(); cl = c['clone']
+write(f'{cl}/.continuity/feature-status.yml', 'settings:\n  push_to_default_branch: true\nfeatures:\n  a:\n    status: building\n    away: {session: x}\n')
+git(cl, 'commit', '-qam', 'continuity: away marker')
+tip = cloud_push(c, base, 'real', PARKED)
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D4 exit 0', rc == 0, out)
+expect('D4 marker commit on top of cloud tip', git(cl, 'rev-parse', 'HEAD~1') == tip
+       and git(cl, 'log', '-1', '--format=%s') == 'continuity: away marker', git(cl, 'log', '--oneline', '-3'))
+shutil.rmtree(c['root'])
+
+# D5. Local code commit after base → exit 5, nothing moved.
+c, base = launched(); cl = c['clone']
+write(f'{cl}/app.js', 'local edit\n'); git(cl, 'commit', '-qam', 'local code')
+head = git(cl, 'rev-parse', 'HEAD')
+cloud_push(c, base, 'real', PARKED)
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D5 exit 5', rc == 5 and out.startswith('DIVERGED') and 'local code' in out and 'step 1' in out, out)
+expect('D5 HEAD unchanged', git(cl, 'rev-parse', 'HEAD') == head, out)
+shutil.rmtree(c['root'])
+
+# D6. Uncommitted tracked change → exit 5.
+c, base = launched(); cl = c['clone']
+cloud_push(c, base, 'real', PARKED)
+write(f'{cl}/app.js', 'dirty\n')
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D6 exit 5', rc == 5 and 'uncommitted' in out, out)
+shutil.rmtree(c['root'])
+
+# D7. Cloud edited the board too → marker cherry-pick conflicts → exit 5, HEAD restored.
+c, base = launched(); cl = c['clone']
+write(f'{cl}/.continuity/feature-status.yml', 'features:\n  a:\n    status: LOCAL\n')
+git(cl, 'commit', '-qam', 'continuity: away marker')
+head = git(cl, 'rev-parse', 'HEAD')
+cloud_push(c, base, 'real', [('.continuity/feature-status.yml', 'features:\n  a:\n    status: CLOUD\n', 'board'),
+                             ('app.js', 'x\n', 'away: parked')])
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D7 exit 5', rc == 5 and 'conflict' in out.lower(), out)
+expect('D7 HEAD restored', git(cl, 'rev-parse', 'HEAD') == head and git(cl, 'status', '--porcelain') == '', out)
+shutil.rmtree(c['root'])
+
+# D8 (Review Focus 3). Two descendants: the newer one wins.
+c, base = launched(); cl = c['clone']
+cloud_push(c, base, 'a-old', [('app.js', 'old\n', 'away: parked')], date='2026-01-01T00:00:00')
+new = cloud_push(c, base, 'z-new', [('app.js', 'new\n', 'away: parked')], date='2026-06-01T00:00:00')
+rc, out = run_away(c, cl, 'land', base, *FAST)
+expect('D8 newest descendant wins', rc == 0 and git(cl, 'rev-parse', 'HEAD') == new, out)
+shutil.rmtree(c['root'])
 
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

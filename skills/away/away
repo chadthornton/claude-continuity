@@ -94,9 +94,82 @@ cmd_park() {
   exit 1
 }
 
+cmd_land() {
+  local base="${1:-}"; [ $# -gt 0 ] && shift
+  local timeout=300 interval=10 take=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --timeout)  timeout="$2"; shift 2 ;;
+      --interval) interval="$2"; shift 2 ;;
+      --take)     take=1; shift ;;
+      *) die 3 "usage: away land <base-sha> [--timeout S] [--interval S] [--take]" ;;
+    esac
+  done
+  [ -n "$base" ] || die 3 "usage: away land <base-sha> [--timeout S] [--interval S] [--take]"
+  to_root
+  git cat-file -e "$base^{commit}" 2>/dev/null || die 3 "SKIP: $base is not a commit in this repository"
+  local br; br=$(git symbolic-ref --short -q HEAD) || die 3 "SKIP: detached HEAD — switch to the branch you ran /away on"
+  [ -z "$(git status --porcelain --untracked-files=no)" ] \
+    || die 5 "DIVERGED: uncommitted changes here — commit them, then run /back again"
+
+  local deadline=$(( $(date +%s) + timeout )) cand tip subj ref
+  while :; do
+    cand=""
+    git fetch -q --prune origin '+refs/heads/claude/*:refs/remotes/origin/claude/*' 2>/dev/null
+    for ref in $(git for-each-ref --sort=-committerdate --format='%(refname)' refs/remotes/origin/claude/); do
+      git merge-base --is-ancestor "$base" "$ref" && { cand="$ref"; break; }
+    done
+    if [ -n "$cand" ]; then
+      tip=$(git rev-parse "$cand"); subj=$(git log -1 --format=%s "$cand")
+      [ "$subj" = "away: parked" ] || [ -n "$take" ] && break
+    elif git log --format=%s "$base..HEAD" | grep -qx 'away: parked'; then
+      echo "ALREADY LANDED: $br already holds the cloud's parked work ($(git rev-parse --short HEAD))"
+      exit 0
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      if [ -n "$cand" ]; then
+        echo "NOT PARKED: ${cand#refs/remotes/origin/} is at $(git rev-parse --short "$cand") \"$subj\" — the cloud is still working"
+      else
+        echo "NOT PARKED: no claude/* branch builds on $(git rev-parse --short "$base") yet"
+      fi
+      exit 4
+    fi
+    sleep "$interval"
+  done
+  local cbranch=${cand#refs/remotes/origin/}
+
+  # Local commits since /away: code means someone worked here too — stop.
+  # .continuity/-only ones (the board marker) are replayed on the cloud's tip.
+  local c locals; locals=$(git rev-list --reverse "$base..HEAD")
+  for c in $locals; do
+    if git diff-tree --no-commit-id --name-only -r "$c" | grep -qv '^\.continuity/'; then
+      echo "DIVERGED: this branch has code commits since /away — merge by hand. Cloud work is on $cbranch."
+      git log --format='  cloud: %h %s' "$base..$tip"
+      git log --format='  local: %h %s' "$base..HEAD"
+      exit 5
+    fi
+  done
+  local orig; orig=$(git rev-parse HEAD)
+  git reset -q --keep "$tip" || die 1 "FAILED: could not move $br to $cbranch"
+  for c in $locals; do
+    if ! git cherry-pick "$c" >/dev/null 2>&1; then
+      git cherry-pick --abort 2>/dev/null
+      git reset -q --keep "$orig"
+      die 5 "DIVERGED: local continuity commit $(git rev-parse --short "$c") conflicts with the cloud's changes (cherry-pick conflict) — nothing moved. Cloud work is on $cbranch."
+    fi
+  done
+
+  git push -q origin "HEAD:refs/heads/$br" 2>/dev/null \
+    || die 1 "FAILED: landed locally, but pushing $br was rejected — cloud work is on $cbranch"
+  git push -q origin --delete "$cbranch" 2>/dev/null || echo "  NOTE: couldn't delete $cbranch on origin"
+  echo "LANDED: $(git rev-list --count "$base..$tip") cloud commit(s) from $cbranch onto $br (now $(git rev-parse --short HEAD))"
+  git log --reverse --format='  %h %s' "$base..$tip"
+}
+
 cmd="${1:-}"; [ $# -gt 0 ] && shift
 case "$cmd" in
   launch) cmd_launch "$@" ;;
   park)   cmd_park "$@" ;;
+  land)   cmd_land "$@" ;;
   *) die 3 "usage: away launch|park|land …" ;;
 esac
