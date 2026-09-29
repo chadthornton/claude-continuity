@@ -82,8 +82,21 @@ cmd_launch() {
   echo "AWAY: $id ${view:-https://claude.ai/code/$id} base=$base branch=$br"
 }
 
+cmd_park() {
+  [ -n "${1:-}" ] || die 3 "usage: away park <session-id>"
+  local out
+  out=$("$CLAUDE_BIN" -p "$PARK_MSG" --cloud "$1" --output-format json </dev/null 2>&1)
+  if printf '%s' "$out" | grep -Eq '"ok":[[:space:]]*true'; then
+    echo "PARKING: asked $1 to stop at a clean point"
+    exit 0
+  fi
+  echo "FAILED: $out"
+  exit 1
+}
+
 cmd="${1:-}"; [ $# -gt 0 ] && shift
 case "$cmd" in
   launch) cmd_launch "$@" ;;
+  park)   cmd_park "$@" ;;
   *) die 3 "usage: away launch|park|land …" ;;
 esac

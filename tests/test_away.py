@@ -147,7 +147,19 @@ expect('L6 exit 1', rc == 1 and 'push' in out, out)
 expect('L6 nothing launched', claude_log(c) == '', claude_log(c))
 shutil.rmtree(c['root'])
 
-# PARK_TESTS
+# ── park ─────────────────────────────────────────────────────────────────────
+c = setup(); cl = c['clone']
+rc, out = run_away(c, cl, 'park', FAKE_SESSION)
+expect('P1 exit 0', rc == 0 and out.startswith('PARKING'), out)
+log = claude_log(c)
+expect('P1 sends park message to the session',
+       '-p Stop at the next clean point' in log and f'--cloud {FAKE_SESSION} --output-format json' in log, log)
+expect('P1 message names the parked commit', '"away: parked"' in log, log)
+rc, out = run_away(c, cl, 'park', FAKE_SESSION, FAKE_CLAUDE_FAIL='1')
+expect('P2 failure exit 1', rc == 1 and 'Session not found' in out, out)
+rc, out = run_away(c, cl, 'park')
+expect('P3 no id → exit 3', rc == 3, out)
+shutil.rmtree(c['root'])
 # LAND_TESTS
 
 print('\nFAILED:', fails if fails else 'none')
