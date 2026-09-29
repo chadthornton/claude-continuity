@@ -1,0 +1,98 @@
+#!/bin/bash
+# worktree-sweep — find (and optionally remove) finished agent worktrees.
+#
+#   worktree-sweep            list removable worktrees: "<path>\t<reason>" per line
+#   worktree-sweep --remove   remove them (git worktree remove, never --force)
+#
+# Looks only under <main checkout>/.claude/worktrees/. A worktree is removable
+# when ALL hold:
+#   - it is not the checkout this session runs in;
+#   - no live claude process has it as its working directory;
+#   - no uncommitted changes, and no commits that exist on no remote;
+#   - it is unlocked, or locked by THIS session (its own subagents), or locked
+#     by a pid that is no longer running. A lock held by another live session
+#     means that session still owns it.
+# Removing a worktree deletes its folder (checkout + node_modules); branches and
+# commits stay in the repo. Seams for tests: CONTINUITY_LIVE_CWDS (newline list
+# of live cwds), CONTINUITY_SESSION_PID (this session's claude pid).
+set -u
+GIT=${GIT:-git}
+mode=list
+[ "${1:-}" = "--remove" ] && mode=remove
+
+common=$($GIT rev-parse --path-format=absolute --git-common-dir 2>/dev/null) \
+  || { echo "worktree-sweep: not a git repo" >&2; exit 1; }
+main=$(dirname "$common")
+here=$($GIT rev-parse --show-toplevel 2>/dev/null)
+
+if [ -n "${CONTINUITY_LIVE_CWDS+x}" ]; then
+  live=$CONTINUITY_LIVE_CWDS
+else
+  live=$(for pid in $(pgrep claude 2>/dev/null); do
+    lsof -n -P -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'
+  done | sort -u)
+fi
+
+# This session's claude pid: the nearest ancestor process named claude.
+session=${CONTINUITY_SESSION_PID:-}
+if [ -z "$session" ]; then
+  p=$$
+  while [ -n "$p" ] && [ "$p" -gt 1 ]; do
+    case "$(ps -o comm= -p "$p" 2>/dev/null)" in *claude*) session=$p; break ;; esac
+    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+  done
+fi
+
+candidates=""
+path=""; lockreason=""; haslock=0
+consider() {
+  [ -n "$path" ] || return
+  case "$path" in "$main/.claude/worktrees/"*) ;; *) return ;; esac
+  [ "$path" = "$here" ] && return
+  printf '%s\n' "$live" | grep -qxF -- "$path" && return
+  [ -n "$($GIT -C "$path" status --porcelain 2>/dev/null)" ] && return
+  [ "$($GIT -C "$path" rev-list --count HEAD --not --remotes 2>/dev/null)" = "0" ] || return
+  reason="finished: clean, all commits on a remote"
+  if [ "$haslock" = 1 ]; then
+    lpid=$(printf '%s' "$lockreason" | sed -n 's/.*pid \([0-9][0-9]*\).*/\1/p')
+    if [ -z "$lpid" ]; then return
+    elif [ -n "$session" ] && [ "$lpid" = "$session" ]; then reason="$reason; locked by this session"
+    elif kill -0 "$lpid" 2>/dev/null; then return
+    else reason="$reason; stale lock (pid $lpid gone)"
+    fi
+  fi
+  candidates="$candidates$path	$reason	$haslock
+"
+}
+while IFS= read -r line; do
+  case "$line" in
+    "worktree "*) consider; path=${line#worktree }; lockreason=""; haslock=0 ;;
+    locked*) haslock=1; lockreason=${line#locked} ;;
+  esac
+done < <($GIT -C "$main" worktree list --porcelain)
+consider
+
+if [ "$mode" = list ]; then
+  printf '%s' "$candidates" | cut -f1,2
+  exit 0
+fi
+
+status=0
+while IFS='	' read -r p reason locked; do
+  [ -n "$p" ] || continue
+  [ "$locked" = 1 ] && $GIT -C "$main" worktree unlock "$p" 2>/dev/null
+  $GIT -C "$main" worktree remove "$p" 2>/dev/null
+  if $GIT -C "$main" worktree list --porcelain | grep -qxF "worktree $p"; then
+    echo "KEPT $p (git refused to remove it)"; status=1
+  else
+    # Finder can write a .DS_Store mid-removal; clear a folder holding only that.
+    if [ -d "$p" ] && [ -z "$(ls -A "$p" | grep -vxF .DS_Store)" ]; then
+      rm -f "$p/.DS_Store"; rmdir "$p"
+    fi
+    echo "REMOVED $p"
+  fi
+done <<EOF
+$candidates
+EOF
+$GIT -C "$main" worktree prune
+exit $status

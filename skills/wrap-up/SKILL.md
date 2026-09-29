@@ -213,6 +213,21 @@ On yes:
 4. Run continuity-save again (`-m "continuity: relay {feature} steps {first}–{last} to {name}"`). If it reports `CONFLICT`, stop and resolve before spawning: the new agent would read a board without its handoff.
 5. Run `agent-spawn {name}` from the repo root and report its output line. If the new session appears in ListAgents, you may send it one line — "You own {feature}; run /startup, it resumes from handoff.md" — but don't wait for it. handoff.md is the source of truth, and the agent resumes from it without the message.
 
+### Step 6c: Clear Finished Worktrees
+
+Agent worktrees (subagents, relays, spawned sessions) each hold a full checkout, often with its own `node_modules`, and nothing removes them once their work has landed. Run the bundled script from the repo:
+
+```
+<skill base directory>/worktree-sweep
+```
+
+It prints one `<path>\t<reason>` line per worktree under `.claude/worktrees/` that is finished: no uncommitted changes, every commit on a remote, no live session working in it, and not held by another running session's lock. Worktrees locked by this session (its own subagents) and locks whose process has died count as finished.
+
+- **Prints nothing** → skip this step without mentioning it.
+- **Prints lines** → ask once with AskUserQuestion: **"Remove {N} finished worktree(s): {names}? Their folders are deleted; branches and commits stay."** Options: **Remove them** / **Keep them**.
+
+On yes, run `worktree-sweep --remove` and report its `REMOVED` / `KEPT` lines in Step 7. Remove only what the script listed, and leave any worktree it didn't list for the user to decide.
+
 ### Step 7: Confirm
 
 Print a brief summary of what was updated:
@@ -224,6 +239,7 @@ Updated .continuity/:
   handoff.md — removed (clean stop)
   SAVED: 5ee1f0c landed on origin/master (from feature-x)
   RELAY: canvas-types-1 spawned — owns steps 3–5
+  WORKTREES: removed 2 finished (agent-a1b2, agent-c3d4)
 
 Blind spots (7/10):
   • The WebKit content sizing workaround only applies to the split view — full-screen mode uses a different layout path

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **Clear finished worktrees (wrap-up Step 6c)** + bundled **`worktree-sweep`** — lists worktrees under `.claude/worktrees/` that are clean, fully on a remote, not in use by a live session, and not held by another session's lock (this session's own subagent locks and dead-pid locks count as finished); wrap-up asks once and removes them without `--force`. Why: each agent worktree carries a full checkout and `node_modules` (~356 MB each in trip-planner, 4.3 GB total) and nothing removed them after their work landed; baseline wrap-up only noted them as a blind spot.
+
 ## [0.7.0] - 2026-09-28
 
 ### Added
