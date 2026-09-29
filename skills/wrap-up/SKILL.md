@@ -158,6 +158,7 @@ Invoke it by its absolute path (it is executable) — not via `bash <script>`, w
 
 - commits **only** `.continuity/` (never `last-activity.txt`, never code, and leaves anything else the user staged untouched);
 - if the project opted in with `settings: { push_to_default_branch: true }` in `feature-status.yml`, lands those commits on `origin/<default>` — re-applying just the `.continuity/` diff with a three-way `git merge-tree`, so code on the current branch is never shipped. It fast-forwards only, never forces, and stamps each landed commit with a `Continuity-Source:` trailer;
+- after landing from a feature branch, adds one `continuity: sync` commit so the branch's `.continuity/` matches `origin/<default>`. The branch's PR then can't conflict on continuity files unless the board moves again before it merges, and the next save re-syncs it. The sync commit carries a `Continuity-Sync:` trailer and is never landed again;
 - without the setting, commits on the current branch and says whether that is on the default branch.
 
 Invoking wrap-up is consent to commit (and, when opted in, push) `.continuity/` — nothing else.

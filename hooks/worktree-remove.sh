@@ -25,6 +25,7 @@ D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD) || exit 0
 landed=$(git log "$D_REF" -n 500 --format='%(trailers:key=Continuity-Source,valueonly)' | grep -v '^$')
 for c in $(git rev-list "$D_REF..HEAD" -- .continuity "$EXCL" "$AWAYX"); do
   printf '%s\n' "$landed" | grep -qx "$c" && continue
+  git log -1 --format=%B "$c" | grep -q '^Continuity-Sync:' && continue   # re-sync of origin's board
   files=$(git diff-tree --no-commit-id --name-only -r "$c")
   printf '%s\n' "$files" | grep -qv '^\.continuity/' && continue
   printf '%s\n' "$files" | grep -qx '\.continuity/away\.md' && continue

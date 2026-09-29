@@ -84,20 +84,22 @@ git merge-tree --write-tree --merge-base HEAD HEAD HEAD >/dev/null 2>&1 \
 
 attempt() {
   git fetch -q origin "$D" 2>/dev/null || { echo "SAVED LOCALLY on $BRANCH: fetch of origin/$D failed — not pushed"; return 1; }
-  local landed pending c base tree out msg files skipped=""
+  local landed pending c base tree out msg files
+  SKIPPED=""
   landed=$(git log "$D_REF" -n 500 --format='%(trailers:key=Continuity-Source,valueonly)' | grep -v '^$')
   pending=""
   for c in $(git rev-list --reverse "$D_REF..HEAD" -- .continuity "$EXCL" "$AWAYX"); do
     printf '%s\n' "$landed" | grep -qx "$c" && continue
+    git log -1 --format=%B "$c" | grep -q '^Continuity-Sync:' && continue   # a re-sync: already main's content
     files=$(git diff-tree --no-commit-id --name-only -r "$c")
     if printf '%s\n' "$files" | grep -qv '^\.continuity/' \
        || printf '%s\n' "$files" | grep -qx '\.continuity/away\.md'; then
-      skipped="$skipped ${c:0:7}"   # mixed code+continuity (or away.md) commit: never push it
+      SKIPPED="$SKIPPED ${c:0:7}"   # mixed code+continuity (or away.md) commit: never push it
       continue
     fi
     pending="$pending $c"
   done
-  [ -n "$skipped" ] && echo "  NOTE: skipped commits that mix code with .continuity/ (merge the branch to land them):$skipped"
+  [ -n "$SKIPPED" ] && echo "  NOTE: skipped commits that mix code with .continuity/ (merge the branch to land them):$SKIPPED"
   if [ -z "$pending" ]; then
     echo "SAVED: nothing new to land — $D_REF already has this branch's continuity"
     return 0
@@ -152,7 +154,24 @@ attempt() {
   return 10   # rejected (origin moved) — caller retries once
 }
 
+# sync_branch — after a clean land from a feature branch, make the branch's
+# .continuity/ equal origin/<default>'s (which now holds this branch's edits
+# too). Otherwise the branch keeps its own copy of the board, and once another
+# session moves the board on the default branch the branch's PR conflicts on it.
+# Skipped when a mixed commit was held back: its .continuity edits aren't on
+# origin, and adopting origin's copy would drop them from this checkout.
+sync_branch() {
+  [ "$BRANCH" = "$D" ] || [ "$BRANCH" = "(detached)" ] || [ -n "$SKIPPED" ] && return 0
+  git diff --quiet "$D_REF" HEAD -- .continuity "$EXCL" "$AWAYX" && return 0
+  git restore --source="$D_REF" --staged --worktree -- .continuity "$EXCL" "$AWAYX" 2>/dev/null || return 0
+  git diff --cached --quiet -- .continuity && return 0
+  git commit -q -m "continuity: sync with $D_REF" -m "Continuity-Sync: $(git rev-parse "$D_REF")" \
+    -- .continuity "$EXCL" "$AWAYX" || return 0
+  echo "  synced $BRANCH's .continuity/ with $D_REF — keeps its PR clear of continuity conflicts"
+}
+
 attempt; rc=$?
 if [ $rc -eq 10 ]; then attempt; rc=$?; fi
 if [ $rc -eq 10 ]; then echo "SAVED LOCALLY on $BRANCH: push to origin/$D rejected twice — not pushed (protected branch?)"; exit 1; fi
+[ $rc -eq 0 ] && sync_branch
 exit $rc
