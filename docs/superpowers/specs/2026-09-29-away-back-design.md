@@ -81,7 +81,7 @@ Triggers: `/back`, "I'm back", "bring it back from the cloud". Reads the marker,
 Exclude `.continuity/away.md` exactly as `last-activity.txt` is excluded (`EXCL`), in `continuity-save` and wherever the hooks match continuity paths. `away.md` then travels only on the feature branch: added in the WIP commit, edited by the cloud in ordinary commits, deleted by `/back`. It never needs merging on the default branch.
 
 ### Board marker
-On the worked-on feature: `away: {session: <id>, url: <url>, base: <sha>, since: <ISO datetime>}`. `continuity-save` lands it on `origin/<default>`.
+On the worked-on feature: `away: {session: <id>, url: <url>, base: <sha>, branch: <branch>, since: <ISO datetime>}`. `continuity-save` lands it on `origin/<default>`.
 
 ### Startup
 A feature with `away:` renders as `☁ {feature} — in the cloud since {since} ({url}). Run /back to bring it home.` and counts as owned elsewhere, so fast-resume doesn't start the same work.
