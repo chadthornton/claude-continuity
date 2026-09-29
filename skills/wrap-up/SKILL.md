@@ -50,7 +50,7 @@ Read the current `.continuity/feature-status.yml` and update the relevant sectio
   - **Gates (optional):** add `gate: approval` to a step that needs the user's explicit go-ahead (prod deploy, data migration, spend), or `gate: "decision: <question>"` to a step blocked on an unmade choice. Startup and relay stop at gated steps.
 - **summary** — one-line current state
 - **in_progress** — set to a task description if mid-stream, `null` if at a clean stop
-- **owner** — set only by a relay (Step 6b). If this checkout is the owner and its chain is finished, or the user said "take over {feature}", set `owner` to this checkout's name (`basename "$(git rev-parse --show-toplevel)"`) or remove it when the work is at a clean stop.
+- **owner** — set by a relay (Step 6b) or by a session that takes a mandate (startup). If this checkout is the owner and its chain is finished, or the user said "take over {feature}", set `owner` to this checkout's name (`basename "$(git rev-parse --show-toplevel)"`) or remove it when the work is at a clean stop.
 
 **If the session ran a workflow**, update:
 
@@ -170,31 +170,28 @@ Invoking wrap-up is consent to commit (and, when opted in, push) `.continuity/` 
 
 A `WorktreeRemove` hook refuses to delete a worktree with uncommitted or unlanded `.continuity/` changes, and `SessionStart` flags unlanded continuity commits on any local branch — so a skipped Step 6 surfaces instead of vanishing.
 
-### Step 6b: Offer a Relay
+### Step 6b: Leave a Mandate (and offer a relay)
 
-A relay hands the next steps straight to a new agent in its own worktree instead of waiting for someone to run `/startup`. Offer it when **all** of these hold for the worked-on feature:
+When the next steps are clear enough to hand over cold, write them down as a **mandate**: a commission for whichever session picks the work up next, now or days later. Write one without asking when **all** of these hold for the worked-on feature:
 
-- `command -v agent-spawn` succeeds;
 - it has **2 or more** not-done steps;
 - the first not-done step has no `gate:`;
+- each step in the chain is concrete enough to act on cold: it names the file, command, or artifact to produce. "Polish the UI" or "clean things up" is not concrete, so the feature gets no mandate;
 - its `owner` is absent or is this checkout.
 
-The **chain** is the run of not-done steps from the first one up to, but not including, the first gated step.
+The **chain** is the run of not-done steps from the first one up to, but not including, the first gated step. If the conditions don't hold, skip this step without mentioning it.
 
-This runs after Step 6, so the session's state is already saved whatever the answer. Ask once with AskUserQuestion: **"Relay {feature} steps {first}–{last} to a new agent?"** — options **Relay to a new agent** / **No, just save**. Spawning only happens on an explicit yes. If the conditions don't hold, skip this step without mentioning it.
+Writing the mandate:
 
-On yes:
-
-1. Pick a name: `{feature}-{N}` with the lowest N ≥ 1 for which `.claude/worktrees/{feature}-{N}` does not exist.
-2. Set `owner: {name}` and `in_progress: "Steps {first}–{last} per handoff.md"` on the feature.
-3. Write `.continuity/handoff.md` in the relay shape:
+1. On the feature, set `mandate: {today}` and `in_progress: "Steps {first}–{last} per handoff.md"`. Leave `owner` unset: the session that takes the mandate claims it.
+2. Write `.continuity/handoff.md` in the relay shape:
 
 ```xml
 <handoff>
 <task>{feature}: steps {first} → {last}, one commit per step.</task>
 <status>Done so far: {not-yet-pruned done steps, one line}.</status>
 <first-action>
-1. `git fetch -q origin && git switch -c {name}-step-{first} origin/{default}` — this worktree may be cut from a stale local branch.
+1. `git fetch -q origin && git switch -c {feature}-step-{first} origin/{default}` — this checkout may be stale.
 2. Step {first}: {its text, with file paths}.
 </first-action>
 <stops>
@@ -205,13 +202,24 @@ On yes:
 {Only the `gotchas` and `last_session.blind_spots` entries that touch the chain's files or tools; omit the rest. Add any peer session known to share a resource with this chain.}
 </environment>
 <verify>
-{Per step: how to confirm it works.} After each step ships: mark it `done: true` and run continuity-save. After the last step: clear `owner` and `in_progress`, then run wrap-up.
+{Per step: how to confirm it works.} After each step ships: mark it `done: true` and run continuity-save. After the last step: clear `mandate`, `owner` and `in_progress`, then run wrap-up.
 </verify>
 </handoff>
 ```
 
-4. Run continuity-save again (`-m "continuity: relay {feature} steps {first}–{last} to {name}"`). If it reports `CONFLICT`, stop and resolve before spawning: the new agent would read a board without its handoff.
-5. Run `agent-spawn {name}` from the repo root and report its output line. If the new session appears in ListAgents, you may send it one line — "You own {feature}; run /startup, it resumes from handoff.md" — but don't wait for it. handoff.md is the source of truth, and the agent resumes from it without the message.
+3. Run continuity-save again (`-m "continuity: mandate {feature} steps {first}–{last}"`).
+4. Add a line to the Step 7 summary: `MANDATE: {feature} steps {first}–{last} left for the next session (say "drop the {feature} mandate" to remove)`.
+
+**Offering a relay.** If `command -v agent-spawn` succeeds, ask once with AskUserQuestion: **"Continue {feature} steps {first}–{last} with a new agent now, or leave it for the next session?"** Options: **Continue with a new agent** / **Leave it for the next session**. With no spawner, don't ask.
+
+On **Continue with a new agent**:
+
+1. Pick a name: `{feature}-{N}` with the lowest N ≥ 1 for which `.claude/worktrees/{feature}-{N}` does not exist.
+2. Set `owner: {name}` on the feature, and in handoff.md's first action use the branch `{name}-step-{first}`.
+3. Run continuity-save (`-m "continuity: relay {feature} steps {first}–{last} to {name}"`). If it reports `CONFLICT`, stop and resolve before spawning: the new agent would read a board without its handoff.
+4. Run `agent-spawn {name}` from the repo root and report its output line in place of the MANDATE line: `RELAY: {name} spawned — owns steps {first}–{last}`. If the new session appears in ListAgents, you may send it one line — "You own {feature}; run /startup, it resumes from handoff.md" — but don't wait for it. handoff.md is the source of truth, and the agent resumes from it without the message.
+
+**Dropping a mandate.** When the user asks to drop one, remove `mandate` and `in_progress` from the feature, delete `.continuity/handoff.md`, and run continuity-save.
 
 ### Step 6c: Clear Finished Worktrees
 
@@ -238,7 +246,7 @@ Updated .continuity/:
   decisions/canvas-types.md — +1 decided, +2 open, -1 resolved
   handoff.md — removed (clean stop)
   SAVED: 5ee1f0c landed on origin/master (from feature-x)
-  RELAY: canvas-types-1 spawned — owns steps 3–5
+  MANDATE: canvas-types steps 3–5 left for the next session (say "drop the canvas-types mandate" to remove)
   WORKTREES: removed 2 finished (agent-a1b2, agent-c3d4)
 
 Blind spots (7/10):

@@ -32,13 +32,42 @@ A feature carries `owner: <worktree-name>` when its chain of steps was relayed t
 - **`owner` set and different from this checkout's name** → the chain belongs to another agent. Open the output with one line: `{feature} is owned by {owner} — {in_progress}. Not resuming it here; say "take over {feature}" if that agent is gone.` Skip Fast Resume and Resumed Session for that feature and run the **Next Session Flow**, marking its dashboard row and option `(owned by {owner})`.
 - **`owner` equal to this checkout's name, or absent** → continue normally.
 
+### Step 1c: Offer a Waiting Mandate
+
+A feature carries `mandate: <date>` when a past wrap-up left its next steps as a commission for whichever session comes next. If a feature has `mandate` and **no `owner`**, it leads the output whatever its age. If several do, take the most recent `mandate` date and mark the others `(mandate waiting)` on the board.
+
+Read `.continuity/handoff.md` (from origin when the board is stale, per Step 1) and show:
+
+> **Commissioned:** {feature} steps {first}–{last} (left {mandate date})
+>
+> First action: {the handoff's `<first-action>`, condensed}
+>
+> Stops: {the `<stops>` lines}
+>
+> Environment: {the `<environment>` lines, if any}
+
+If the mandate is more than 3 days old, add: `Left {N} days ago — check git log --oneline -10 for work that may have moved since.`
+
+Then ask with AskUserQuestion: **"Take the {feature} mandate?"** Options: **Take it** / **Not now** / **Drop it**.
+
+- **Take it** → claim it before any work starts:
+  1. If the board is stale, sync `.continuity/` from origin first, the same way wrap-up's Step 0 does.
+  2. Set `owner` to this checkout's name (`basename "$(git rev-parse --show-toplevel)"`) on the feature.
+  3. Run `<this skill's base directory>/../wrap-up/continuity-save -m "continuity: {checkout} takes the {feature} mandate"`.
+  4. If it reports `CONFLICT`, another session claimed the mandate first. Say so and show the board. If it reports `SAVED LOCALLY` or `SAVED ON BRANCH ONLY`, the claim hasn't reached origin, so other checkouts still see the mandate as unclaimed. Put one line in the brief: `Claimed in this checkout only — other checkouts can still take it until continuity reaches origin/{default}.`
+  5. Otherwise, compose the Fast Resume brief for this feature and stop.
+- **Not now** → continue to Step 2 as usual, with that feature's row marked `(mandate waiting)`. The mandate stays for a later session.
+- **Drop it** → remove `mandate` and `in_progress` from the feature, delete `.continuity/handoff.md`, run continuity-save as above with `-m "continuity: drop the {feature} mandate"`, then continue to Step 2.
+
+A mandate with an `owner` is not offered here. Step 1b already shows it as owned when the owner is another checkout, and it resumes normally when the owner is this one.
+
 ### Step 2: Detect Re-entry Mode
 
 Determine which of three modes applies. This shapes the entire flow.
 
 **Compute the mode from signals (check in this order):**
 
-An `in_progress` feature owned by another checkout (Step 1b) counts as not set here.
+An `in_progress` feature owned by another checkout (Step 1b), or carrying a mandate the user answered **Not now** or **Drop it** to (Step 1c), counts as not set here.
 
 1. If `in_progress` is set AND `last_session.date` is today or yesterday AND (`handoff.md` exists OR uncommitted changes) → **fast resume**
 2. If `in_progress` is set, OR (uncommitted changes exist AND last session < 3 days ago) → **resumed session**

@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-29
+
+### Added
+- **Mandates** — when a feature's next steps form a clear chain (2+ not-done, ungated head, each step concrete enough to act on cold, no other owner), wrap-up writes the relay-shaped handoff and `mandate: <date>` automatically, with no owner, and reports `MANDATE: … (say "drop the {feature} mandate" to remove)`. Why: sessions often end with an obvious bundle of work that the next session should pick up as a commission, whether or not an agent is spawned now.
+- **Startup offers a waiting mandate first** (Step 1c) — an unclaimed mandate leads the output whatever its age, with first action, stops and environment, a "check recent commits" note past 3 days, and **Take it / Not now / Drop it**. Taking it claims `owner` and saves before any work starts, so other checkouts see it as owned; the brief says so when the claim only reached this checkout.
+
+### Changed
+- **Relay folds into the mandate** — wrap-up's relay question is now "continue with a new agent now, or leave it for the next session?", asked only when `agent-spawn` exists; the mandate is written either way. Scenario runs: baseline wrap-up wrote no mandate without a spawner and baseline startup treated a 5-day-old mandate as the user's own in-progress work; with the change, wrap-up wrote mandates only for concrete, ungated chains (none for vague or gated steps), and startup led with the commission, claimed it on origin on "Take it", and removed it on "Drop it".
+
 ## [0.8.0] - 2026-09-29
 
 ### Added
