@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-29
+
 ### Added
 - **`/away` and `/back`** — hand a mid-stream task to a Claude Code cloud session and take it back. `/away` writes `.continuity/away.md` from the conversation, commits and pushes the branch (never the default branch), starts `claude --cloud` under a pseudo-terminal, and marks the feature `away:`; `/back` parks the session, finds its `claude/*` branch by ancestry, fast-forwards, and briefs. Why: leaving the laptop mid-task used to stop the work; a spike showed cloud sessions can only push `claude/*` branches and can't be started with `-p`, which shaped the script.
 
