@@ -34,8 +34,9 @@ while getopts "m:" opt; do
   esac
 done
 
-EXCL=':(exclude).continuity/last-activity.txt'
-AWAYX=':(exclude).continuity/away.md'   # /away's brief rides on the branch only
+. "$(cd "$(dirname "$0")/../.." && pwd)/lib/continuity-commits.sh" || { echo "FAILED: lib/continuity-commits.sh missing"; exit 3; }
+EXCL=$CC_EXCL
+AWAYX=$CC_AWAYX   # /away's brief rides on the branch only
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "SKIP: not a git repository"; exit 3; }
 cd "$(git rev-parse --show-toplevel)" || exit 3
@@ -55,17 +56,12 @@ if ! git diff --cached --quiet -- .continuity "$EXCL" "$AWAYX"; then
 fi
 
 # 2. Where should it live?
-D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD)
-if [ -z "$D_REF" ]; then
-  if ! git remote | grep -qx origin; then
-    echo "SAVED LOCALLY: $(git rev-parse --short HEAD) on $BRANCH (no origin remote)"
-    exit 0
-  fi
-  for cand in main master; do
-    git show-ref -q --verify "refs/remotes/origin/$cand" && { D_REF="origin/$cand"; break; }
-  done
-  [ -n "$D_REF" ] || { echo "SAVED LOCALLY on $BRANCH: can't tell origin's default branch (run: git remote set-head origin -a)"; exit 1; }
+if ! git remote | grep -qx origin; then
+  echo "SAVED LOCALLY: $(git rev-parse --short HEAD) on $BRANCH (no origin remote)"
+  exit 0
 fi
+D_REF=$(cc_default_ref) \
+  || { echo "SAVED LOCALLY on $BRANCH: can't tell origin's default branch (run: git remote set-head origin -a)"; exit 1; }
 D=${D_REF#origin/}
 
 if ! grep -Eq '^[[:space:]]*push_to_default_branch:[[:space:]]*true' .continuity/feature-status.yml; then
@@ -84,22 +80,12 @@ git merge-tree --write-tree --merge-base HEAD HEAD HEAD >/dev/null 2>&1 \
 
 attempt() {
   git fetch -q origin "$D" 2>/dev/null || { echo "SAVED LOCALLY on $BRANCH: fetch of origin/$D failed — not pushed"; return 1; }
-  local landed pending c base tree out msg files
-  SKIPPED=""
-  landed=$(git log "$D_REF" -n 500 --format='%(trailers:key=Continuity-Source,valueonly)' | grep -v '^$')
-  pending=""
-  for c in $(git rev-list --reverse "$D_REF..HEAD" -- .continuity "$EXCL" "$AWAYX"); do
-    printf '%s\n' "$landed" | grep -qx "$c" && continue
-    git log -1 --format=%B "$c" | grep -q '^Continuity-Sync:' && continue   # a re-sync: already main's content
-    [ "$(git rev-list --parents -n 1 "$c" | wc -w)" -gt 2 ] && continue       # a merge: its parents carry the edits
-    files=$(git diff-tree --no-commit-id --name-only -r "$c")
-    if printf '%s\n' "$files" | grep -qv '^\.continuity/' \
-       || printf '%s\n' "$files" | grep -qx '\.continuity/away\.md'; then
-      SKIPPED="$SKIPPED ${c:0:7}"   # mixed code+continuity (or away.md) commit: never push it
-      continue
-    fi
-    pending="$pending $c"
-  done
+  local pending c base tree out msg kind scan
+  # lib/continuity-commits.sh decides what's landed, a sync, a merge, mixed or
+  # pending; mixed commits (code or away.md with continuity) never get pushed.
+  scan=$(cc_scan "$D_REF" "$D_REF..HEAD")
+  pending=$(printf '%s\n' "$scan" | awk '$2 == "pending" { printf " %s", $1 }')
+  SKIPPED=$(printf '%s\n' "$scan" | awk '$2 == "mixed" { printf " %s", substr($1, 1, 7) }')
   [ -n "$SKIPPED" ] && echo "  NOTE: skipped commits that mix code with .continuity/ (merge the branch to land them):$SKIPPED"
   if [ -z "$pending" ]; then
     echo "SAVED: nothing new to land — $D_REF already has this branch's continuity"

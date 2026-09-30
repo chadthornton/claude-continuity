@@ -6,6 +6,7 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 ## Plugin Structure
 
 - `plugin.json` — manifest with hook registrations
+- `lib/continuity-commits.sh` — the shared rules for which commits are continuity state (landed/sync/merge/mixed/pending), the default-branch lookup and the stale count; sourced by continuity-save, continuity-state, away and both hooks. Change the rules here, nowhere else.
 - `hooks/session-start.sh` — init hint; flags continuity commits stranded on local branches
 - `hooks/session-end.sh` — writes `.continuity/last-activity.txt` on session exit
 - `hooks/worktree-remove.sh` — blocks worktree removal that would lose `.continuity/` edits

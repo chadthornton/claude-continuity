@@ -20,8 +20,7 @@
 # Exit codes: 0 ok · 1 `show` path not found · 3 not usable here
 
 set -u
-EXCL=':(exclude).continuity/last-activity.txt'
-AWAYX=':(exclude).continuity/away.md'
+. "$(cd "$(dirname "$0")/../.." && pwd)/lib/continuity-commits.sh" || { echo "SKIP: lib/continuity-commits.sh missing"; exit 3; }
 IN_GIT=""
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   IN_GIT=1
@@ -35,7 +34,7 @@ cd "$TOP" || exit 3
 # Board source: origin/<default> if other sessions landed continuity we lack.
 SRC="" BEHIND=0
 D_REF=""
-[ -n "$IN_GIT" ] && D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null)
+[ -n "$IN_GIT" ] && D_REF=$(cc_default_ref)
 if [ -n "$D_REF" ]; then
   if [ "${1:-}" != "show" ]; then   # `show` reuses the ref the first call fetched
     # Never prompt or hang: extend the user's own ssh command, don't replace it.
@@ -43,19 +42,8 @@ if [ -n "$D_REF" ]; then
     GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="$ssh_cmd -o BatchMode=yes -o ConnectTimeout=5" \
       git fetch -q origin "${D_REF#origin/}" 2>/dev/null
   fi
-  if ! git diff --quiet HEAD "$D_REF" -- .continuity "$EXCL" "$AWAYX" 2>/dev/null; then
-    # origin tips this branch already copied in via continuity-save's sync commits
-    synced=$(git log HEAD -n 200 --format='%(trailers:key=Continuity-Sync,valueonly)' 2>/dev/null | grep -v '^$')
-    for c in $(git rev-list "HEAD..$D_REF" -- .continuity 2>/dev/null); do
-      src=$(git log -1 --format='%(trailers:key=Continuity-Source,valueonly)' "$c" | head -1)
-      [ -n "$src" ] && git merge-base --is-ancestor "$src" HEAD 2>/dev/null && continue   # our own save
-      absorbed=""
-      for s in $synced; do git merge-base --is-ancestor "$c" "$s" 2>/dev/null && { absorbed=1; break; }; done
-      [ -n "$absorbed" ] && continue                                                      # already synced in
-      BEHIND=$((BEHIND + 1))
-    done
-    [ "$BEHIND" -gt 0 ] && SRC="$D_REF"
-  fi
+  BEHIND=$(cc_behind "$D_REF")   # own landed saves and synced-in peer commits don't count
+  [ "$BEHIND" -gt 0 ] && SRC="$D_REF"
 fi
 
 # read_c <path under .continuity> — from origin when stale, else the working copy.

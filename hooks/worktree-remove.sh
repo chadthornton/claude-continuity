@@ -10,26 +10,20 @@ WT=$(echo "$INPUT" | jq -r '.worktree_path // .cwd')
 cd "$WT" 2>/dev/null || exit 0
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 
-EXCL=':(exclude).continuity/last-activity.txt'
-AWAYX=':(exclude).continuity/away.md'
+. "$(dirname "$0")/../lib/continuity-commits.sh" || exit 0
 SAVE="${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/skills/wrap-up/continuity-save"
 
-dirty=$(git status --porcelain -- .continuity "$EXCL" "$AWAYX")
+dirty=$(git status --porcelain -- .continuity "$CC_EXCL" "$CC_AWAYX")
 if [ -n "$dirty" ]; then
   echo "Blocked: $WT has uncommitted .continuity/ changes that would be lost. Run /wrap-up (or $SAVE) there first." >&2
   exit 2
 fi
 
 grep -Eq '^[[:space:]]*push_to_default_branch:[[:space:]]*true' .continuity/feature-status.yml 2>/dev/null || exit 0
-D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD) || exit 0
-landed=$(git log "$D_REF" -n 500 --format='%(trailers:key=Continuity-Source,valueonly)' | grep -v '^$')
-for c in $(git rev-list "$D_REF..HEAD" -- .continuity "$EXCL" "$AWAYX"); do
-  printf '%s\n' "$landed" | grep -qx "$c" && continue
-  git log -1 --format=%B "$c" | grep -q '^Continuity-Sync:' && continue   # re-sync of origin's board
-  files=$(git diff-tree --no-commit-id --name-only -r "$c")
-  printf '%s\n' "$files" | grep -qv '^\.continuity/' && continue
-  printf '%s\n' "$files" | grep -qx '\.continuity/away\.md' && continue
+D_REF=$(cc_default_ref) || exit 0
+c=$(cc_pending "$D_REF" "$D_REF..HEAD" | head -1)
+if [ -n "$c" ]; then
   echo "Blocked: $WT has continuity commit ${c:0:7} not on $D_REF. Run $SAVE there first (a CONFLICT result needs a hand merge)." >&2
   exit 2
-done
+fi
 exit 0
