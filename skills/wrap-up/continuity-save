@@ -35,8 +35,6 @@ while getopts "m:" opt; do
 done
 
 . "$(cd "$(dirname "$0")/../.." && pwd)/lib/continuity-commits.sh" || { echo "FAILED: lib/continuity-commits.sh missing"; exit 3; }
-EXCL=$CC_EXCL
-AWAYX=$CC_AWAYX   # /away's brief rides on the branch only
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "SKIP: not a git repository"; exit 3; }
 cd "$(git rev-parse --show-toplevel)" || exit 3
@@ -50,9 +48,9 @@ BRANCH=$(git symbolic-ref --short -q HEAD || echo "(detached)")
 
 # 1. Commit only .continuity/ — `git commit -- <paths>` leaves anything else
 #    the user has staged exactly as it was.
-git add -A -- .continuity "$EXCL" "$AWAYX"
-if ! git diff --cached --quiet -- .continuity "$EXCL" "$AWAYX"; then
-  git commit -q -m "$MSG" -- .continuity "$EXCL" "$AWAYX" || { echo "FAILED: git commit"; exit 3; }
+git add -A -- .continuity "$CC_EXCL" "$CC_AWAYX"
+if ! git diff --cached --quiet -- .continuity "$CC_EXCL" "$CC_AWAYX"; then
+  git commit -q -m "$MSG" -- .continuity "$CC_EXCL" "$CC_AWAYX" || { echo "FAILED: git commit"; exit 3; }
 fi
 
 # 2. Where should it live?
@@ -123,7 +121,7 @@ attempt() {
     base=$(printf '%s\n\nContinuity-Source: %s\n' "$msg" "$c" | git commit-tree "$tree" -p "$base")
   done
 
-  if git diff --name-only "$D_REF" "$base" | grep -qv '^\.continuity/'; then
+  if git diff --name-only --no-renames "$D_REF" "$base" | grep -qv '^\.continuity/'; then
     echo "ABORTED: built commit touches paths outside .continuity/ — refusing to push"; return 2
   fi
   if git push -q origin "$base:refs/heads/$D" 2>/dev/null; then
@@ -152,11 +150,11 @@ sync_branch() {
   # While /away's brief is on the branch, /back replays the cloud's commits onto
   # this branch; a sync here would widen that replay and invite conflicts.
   git cat-file -e HEAD:.continuity/away.md 2>/dev/null && return 0
-  git diff --quiet "$D_REF" HEAD -- .continuity "$EXCL" "$AWAYX" && return 0
-  git restore --source="$D_REF" --staged --worktree -- .continuity "$EXCL" "$AWAYX" 2>/dev/null || return 0
+  git diff --quiet "$D_REF" HEAD -- .continuity "$CC_EXCL" "$CC_AWAYX" && return 0
+  git restore --source="$D_REF" --staged --worktree -- .continuity "$CC_EXCL" "$CC_AWAYX" 2>/dev/null || return 0
   git diff --cached --quiet -- .continuity && return 0
   git commit -q -m "continuity: sync with $D_REF" -m "Continuity-Sync: $(git rev-parse "$D_REF")" \
-    -- .continuity "$EXCL" "$AWAYX" || return 0
+    -- .continuity "$CC_EXCL" "$CC_AWAYX" || return 0
   echo "  synced $BRANCH's .continuity/ with $D_REF — keeps its PR clear of continuity conflicts"
 }
 

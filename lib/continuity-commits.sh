@@ -17,7 +17,8 @@ CC_AWAYX=':(exclude).continuity/away.md'
 # origin/master. Prints nothing and returns 1 when it can't tell.
 cc_default_ref() {
   local d
-  d=$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null) && { echo "$d"; return 0; }
+  d=$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null) \
+    && git rev-parse -q --verify "$d^{commit}" >/dev/null && { echo "$d"; return 0; }   # not a dangling origin/HEAD
   for d in main master; do
     git show-ref -q --verify "refs/remotes/origin/$d" 2>/dev/null && { echo "origin/$d"; return 0; }
   done
@@ -30,29 +31,35 @@ cc_landed_sources() {
 }
 
 # cc_scan <default-ref> <rev-list args…> — "<sha> <kind>" per continuity commit in
-# the range, oldest first. One git log pass, whatever the range size.
+# the range, oldest first, from one git log pass (plus one to find sync commits).
+# --no-renames: a code file moved into .continuity/ must show its old path too,
+# or the commit would look continuity-only and its code would get landed.
 cc_scan() {
   local dref="$1"; shift
-  local landed; landed=$(cc_landed_sources "$dref")
-  git log --reverse --full-diff --name-only \
-      --format='@%H %P%x09%(trailers:key=Continuity-Sync,valueonly,separator=%x20)' \
+  local landed sync
+  landed=$(cc_landed_sources "$dref")
+  # Sync commits are found by the message line, not a parsed trailer block, so a
+  # commit-msg hook appending text after it doesn't hide one.
+  sync=$(git log --format=%H --grep='^Continuity-Sync:' "$@" -- .continuity "$CC_EXCL" "$CC_AWAYX" 2>/dev/null)
+  git log --reverse --full-diff --name-only --no-renames --format='%x01%H %P' \
       "$@" -- .continuity "$CC_EXCL" "$CC_AWAYX" 2>/dev/null |
-  CC_LANDED="$landed" awk '
-    BEGIN { landed = "\n" ENVIRON["CC_LANDED"] "\n" }
+  CC_LANDED="$landed" CC_SYNC="$sync" awk '
+    BEGIN {
+      landed = "\n" ENVIRON["CC_LANDED"] "\n"; synced = "\n" ENVIRON["CC_SYNC"] "\n"
+      SOH = sprintf("%c", 1)   # commit headers start with \001, which no path can
+    }
     function flush() {
       if (sha == "") return
-      if (index(landed, "\n" sha "\n")) kind = "landed"
-      else if (sync)                    kind = "sync"
-      else if (parents > 1)             kind = "merge"
-      else if (mixed)                   kind = "mixed"
-      else                              kind = "pending"
+      if (index(landed, "\n" sha "\n"))      kind = "landed"
+      else if (index(synced, "\n" sha "\n")) kind = "sync"
+      else if (parents > 1)                  kind = "merge"
+      else if (mixed)                        kind = "mixed"
+      else                                   kind = "pending"
       print sha, kind
     }
-    /^@/ {
+    substr($0, 1, 1) == SOH {
       flush()
-      split(substr($0, 2), f, "\t")
-      parents = split(f[1], p, " ") - 1; sha = p[1]
-      sync = (f[2] != ""); mixed = 0
+      parents = split(substr($0, 2), p, " ") - 1; sha = p[1]; mixed = 0
       next
     }
     /^$/ { next }
@@ -73,9 +80,12 @@ cc_behind() {
   local dref="$1" n=0 c src s absorbed synced
   git diff --quiet HEAD "$dref" -- .continuity "$CC_EXCL" "$CC_AWAYX" 2>/dev/null && { echo 0; return; }
   synced=$(git log HEAD -n 200 --format='%(trailers:key=Continuity-Sync,valueonly,separator=%x0a)' 2>/dev/null | grep -v '^$')
+  local own one
   while IFS=$'\t' read -r c src; do
     [ -n "$c" ] || continue
-    [ -n "$src" ] && git merge-base --is-ancestor "$src" HEAD 2>/dev/null && continue
+    own=""   # a resolve lands several of our commits at once: any one makes it ours
+    for one in $src; do git merge-base --is-ancestor "$one" HEAD 2>/dev/null && { own=1; break; }; done
+    [ -n "$own" ] && continue
     absorbed=""
     for s in $synced; do git merge-base --is-ancestor "$c" "$s" 2>/dev/null && { absorbed=1; break; }; done
     [ -n "$absorbed" ] && continue

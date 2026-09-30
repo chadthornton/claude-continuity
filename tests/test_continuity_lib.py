@@ -60,6 +60,42 @@ rc, out3, err = lib(wt, 'cc_pending origin/master origin/master..HEAD')
 expect('cc_pending lists pending only', out3.split() == [pending], out3)
 shutil.rmtree(root)
 
+# ── edge cases the review reproduced ────────────────────────────────────────
+root, remote, clone, wt = setup()
+commit(wt, 'notes', {'notes.md': 'n\n'})
+git(wt, 'mv', 'notes.md', '.continuity/notes.md'); git(wt, 'commit', '-qm', 'move code into continuity')
+moved = git(wt, 'rev-parse', 'HEAD')
+atpath = commit(wt, 'board + @types', {'.continuity/decisions/y.md': 'y\n', '@types/a.d.ts': 'x\n'})
+hooked = commit(wt, 'sync with a hook line after it', {'.continuity/decisions/h.md': 'h\n'})
+git(wt, 'commit', '-q', '--amend', '-m', 'continuity: sync', '-m', 'Continuity-Sync: 0123abc', '-m', 'Signed-off-by-hook text that is not a trailer block')
+hooked = git(wt, 'rev-parse', 'HEAD')
+rc, out, err = lib(wt, 'cc_scan origin/master origin/master..HEAD')
+rows = dict(line.split() for line in out.splitlines())
+expect('rename of code into .continuity is mixed', rows.get(moved) == 'mixed', out)
+expect('@-prefixed path is a file, not a commit', rows.get(atpath) == 'mixed' and len(rows) == 3, out)
+expect('sync found without a clean trailer block', rows.get(hooked) == 'sync', out)
+shutil.rmtree(root)
+
+# cc_behind: a resolve landing several commits (several Continuity-Source trailers) is our own save.
+root, remote, clone, wt = setup()
+a1 = commit(wt, 'continuity: a1', {'.continuity/decisions/a1.md': 'a\n'})
+a2 = commit(wt, 'continuity: a2', {'.continuity/decisions/a2.md': 'a\n'})
+git(clone, 'pull', '-q', 'origin', 'master')
+commit(clone, 'resolved', {'.continuity/decisions/a1.md': 'a\n', '.continuity/decisions/a2.md': 'a\n', '.continuity/decisions/merged.md': 'hand-merged\n'},
+       f'Continuity-Source: {a1}\nContinuity-Source: {a2}')
+git(clone, 'push', '-q', 'origin', 'master'); git(wt, 'fetch', '-q', 'origin')
+rc, out, err = lib(wt, 'cc_behind origin/master')
+expect('multi-source resolve is our own save → 0 behind', out == '0', (out, err))
+shutil.rmtree(root)
+
+# cc_default_ref must not return a ref that doesn't exist.
+root, remote, clone, wt = setup()
+git(clone, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/gone')
+git(clone, 'config', 'remote.origin.followRemoteHEAD', 'never')
+rc, out, err = lib(clone, 'cc_default_ref')
+expect('dangling origin/HEAD falls back to origin/master', out == 'origin/master', out)
+shutil.rmtree(root)
+
 # ── cc_default_ref ───────────────────────────────────────────────────────────
 root, remote, clone, wt = setup()
 rc, out, err = lib(clone, 'cc_default_ref')
