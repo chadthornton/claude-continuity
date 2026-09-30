@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- **One set of rules for continuity commits** — `lib/continuity-commits.sh` decides landed / sync / merge / mixed / pending, finds the default branch and counts how far behind a checkout is, for `continuity-save`, `continuity-state`, `away` and both hooks, classifying each range with one `git log` scan instead of several git calls per commit. The hooks now also find the default branch without `origin/HEAD` (falling back to `origin/main` or `origin/master`), as `continuity-save` already did. Why: four scripts had drifted — the hooks treated merges as mixed only by accident, and `continuity-state` missed sync commits.
+
 ## [0.12.0] - 2026-09-29
 
 ### Changed

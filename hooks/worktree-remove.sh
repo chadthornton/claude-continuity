@@ -10,26 +10,23 @@ WT=$(echo "$INPUT" | jq -r '.worktree_path // .cwd')
 cd "$WT" 2>/dev/null || exit 0
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 
-EXCL=':(exclude).continuity/last-activity.txt'
-AWAYX=':(exclude).continuity/away.md'
 SAVE="${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/skills/wrap-up/continuity-save"
 
-dirty=$(git status --porcelain -- .continuity "$EXCL" "$AWAYX")
+# Needs nothing but git, so it runs even if the shared lib can't load.
+dirty=$(git status --porcelain -- .continuity ':(exclude).continuity/last-activity.txt' ':(exclude).continuity/away.md')
 if [ -n "$dirty" ]; then
   echo "Blocked: $WT has uncommitted .continuity/ changes that would be lost. Run /wrap-up (or $SAVE) there first." >&2
   exit 2
 fi
 
+. "$(dirname "$0")/../lib/continuity-commits.sh" || exit 0
+
 grep -Eq '^[[:space:]]*push_to_default_branch:[[:space:]]*true' .continuity/feature-status.yml 2>/dev/null || exit 0
-D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD) || exit 0
-landed=$(git log "$D_REF" -n 500 --format='%(trailers:key=Continuity-Source,valueonly)' | grep -v '^$')
-for c in $(git rev-list "$D_REF..HEAD" -- .continuity "$EXCL" "$AWAYX"); do
-  printf '%s\n' "$landed" | grep -qx "$c" && continue
-  git log -1 --format=%B "$c" | grep -q '^Continuity-Sync:' && continue   # re-sync of origin's board
-  files=$(git diff-tree --no-commit-id --name-only -r "$c")
-  printf '%s\n' "$files" | grep -qv '^\.continuity/' && continue
-  printf '%s\n' "$files" | grep -qx '\.continuity/away\.md' && continue
-  echo "Blocked: $WT has continuity commit ${c:0:7} not on $D_REF. Run $SAVE there first (a CONFLICT result needs a hand merge)." >&2
+D_REF=$(cc_default_ref) || exit 0
+pending=$(cc_pending "$D_REF" "$D_REF..HEAD")
+if [ -n "$pending" ]; then
+  n=$(printf '%s\n' "$pending" | wc -l | tr -d ' '); c=$(printf '%s\n' "$pending" | tail -1)
+  echo "Blocked: $WT has $n continuity commit(s) not on $D_REF (newest ${c:0:7}). Run $SAVE there first (a CONFLICT result needs a hand merge)." >&2
   exit 2
-done
+fi
 exit 0

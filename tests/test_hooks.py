@@ -85,5 +85,18 @@ expect('wr ignores committed away.md', rc == 0, (rc, err))
 rc, out, err = hook('session-start.sh', {'cwd': clone3})
 expect('ss ignores away.md commits', out == '', out)
 
+# worktree-remove still blocks uncommitted .continuity/ edits if the shared lib can't load.
+import tempfile as _tf
+root4, _, clone4, wt4 = setup()
+write(f'{wt4}/.continuity/decisions/z.md', '# z\n')
+hk = _tf.mkdtemp(); os.makedirs(f'{hk}/hooks'); shutil.copy(f'{HOOKS}/worktree-remove.sh', f'{hk}/hooks/')
+r = subprocess.run(['bash', f'{hk}/hooks/worktree-remove.sh'], input=json.dumps({'worktree_path': wt4}), env=ENV, capture_output=True, text=True)
+expect('wr blocks dirty even without lib/', r.returncode == 2 and 'uncommitted' in r.stderr, (r.returncode, r.stderr))
+# several unlanded commits: the message says how many
+write(f'{wt4}/.continuity/decisions/z.md', '# z\n'); git(wt4, 'add', '-A'); git(wt4, 'commit', '-qm', 'c1')
+write(f'{wt4}/.continuity/decisions/z2.md', '# z2\n'); git(wt4, 'add', '-A'); git(wt4, 'commit', '-qm', 'c2')
+rc, out, err = hook('worktree-remove.sh', {'worktree_path': wt4})
+expect('wr names the count of unlanded commits', rc == 2 and '2 continuity commit' in err, err)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

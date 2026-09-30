@@ -264,5 +264,14 @@ expect('15 marker landed', rc == 0 and 'landed' in out, out)
 expect('15 no sync while away', git(wt, 'log', '--grep=Continuity-Sync', '--format=%h', 'origin/master..HEAD') == '', out)
 shutil.rmtree(root)
 
+# 16. Moving a code file into .continuity/ is a code change: it must never land.
+root, remote, clone, wt = setup()
+git(wt, 'mv', 'app.js', '.continuity/app.js'); git(wt, 'commit', '-qm', 'move app.js into continuity')
+write(f'{wt}/.continuity/decisions/r.md', '# r\n')
+rc, out = save(wt)
+expect('16 app.js still on master', remote_file(clone, 'app.js') == 'v1', out)
+expect('16 the move was held back as mixed', 'skipped commits' in out, out)
+shutil.rmtree(root)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

@@ -21,21 +21,13 @@ fi
 cd "$CWD" 2>/dev/null || exit 0
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 grep -Eq '^[[:space:]]*push_to_default_branch:[[:space:]]*true' .continuity/feature-status.yml 2>/dev/null || exit 0
-D_REF=$(git symbolic-ref --short -q refs/remotes/origin/HEAD) || exit 0
-
-EXCL=':(exclude).continuity/last-activity.txt'
-AWAYX=':(exclude).continuity/away.md'
-landed=$(git log "$D_REF" -n 500 --format='%(trailers:key=Continuity-Source,valueonly)' | grep -v '^$')
+. "$(dirname "$0")/../lib/continuity-commits.sh" || exit 0
+D_REF=$(cc_default_ref) || exit 0
 lines=""
 count=0
-for c in $(git rev-list --since=14.days --branches --not "$D_REF" -- .continuity "$EXCL" "$AWAYX"); do
-  printf '%s\n' "$landed" | grep -qx "$c" && continue
-  git log -1 --format=%B "$c" | grep -q '^Continuity-Sync:' && continue   # re-sync of origin's board
-  # Commits mixing code and .continuity land when their branch merges; only
-  # continuity-only commits are the ones continuity-save exists to land.
-  files=$(git diff-tree --no-commit-id --name-only -r "$c")
-  printf '%s\n' "$files" | grep -qv '^\.continuity/' && continue
-  printf '%s\n' "$files" | grep -qx '\.continuity/away\.md' && continue
+# Only pending (continuity-only, unlanded) commits are what continuity-save
+# exists to land; mixed ones land when their branch merges.
+for c in $(cc_pending "$D_REF" --since=14.days --branches --not "$D_REF"); do
   count=$((count + 1))
   if [ $count -le 3 ]; then
     br=$(git branch --contains "$c" --format='%(refname:short)' | head -1)

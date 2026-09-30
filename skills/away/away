@@ -25,12 +25,10 @@ to_root() {
   cd "$(git rev-parse --show-toplevel)" || exit 3
 }
 
+# default_branch — origin's default branch name, via the shared continuity rules.
+. "$(cd "$(dirname "$0")/../.." && pwd)/lib/continuity-commits.sh" || { echo "SKIP: lib/continuity-commits.sh missing"; exit 3; }
 default_branch() {
-  local d
-  d=$(git symbolic-ref --short -q refs/remotes/origin/HEAD) && { echo "${d#origin/}"; return; }
-  for d in main master; do
-    git show-ref -q --verify "refs/remotes/origin/$d" && { echo "$d"; return; }
-  done
+  local d; d=$(cc_default_ref) && echo "${d#origin/}"
 }
 
 cmd_launch() {
