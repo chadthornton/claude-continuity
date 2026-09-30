@@ -1,0 +1,58 @@
+settings:
+  # wrap-up's continuity-save lands .continuity/ on origin/main (never code).
+  push_to_default_branch: true
+
+features:
+  closure-pass:
+    status: exploring
+    next: "Observe 3–5 trip-planner sessions, then build the rules"
+    summary: >
+      Retire finished work without losing rationale: sort finished steps into
+      decisions / Ruled out / ADRs / docs, then delete. Hand-calibrated on
+      trip-planner (PR #18); waiting on field evidence before codifying.
+    next_steps:
+      - { step: "Check trip-planner sessions since 2026-09-28 for the rollback signal: an agent digging in git for something PR #18 deleted, or re-learning a moved fact (search ~/.claude/projects/-Users-chadthornton-Projects-trip-planner*/ transcripts)", done: false }
+      - { step: "Re-check docs/2026-09-28-closure-pass-calibration.md 'Plugin changes to make' against 0.9–0.13 (mandates and per-feature handoffs changed how finished steps flow)", done: false }
+      - { step: "Build the closing pass (/continuity-prune or /continuity-close) with the calibration doc's seven rules, scenario-tested", done: false }
+      - { step: "Run it board-wide on trip-planner; compare scratchpad-style metrics (feature-status.yml lines/bytes) to the 2026-09-28 baseline", done: false }
+    in_progress: null
+
+  relay-and-spawn:
+    status: polishing
+    next: "Spawned-tab visibility (field report #4)"
+    summary: >
+      Mandates, relays, ownership, gated steps, per-feature handoffs (0.7–0.12)
+      and agent-spawn's own-tab-per-worktree launch (claude-config).
+    next_steps:
+      - { step: "agent-spawn (~/claude-config): color spawned tabs (muxy tab set-color) and print which project view they opened in — field report #4", done: false }
+      - { step: "Wrap-up summary prints both MANDATE and RELAY lines on 'continue with a new agent'; RELAY should replace MANDATE", done: false }
+    in_progress: null
+
+  worktree-hygiene:
+    status: polishing
+    next: "Watch mac-diskspace's removable-worktree numbers"
+    summary: >
+      worktree-sweep (wrap-up Step 6c), wt:status/--tsv and wt:rm in
+      claude-config. Worktrees cost ~356 MB each (npm node_modules).
+    next_steps: []
+    in_progress: null
+
+  away-back:
+    status: polishing
+    next: "(owned by the session that built it)"
+    summary: >
+      /away and /back hand mid-stream work to a cloud session and back (0.11.0).
+      Design: docs/superpowers/specs/2026-09-29-away-back-design.md.
+    next_steps: []
+    in_progress: null
+
+last_session:
+  date: 2026-09-30
+  feature: relay-and-spawn
+  summary: "Initialized continuity; triaged the trip-planner relay field report — items 1, 2, 3, 5 already fixed in 0.12–0.13"
+  blind_spots:
+    - "Several sessions work this repo in parallel (spawn-ux-fixes, away-back, refactor-classify built 0.10–0.13); fetch and read CHANGELOG before building, or you'll duplicate their work."
+
+gotchas:
+  - "Skill edits are scenario-tested: fixtures in tests/skill-scenarios/, baseline run on a snapshot of the old SKILL.md first (RED), then the edited one. Tell test agents to prefix EVERY command with the fixture PATH — they drop it and find the real ~/.local/bin/agent-spawn."
+  - "The installed plugin runs from a versioned cache: bump version in .claude-plugin/{plugin,marketplace}.json, then `claude plugin marketplace update claude-continuity-local && claude plugin update claude-continuity@claude-continuity-local`."
