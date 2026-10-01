@@ -3,7 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
-- **Relay summary gives each agent its own directions, and never reports an agent that didn't start** — wrap-up copies the `Open it:` line from each spawn and treats a spawn without `✓` as not running: the feature's owner is cleared and its mandate kept. Why: under Muxy 2 the summary dropped the directions, with several relays it kept only one, and a failed spawn left the feature owned by an agent that wasn't running.
+- **A relay whose agent didn't start no longer leaves the feature owned by it** — wrap-up judges each spawn by agent-spawn's exit status (0 only for a verified running agent); on failure it removes `owner`, restores the handoff's branch name, keeps the mandate and saves once. Why: wrap-up reported "RELAY: … spawned" for agents that never ran, and every later /startup refused to resume the feature.
+- **Each relayed agent gets its own directions** — the summary copies each spawn's `Open it:` line under its RELAY line. Why: under Muxy 2 the directions were dropped, and with several relays they weren't tied to their agents.
+
+### Removed
+- **The `Switch to it:` relay line** — agent-spawn's `Open it:` line replaces it on every backend (the switch command is behind `agent-spawn --detail`).
 
 ## [0.13.0] - 2026-09-29
 

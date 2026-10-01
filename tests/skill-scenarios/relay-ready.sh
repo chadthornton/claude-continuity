@@ -7,19 +7,22 @@
 # Usage: relay-ready.sh <dir>   → checkout at <dir>/work, PATH prefix <dir>/bin
 set -euo pipefail
 root="$1"; rm -rf "$root"; mkdir -p "$root/bin"; cd "$root"
-# Prints agent-spawn's real contract: a first line with ✓ only when an agent is
-# running, then an `Open it:` line. FAKE_SPAWN_FAIL=1 (set when running the
-# scenario) prints the not-running shape, as with no Muxy/tmux.
+# Follows agent-spawn's contract: exit 0 + `✓ … started.` when the agent runs;
+# exit 1 + `✗ … didn't start` when it doesn't (nothing left running); an
+# `Open it:` line either way. To make spawns of <name> fail, create
+# <dir>/spawn-fail containing <name> lines (a file, not an env var, so the
+# agent under test never sees the knob).
 cat > bin/agent-spawn <<'SH'
 #!/bin/sh
-echo "agent-spawn $*" >> "$(dirname "$0")/../spawn.log"
-if [ -n "$FAKE_SPAWN_FAIL" ]; then
-  echo "Agent '$1' isn't running — no Muxy or tmux here to start it in."
+d="$(dirname "$0")/.."
+echo "agent-spawn $*" >> "$d/spawn.log"
+if [ -f "$d/spawn-fail" ] && grep -qxF "$1" "$d/spawn-fail"; then
+  echo "✗ Agent '$1' didn't start: no claude started within 30s"
   echo "  Open it: in a new terminal tab, run: wt $1 -- /startup"
-else
-  echo "✓ Agent '$1' started."
-  echo "  Open it: Muxy sidebar → work → $1 → right-click → Existing Terminals (⌥⌘T)"
+  exit 1
 fi
+echo "✓ Agent '$1' started."
+echo "  Open it: Muxy sidebar → work → $1 → right-click → Existing Terminals (⌥⌘T)"
 SH
 chmod +x bin/agent-spawn
 git init -q --bare -b main origin.git
