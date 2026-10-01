@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Relay summary says how to open a Muxy 2 agent** — wrap-up now copies agent-spawn's `Open it:` line (Muxy 2 runs spawned agents in background terminals opened from the sidebar), alongside the 1.x `Find it:` line. Why: under Muxy 2 the summary dropped the only directions to the new agent. agent-spawn now lives in its own repo, `~/Projects/agent-tools`.
+
 ## [0.13.0] - 2026-09-29
 
 ### Changed
