@@ -219,7 +219,12 @@ For the features chosen, relay them all in one save, then spawn one agent per fe
 2. Set `owner: {name}` on each feature, and in its handoff's first action use the branch `{name}-step-{first}`.
 3. Run continuity-save once (`-m "continuity: relay {features} to {names}"`). If it reports `CONFLICT`, stop and resolve before spawning: the new agents would read a board without their handoffs.
 4. Per feature, run `agent-spawn {name} --prompt "/startup"` from the repo root, name first: an older agent-spawn reads only its first argument and ignores the rest. The new session opens already running `/startup`, finds the feature whose `owner` is its checkout name, and resumes from `handoffs/{feature}.md`. Don't message it afterwards: a cross-session message can sit waiting for approval, and the handoff already carries everything.
-5. In place of each MANDATE line, report `RELAY: {name} spawned — owns {feature} steps {first}–{last}`. After the last spawn, add one line: `Check on them without switching: agent-spawn status`. If agent-spawn printed a `Find it: <command>` line, add `Switch to it: <command>` with the command copied exactly (it addresses the worktree by path, because Muxy labels worktrees by branch and the relay renames the branch). The tab opens in the user's current view of the project, or the main checkout's view when they're elsewhere, so this line is how they reach it from another project. Otherwise add agent-spawn's own instruction line (e.g. `wt {name} -- /startup`) as-is.
+5. Judge each spawn by its exit status. agent-spawn exits 0 only once it has seen the agent running; on any other exit nothing is left running (it closes whatever it opened). Every path prints an `Open it: …` line: where the agent is, or the command that starts it by hand.
+   - **Exit 0:** in place of that feature's MANDATE line, report `RELAY: {name} spawned — owns {feature} steps {first}–{last}`, and under it that spawn's own `Open it: …` line, copied exactly. Each agent gets its own, because each one opens somewhere different.
+   - **Any other exit:** the feature must not stay owned by an agent that isn't running. Undo step 2 for it: remove its `owner`, and put the handoff's branch back to `{feature}-step-{first}`; keep the mandate and handoff. Report its MANDATE line with ` — {name} didn't start`, and under it the spawn's `Open it: …` line (starting the agent that way asks the user to take the mandate, since nothing owns it now).
+   - **No `Open it:` line** (an older agent-spawn): copy its last instruction line as-is in its place.
+
+   If any spawn failed, run continuity-save once after the last one (`-m "continuity: {names} didn't start; mandates kept"`); on `CONFLICT`, stop and resolve as in step 3. If any agent started, end with one line: `Check on them: agent-spawn status`.
 
 **Dropping a mandate.** When the user asks to drop one, remove `mandate` and `in_progress` from the feature, delete `.continuity/handoffs/{feature}.md` (or a legacy `handoff.md`), and run continuity-save.
 
@@ -249,6 +254,9 @@ Updated .continuity/:
   handoffs/canvas-types.md — removed (clean stop)
   SAVED: 5ee1f0c landed on origin/master (from feature-x)
   MANDATE: canvas-types steps 3–5 left for the next session (say "drop the canvas-types mandate" to remove)
+  RELAY: sidebar-1 spawned — owns sidebar steps 2–3
+    Open it: Muxy sidebar → app → sidebar-1 → right-click → Existing Terminals (⌥⌘T)
+  Check on them: agent-spawn status
   WORKTREES: removed 2 finished (agent-a1b2, agent-c3d4)
 
 Blind spots (7/10):
