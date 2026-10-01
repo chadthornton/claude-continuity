@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
-- **Relay summary says how to open a Muxy 2 agent** — wrap-up now copies agent-spawn's `Open it:` line (Muxy 2 runs spawned agents in background terminals opened from the sidebar), alongside the 1.x `Find it:` line. Why: under Muxy 2 the summary dropped the only directions to the new agent. agent-spawn now lives in its own repo, `~/Projects/agent-tools`.
+- **Relay summary gives each agent its own directions, and never reports an agent that didn't start** — wrap-up copies the `Open it:` line from each spawn and treats a spawn without `✓` as not running: the feature's owner is cleared and its mandate kept. Why: under Muxy 2 the summary dropped the directions, with several relays it kept only one, and a failed spawn left the feature owned by an agent that wasn't running.
 
 ## [0.13.0] - 2026-09-29
 
