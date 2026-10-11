@@ -1,5 +1,7 @@
 # Continuity System Proposal
 
+> Historical. Anti-goals A1 and A3, cited below, were retired on 2026-10-11; see `docs/principles.md`.
+
 ## Overview
 
 A lightweight system for maintaining context, direction, and decision rationale across Claude Code sessions on long-running projects. Designed for a workflow where a product designer works with multiple Claude instances (main builder + brainstorm side chats) on an evolving project.

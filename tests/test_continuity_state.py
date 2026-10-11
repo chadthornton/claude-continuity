@@ -135,5 +135,132 @@ rc, out = state(wt)
 expect('S9 only Q counts', 'board: origin/master (1 continuity commit(s) behind)' in out, out)
 shutil.rmtree(root)
 
+# --- Large boards: above the size limit the board is summarised, one row at a time on request.
+def big_board(pad=60):
+    filler = ''.join(
+        '      - { step: "filler step %d %s", done: %s }\n' % (i, 'x' * 300, 'true' if i % 2 else 'false')
+        for i in range(pad))
+    return (
+        'settings:\n  push_to_default_branch: true\n\n'
+        'features:\n'
+        '  alpha:\n    status: building\n    phase: 1\n    owner: wt-a\n    next: "Ship alpha"\n'
+        '    summary: >\n      Alpha summary text that the dashboard never shows.\n'
+        '    next_steps:\n'
+        '      - { step: "said \\"done: true }\\" in a note", done: false }\n'
+        '      - { step: "second", gate: approval, done: false }\n'
+        '      - { step: "third", done: true }\n'
+        + filler +
+        '    in_progress: "alpha step 2"\n'
+        '  beta:\n    status: planned\n    next: "' + 'n' * 400 + '"\n'
+        '    next_steps:\n      - step: "block one"\n        done: true\n      - step: "block two"\n        done: false\n'
+        '    in_progress: null\n'
+        '  gamma:\n    status: parked\n    next_steps: [one, two]\n'
+        '  delta:\n    status: polishing\n    next_steps: []\n'
+        'workflows:\n  audit:\n    last_run: null\n    summary: "Weekly audit"\n'
+        '    steps:\n      - "pull counts"\n      - "write report"\n'
+        'last_session:\n  date: 2026-10-11\n  feature: alpha\n  summary: "did things"\n'
+        '  blind_spots:\n    - "' + 'b' * 300 + '"\n'
+        'gotchas:\n  - "Short gotcha one"\n  - >\n    Folded gotcha whose first line is here\n'
+        '    and continues ' + 'g' * 300 + '\n')
+
+
+# S10. A board over the limit prints a per-row summary: fields kept, steps counted, bulk left out.
+plain = tempfile.mkdtemp()
+BIG = big_board()
+write(f'{plain}/.continuity/feature-status.yml', BIG)
+rc, out = state(plain)
+sec = section(out, 'feature-status.yml')
+expect('S10 exit 0', rc == 0, out[:400])
+expect('S10 says it is summarised and how to read a row', 'SUMMARISED' in sec and 'continuity-state row <name>' in sec, sec[:400])
+expect('S10 summary under the limit and far smaller than the board',
+       len(sec.encode()) < 16384 and len(sec) < len(BIG) / 4, (len(sec), len(BIG)))
+expect('S10 one-line steps counted, quoted "done: true" ignored', 'next_steps: 32 open, 31 done' in sec, sec[:900])
+expect('S10 multi-line steps counted', 'next_steps: 1 open, 1 done' in sec, sec)
+expect('S10 unparseable steps say so, no number', 'next_steps: unreadable' in sec, sec)
+expect('S10 empty steps', 'next_steps: 0 open, 0 done' in sec, sec)
+expect('S10 row fields kept', all(k in sec for k in ['alpha:', 'status: building', 'phase: 1', 'owner: wt-a', 'in_progress: "alpha step 2"']), sec[:900])
+expect('S10 step text and row summaries left out', 'filler step' not in sec and 'Alpha summary text' not in sec, sec[:900])
+expect('S10 a long next is cut', 'n' * 400 not in sec and 'n' * 150 in sec, sec)
+expect('S10 workflow rows listed with a step count', 'audit:' in sec and 'steps: 2' in sec and 'pull counts' not in sec, sec)
+expect('S10 last_session in full', 'b' * 300 in sec and 'feature: alpha' in sec, sec[-900:])
+expect('S10 other sections still print', section(out, 'git log') == '(not a git repository)', out[-300:])
+shutil.rmtree(plain)
+
+# S11. `row <name>` prints one row with all its steps; an unknown row exits 1 and names the rows.
+plain = tempfile.mkdtemp()
+write(f'{plain}/.continuity/feature-status.yml', BIG)
+rc, out = state(plain, 'row', 'beta')
+expect('S11 row prints that row in full', rc == 0 and out.startswith('  beta:') and 'block two' in out and 'n' * 400 in out, out[:300])
+expect('S11 row prints nothing of its neighbours', 'filler step' not in out and 'gamma' not in out and 'alpha' not in out, out[:300])
+rc, out = state(plain, 'row', 'audit')
+expect('S11 workflow rows are readable too', rc == 0 and 'write report' in out and 'last_session' not in out, out)
+rc, out = state(plain, 'row', 'nope')
+expect('S11 unknown row exits 1 and lists the rows', rc == 1 and 'alpha' in out and 'audit' in out and 'filler' not in out, out)
+rc, out = state(plain, 'row')
+expect('S11 row with no name is a usage error', rc == 3 and 'usage' in out, out)
+
+# S12. Gotchas: a large board shows the first line of each; `gotchas` prints them in full.
+rc, out = state(plain)
+sec = section(out, 'feature-status.yml')
+expect('S12 gotcha count and first lines', '2 entries' in sec and 'Short gotcha one' in sec and 'Folded gotcha whose first line is here' in sec, sec[-500:])
+expect('S12 gotcha bodies left out', 'g' * 300 not in sec, sec[-500:])
+rc, out = state(plain, 'gotchas')
+expect('S12 gotchas in full on request', rc == 0 and 'g' * 300 in out and 'last_session' not in out and 'did things' not in out, out)
+shutil.rmtree(plain)
+
+# S13. A board under the limit prints exactly as before, byte for byte.
+plain = tempfile.mkdtemp()
+SMALL = big_board(pad=2)
+write(f'{plain}/.continuity/feature-status.yml', SMALL)
+rc, out = state(plain)
+expect('S13 small board verbatim', '--- feature-status.yml\n' + SMALL + '--- handoffs\n' in out and 'SUMMARISED' not in out, out[:300])
+shutil.rmtree(plain)
+
+# S14. A stale checkout summarises origin's board, and `row` reads the same source.
+root, remote, clone, wt = setup()
+write(f'{clone}/.continuity/feature-status.yml', BIG)
+git(clone, 'add', '-A'); git(clone, 'commit', '-qm', 'peer big board'); git(clone, 'push', '-q', 'origin', 'master')
+rc, out = state(wt)
+sec = section(out, 'feature-status.yml')
+expect('S14 origin board summarised', 'board: origin/master' in out and 'SUMMARISED' in sec and 'next_steps: 32 open, 31 done' in sec, out[:500])
+rc, out = state(wt, 'row', 'beta')
+expect('S14 row reads origin', rc == 0 and 'block two' in out, out[:300])
+shutil.rmtree(root)
+
+# S15. A cut never lands inside a character.
+plain = tempfile.mkdtemp()
+write(f'{plain}/.continuity/feature-status.yml',
+      'features:\n  a:\n    next: "' + 'é—·' * 200 + '"\n' + ''.join(f'  r{i}:\n    next: "{"z" * 300}"\n' for i in range(80)))
+r = subprocess.run([STATE], cwd=plain, env=ENV, capture_output=True)
+try:
+    r.stdout.decode('utf-8'); ok = True
+except UnicodeDecodeError as e:
+    ok = False
+expect('S15 summary is valid UTF-8', ok and b'SUMMARISED' in r.stdout, r.stdout[:300])
+shutil.rmtree(plain)
+
+# S16. A milestone's claims show as a count in the summary, and in full through `row`.
+plain = tempfile.mkdtemp()
+CLAIMS = ('  launch:\n    kind: milestone\n    status: building\n    claims:\n'
+          '      - { text: "claim one text", status: true, evidence: "seen" }\n'
+          '      - { text: "claim two text", status: false }\n'
+          '      - text: "claim three text"\n        status: unknown\n')
+write(f'{plain}/.continuity/feature-status.yml', BIG.replace('workflows:\n', CLAIMS + 'workflows:\n'))
+rc, out = state(plain)
+sec = section(out, 'feature-status.yml')
+expect('S16 claims counted by status', 'claims: 3 (1 true, 1 false, 1 unknown)' in sec and 'kind: milestone' in sec, sec[-1200:])
+expect('S16 claim text left out of the summary', 'claim one text' not in sec, sec[-1200:])
+rc, out = state(plain, 'row', 'launch')
+expect('S16 row shows the claims in full', rc == 0 and 'claim three text' in out and 'evidence: "seen"' in out, out)
+shutil.rmtree(plain)
+
+# S17. A workflow row keeps its summary in the summarised board; startup's picker shows it.
+plain = tempfile.mkdtemp()
+write(f'{plain}/.continuity/feature-status.yml', BIG)
+rc, out = state(plain)
+sec = section(out, 'feature-status.yml')
+expect('S17 workflow summary kept, feature summary still left out', 'summary: "Weekly audit"' in sec and 'Alpha summary text' not in sec, sec[-900:])
+shutil.rmtree(plain)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

@@ -12,6 +12,21 @@ features:
     #   - step: "Do the second thing"
     #     done: false
 
+  # A milestone is a row that owns claims, not work: sentences that must be
+  # true together by some event (a launch, a cutover, a guest arriving). The
+  # work that makes a claim true stays in its own feature's next_steps.
+  # Optional; a board with no milestones behaves as before.
+  # example-milestone:
+  #   kind: milestone
+  #   status: building
+  #   next: "Three guests join on 2026-11-07"
+  #   claims:
+  #     - { text: "A guest with no account can open the invite on a phone", status: true, evidence: "Walked at 390px on prod, 2026-10-10" }
+  #     - { text: "Pasted places make a list", status: false, evidence: "One-line paste made a junk place", waits_on: "the import fix" }
+  #     - { text: "Sign-up works on a phone", status: unknown }
+  #   status is true | false | unknown. A true claim says what showed it
+  #   (evidence); a claim that can't be settled yet says what it waits on.
+
 # Workflows are repeatable operations, not features to build.
 # They appear in the dashboard alongside features but have different fields.
 workflows:

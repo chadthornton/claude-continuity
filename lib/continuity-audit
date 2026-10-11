@@ -1,0 +1,172 @@
+#!/bin/bash
+# continuity-audit — facts about a project's board, as JSON on stdout.
+#
+# The board review (page and skill) reads this and nothing else, so how the
+# board is stored can change without touching them. It reads the working copy
+# of .continuity/ and changes nothing. Board layout comes from
+# continuity-board.sh; this script adds what lives outside the board file.
+#
+#   continuity-audit        run in a project that has .continuity/
+#
+# Output keys:
+#   board             path, bytes, lines
+#   rows[]            name, section, status, kind, serves, open, done,
+#                     steps_readable, gated[{step, gate}], prs[],
+#                     claims[{text, status, evidence, waits_on}],
+#                     claims_readable, flags[]
+#                     flags: no_open_steps (building/polishing with a step
+#                            list and nothing open, not a milestone) ·
+#                            feature_under_workflows ·
+#                            true_claim_without_evidence · claims_unreadable
+#                     `serves` is reported when a row states it; a row
+#                     without it is not a finding
+#   decisions[]       path, bytes, lines, over_budget (more than 30 lines)
+#   gotchas           count, lines, cap, over_cap, entries[{line, head,
+#                     last_edited, age_days}] — age is when git last saw that
+#                     line edited, null without history
+#   prs               source, items[{number, state, rows[]}]
+#   secrets[]         path, line, kind — never the matched text; the same
+#                     patterns are blanked in every step, claim and gotcha
+#                     this output repeats
+#   unexpected_files[] path, bytes, binary — files under .continuity/ (tracked
+#                     or about to be) that are binary or not .md/.yml/.yaml/.txt
+# PR states come from one `gh pr list`; without a working gh every state is
+# "unknown" and prs.source is "unavailable". CONTINUITY_AUDIT_GH names the gh
+# binary (tests).
+#
+# Exit codes: 0 ok · 3 not usable here (no .continuity/, no jq)
+set -u
+LIB="$(cd "$(dirname "$0")" && pwd)"
+. "$LIB/continuity-board.sh" || { echo "SKIP: lib/continuity-board.sh missing" >&2; exit 3; }
+command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-audit needs jq" >&2; exit 3; }
+GH="${CONTINUITY_AUDIT_GH:-gh}"
+
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then TOP=$(git rev-parse --show-toplevel); else TOP=$PWD; fi
+cd "$TOP" || exit 3
+B=.continuity/feature-status.yml
+[ -f "$B" ] || { echo "SKIP: no $B here — run /continuity-init to start tracking" >&2; exit 3; }
+
+tmp=$(mktemp -d) || exit 3
+trap 'rm -rf "$tmp"' EXIT
+
+# kind<TAB>pattern. A finding is a path, a line number and a kind; the match is never printed.
+SECRET_PATTERNS='github-token	gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}
+aws-access-key	AKIA[0-9A-Z]{16}
+api-key	sk-[A-Za-z0-9_-]{20,}
+slack-token	xox[baprs]-[A-Za-z0-9-]{10,}
+private-key	-----BEGIN [A-Z ]*PRIVATE KEY-----
+assigned-secret	([Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Pp][Aa][Ss][Ss][Ww]([Oo][Rr])?[Dd])["'"'"']?[ ]*[:=][ ]*["'"'"']?[A-Za-z0-9/+_-]{16,}'
+
+# Board text the audit repeats (steps, claims, gotchas) has the same patterns blanked.
+cb_facts < "$B" > "$tmp/facts"
+printf '%s\n' "$SECRET_PATTERNS" | while IFS='	' read -r kind re; do
+  sed -E "s#$re#[redacted:$kind]#g" "$tmp/facts" > "$tmp/facts.r" && mv "$tmp/facts.r" "$tmp/facts"
+done
+
+# PR states: one listing, only when the board cites a PR.
+gh_src=unavailable
+echo '[]' > "$tmp/gh.json"
+if grep -q '^pr	' "$tmp/facts"; then
+  if "$GH" pr list --state all --limit 1000 --json number,state > "$tmp/gh.raw" 2>/dev/null \
+     && jq -e 'type == "array"' "$tmp/gh.raw" >/dev/null 2>&1; then
+    cp "$tmp/gh.raw" "$tmp/gh.json"; gh_src=gh
+  fi
+fi
+
+# The record's files: tracked, plus new ones the next save would commit. Not ignored ones.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git -c core.quotePath=false ls-files -co --exclude-standard .continuity | sort > "$tmp/files"
+else find .continuity -type f | sort > "$tmp/files"
+fi
+
+: > "$tmp/decisions"; : > "$tmp/other"; : > "$tmp/secrets"
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  bytes=$(wc -c < "$f" | tr -d ' ')
+  binary=0
+  [ "$bytes" -gt 0 ] && ! grep -Iq '' "$f" && binary=1
+  case "$f" in
+    .continuity/decisions/*.md) printf '%s\t%s\t%s\n' "$f" "$bytes" "$(wc -l < "$f" | tr -d ' ')" >> "$tmp/decisions" ;;
+  esac
+  case "$f" in
+    *.md|*.yml|*.yaml|*.txt) [ "$binary" = 1 ] && printf '%s\t%s\t1\n' "$f" "$bytes" >> "$tmp/other" ;;
+    *) printf '%s\t%s\t%s\n' "$f" "$bytes" "$binary" >> "$tmp/other" ;;
+  esac
+  [ "$binary" = 1 ] && continue
+  printf '%s\n' "$SECRET_PATTERNS" | while IFS='	' read -r kind re; do
+    grep -nE -e "$re" "$f" 2>/dev/null | cut -d: -f1 | while IFS= read -r n; do
+      printf '%s\t%s\t%s\n' "$f" "$n" "$kind" >> "$tmp/secrets"
+    done
+  done
+done < "$tmp/files"
+
+# When each board line was last edited: line<TAB>epoch. Empty without git history.
+git blame --line-porcelain -- "$B" 2>/dev/null \
+  | awk '/^author-time /{t=$2} /^\t/{n++; print n "\t" t}' > "$tmp/blame"
+
+jq -n \
+  --rawfile decisions "$tmp/decisions" \
+  --rawfile other "$tmp/other" \
+  --rawfile secrets "$tmp/secrets" \
+  --rawfile blame "$tmp/blame" \
+  --arg now "$(date +%s)" \
+  --rawfile facts "$tmp/facts" \
+  --slurpfile gh "$tmp/gh.json" \
+  --arg gh_src "$gh_src" \
+  --arg path "$B" \
+  --arg bytes "$(wc -c < "$B" | tr -d ' ')" \
+  --arg lines "$(wc -l < "$B" | tr -d ' ')" '
+def recs($s): $s | split("\n") | map(select(length > 0) | split("\t"));
+def nn: if . == "" then null else . end;
+recs($facts) as $f
+| ($f | map(select(.[0] == "gated"))) as $gated
+| ($f | map(select(.[0] == "pr"))) as $prs
+| ($f | map(select(.[0] == "claim"))) as $claims
+| ($gh[0] | map({key: (.number | tostring), value: .state}) | from_entries) as $state
+| (recs($blame) | map({key: .[0], value: (.[1] | tonumber)}) | from_entries) as $edited
+| ($f | map(select(.[0] == "gotcha"))) as $gotchas
+| (($f | map(select(.[0] == "gotchalines")) | .[0][1] // "0") | tonumber) as $glines
+| {
+    board: {path: $path, bytes: ($bytes | tonumber), lines: ($lines | tonumber)},
+    decisions: [recs($decisions)[] | {path: .[0], bytes: (.[1] | tonumber), lines: (.[2] | tonumber), over_budget: ((.[2] | tonumber) > 30)}],
+    gotchas: {
+      count: ($gotchas | length), lines: $glines, cap: 10, over_cap: ($glines > 10),
+      entries: [
+        $gotchas[] | ([range((.[1] | tonumber); (.[3] | tonumber) + 1) | $edited[tostring] // empty] | max) as $t
+        | {line: (.[1] | tonumber), head: .[2],
+           last_edited: (if $t then ($t | strftime("%Y-%m-%d")) else null end),
+           age_days: (if $t then ((($now | tonumber) - $t) / 86400 | floor) else null end)}
+      ]
+    },
+    secrets: [recs($secrets)[] | {path: .[0], line: (.[1] | tonumber), kind: .[2]}],
+    unexpected_files: [recs($other)[] | {path: .[0], bytes: (.[1] | tonumber), binary: (.[2] == "1")}],
+    rows: [
+      $f[] | select(.[0] == "row") | . as $r
+      | ($r[8] == "1") as $ok
+      | ($r[1] == "workflows" and ($r[3] != "" or $r[9] == "1")) as $misfiled
+      | [$claims[] | select(.[1] == $r[1] and .[2] == $r[2]) | {text: .[4], status: .[3], evidence: (.[5] // "" | nn), waits_on: (.[6] // "" | nn)}] as $rc
+      | {
+          name: $r[2], section: $r[1], status: ($r[3] | nn), kind: ($r[4] | nn), serves: ($r[5] | nn),
+          open: (if $ok then ($r[6] | tonumber) else null end),
+          done: (if $ok then ($r[7] | tonumber) else null end),
+          steps_readable: $ok,
+          gated: [$gated[] | select(.[1] == $r[1] and .[2] == $r[2]) | {step: .[3], gate: .[4]}],
+          prs: [$prs[] | select(.[1] == $r[1] and .[2] == $r[2]) | .[3] | tonumber],
+          claims: $rc,
+          claims_readable: ($r[11] == "1"),
+          flags: [
+            (if $ok and $r[9] == "1" and $r[4] != "milestone" and ($r[3] == "building" or $r[3] == "polishing") and $r[6] == "0" then "no_open_steps" else empty end),
+            (if $misfiled then "feature_under_workflows" else empty end),
+            (if ($rc | any(.status == "true" and .evidence == null)) then "true_claim_without_evidence" else empty end),
+            (if $r[11] != "1" then "claims_unreadable" else empty end)
+          ]
+        }
+    ],
+    prs: {
+      source: $gh_src,
+      items: [
+        $prs | group_by(.[3] | tonumber)[]
+        | {number: (.[0][3] | tonumber), state: ($state[.[0][3]] // "unknown"), rows: (reduce .[] as $x ([]; if index($x[2]) then . else . + [$x[2]] end))}
+      ]
+    }
+  }'

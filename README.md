@@ -99,6 +99,17 @@ last_session:
     - "Rate-limit config lives in a separate env var, not in .env.example"
 ```
 
+A row can also be a **milestone** (optional): it owns claims, not work. A claim is a sentence that must be true by some event, with a status and the evidence for it. The work that makes it true stays in its own feature.
+
+```yaml
+  invite-rehearsal:
+    kind: milestone
+    status: building
+    claims:
+      - { text: "Both mails arrive and neither is in spam", status: true, evidence: "Real send 2026-10-10" }
+      - { text: "Pasted places make a list", status: false, waits_on: "the import fix" }
+```
+
 Decision files capture the *why*, not just the *what*:
 
 ```markdown
@@ -155,6 +166,8 @@ Cross-session memory is a crowded space, and much of it is genuinely good. Conti
 **In one line:** most tools *accumulate* (logs, memory banks, vector stores) or prescribe *rules*. Continuity treats curation as the feature — decisions that must carry a *why*, pruned to a budget, bound to a startup/wrap-up ritual. If that's not the trade you want, the projects above are excellent at the others.
 
 ## Design principles
+
+The thesis, three bets and eight principles are in [`docs/principles.md`](docs/principles.md). The four rules below are how the plugin holds itself to them day to day.
 
 - **Prune over accumulate.** Decision files stay under ~30 lines. Old items get removed once they're absorbed into the code.
 - **Decisions need rationale.** "Use Postgres" isn't a decision. "Use Postgres — need concurrent writes" is.
