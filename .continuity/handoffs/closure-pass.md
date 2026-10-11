@@ -3,8 +3,8 @@
 <status>Done so far: the model, the project principles and a tested build order are written down. No plugin code has changed.</status>
 <first-action>
 1. Read `docs/principles.md`, then `.continuity/decisions/closure-pass.md`. They are the spec. The principles are taken literally in this project; cite them.
-2. `git switch board-review` (a local branch off main holding the docs; not pushed). Work from it.
-3. Post a short plan for step 1 and wait for Chad's go-ahead. He asked that the build not start until he says so.
+2. Check `ls docs/principles.md`. If it is missing, your branch lacks the docs commit: run `git merge board-review` (a local branch, not pushed, holding the docs).
+3. Chad said "start the board review agent" on 2026-10-11, so the build may begin. Post a short plan for step 1 and get his go-ahead on it, then the same for each later step.
 </first-action>
 <stops>
 - Every step needs a short plan and Chad's go-ahead before code (his engineering guardrails). He is a product designer and does not read code: show test output, not diffs.

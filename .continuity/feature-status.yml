@@ -6,7 +6,8 @@ features:
   closure-pass:
     status: building
     mandate: 2026-10-11
-    next: "Board review: build steps 1-8 per handoffs/closure-pass.md. Waits on Chad's go-ahead to start"
+    owner: board-review
+    next: "Board review: build steps 1-8 per handoffs/closure-pass.md. Owned by agent board-review"
     summary: >
       Keep a board small and true, and let Chad run it from a page. Grew on 2026-10-11 from
       "retire finished work" into the board review: a canonical page per project, seeded by an
@@ -14,7 +15,7 @@ features:
       Spec: docs/principles.md and decisions/closure-pass.md. Field evidence: trip-planner's
       round 1 (29 rows, 118 KB, 31 verdicts in 5 minutes).
     next_steps:
-      - { step: "Docs: point README 'Design principles' at docs/principles.md; mark design-brief anti-goals A1 and A3 retired; correct the concept map (rows serve bets, principles judge decisions, gates replace lanes, claims carry evidence) and republish to its URL", gate: "approval: Chad's go-ahead to start the build", done: false }
+      - { step: "Docs: point README 'Design principles' at docs/principles.md; mark design-brief anti-goals A1 and A3 retired; correct the concept map (rows serve bets, principles judge decisions, gates replace lanes, claims carry evidence) and republish to its URL", done: false }
       - { step: "Cap continuity-state output: above a size limit print a per-row summary and point to `show <path>` (trip-planner printed 119 KB at /startup). Failing test first", done: false }
       - { step: "continuity-audit script, JSON out, the only reader of board storage: open/done counts per row, building or polishing rows with zero open steps, feature-shaped rows under workflows:, secret-looking strings, non-text files under .continuity/, YAML and decisions sizes, PR references via gh, rows with no `serves`, gated items", done: false }
       - { step: "Optional schema in templates and README: `kind: milestone` with claims (text, status, evidence), `serves` on a row, `for` on an item, a pointer to the project's bets. Boards without them must behave as today", done: false }
