@@ -214,7 +214,7 @@ expect('A7 prose about tokens is not a finding', not any(x.get('path', '').endsw
 expect('A7 the secret itself is never printed', TOKEN not in raw and 'AKIAABCDEFGHIJKLMNOP' not in raw and 'abcdef0123456789abcdef' not in raw, raw[:200])
 shutil.rmtree(d)
 
-# A8. Files that are not the record's plain text: binaries and other formats, tracked ones only.
+# A8. Files that are not the record's plain text: binaries and other formats.
 d = repo(BOARD, {
     '.continuity/workflows/page.html': '<html>review page</html>\n',
     '.continuity/decisions/shipping.md': '# shipping\n',
@@ -223,7 +223,6 @@ d = repo(BOARD, {
 with open(f'{d}/.continuity/shot.png', 'wb') as fh:
     fh.write(b'\x89PNG\r\n\x1a\n\x00\x00\x00\x00binary')
 commit(d, 'add a screenshot')
-write(f'{d}/.continuity/untracked.bin', 'not committed\n')
 rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
 uf = {x['path']: x for x in (doc or {}).get('unexpected_files', [])}
 expect('A8 the binary and the html are listed, nothing else',
@@ -292,6 +291,112 @@ rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
 rows = (doc or {}).get('rows', [])
 expect('A12 template board: one readable row, no flags', rc == 0 and len(rows) == 1 and rows[0].get('steps_readable') is True and rows[0].get('flags') == [] and rows[0].get('claims') == [], raw[:400])
 expect('A12 template board: no findings', (doc or {}).get('secrets') == [] and (doc or {}).get('gotchas', {}).get('count') == 0, raw[:400])
+shutil.rmtree(d)
+
+# --- Review findings, 2026-10-11.
+TOK = 'ghp_' + 'Z9y8X7w6V5' * 3 + 'u4T3s2'
+HARD = '''features:
+  ms:
+    kind: milestone
+    status: building
+    claims:
+      - { text: "Token TOKEN works", status: true, evidence: "seen" }
+      - { text: 'single 5" screen', status: true }
+      - { text: "never closed, status: true }
+  tricky:
+    status: building
+    next_steps:
+      - { step: "Rotate TOKEN", gate: approval, done: false }
+      - { step: 'set done: true in config', done: false }
+      - { context: "ctx here", step: "real step", gate: "decision: which?", done: false }
+  folded:
+    status: building
+    next_steps:
+      - step: >
+          Fold then mark done: true
+        done: false
+  blocky:
+    kind: milestone
+    claims:
+      - text: A guest can open the invite, on a phone
+        status: true  # checked 10/10
+        evidence: walked it, twice
+      - context: "ctx here"
+        text: "real text"
+        status: false
+    next_steps:
+      - step: Ship it, carefully
+        gate: approval # Chad
+        done: false
+  bare:
+    status: building
+    next: "No step list at all"
+workflows:
+  ms:
+    trigger: "Weekly"
+    summary: "Cites PR #5"
+    steps:
+      - "look"
+gotchas:
+  - "token is TOKEN"
+  - >
+    Folded gotcha body
+    second line
+'''.replace('TOKEN', TOK)
+d = repo(HARD, when=now - 90 * day)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+doc = doc or {'rows': []}
+def frow(name, section='features'):
+    return next((r for r in doc['rows'] if r['name'] == name and r['section'] == section), {})
+# R1. A secret is never printed, wherever on the board it sits.
+expect('R1 secret found on the board', any(x.get('kind') == 'github-token' for x in doc.get('secrets', [])), doc.get('secrets'))
+expect('R1 secret not repeated in steps, claims or gotchas', TOK not in raw and 'redacted' in raw, raw.count(TOK))
+# R4. A claim the reader can't follow is reported, not dropped.
+expect('R4 unreadable claims flagged', frow('ms').get('claims_readable') is False and 'claims_unreadable' in frow('ms').get('flags', []), frow('ms'))
+expect('R4 readable claims say so', frow('blocky').get('claims_readable') is True, frow('blocky'))
+# R6. done: true inside single quotes or a folded block is not a done step.
+t = frow('tricky')
+expect('R6 single-quoted "done: true" is still open', (t.get('open'), t.get('done')) == (3, 0), t)
+expect('R6 a folded step is unreadable, never guessed', frow('folded').get('steps_readable') is False and frow('folded').get('open') is None, frow('folded'))
+# R7. Keys match whole, not as the tail of another key.
+expect('R7 step is not taken from "context"', {'step': 'real step', 'gate': 'decision: which?'} in t.get('gated', []), t.get('gated'))
+bc = frow('blocky').get('claims', [])
+expect('R7 claim text is not taken from "context"', len(bc) == 2 and bc[1].get('text') == 'real text', bc)
+# R5. Multi-line items: commas stay, trailing comments go.
+expect('R5 bare text keeps its comma', len(bc) == 2 and bc[0].get('text') == 'A guest can open the invite, on a phone', bc)
+expect('R5 status and evidence read past a comment', len(bc) == 2 and bc[0].get('status') == 'true' and bc[0].get('evidence') == 'walked it, twice', bc)
+expect('R5 gate without its comment, step with its comma', frow('blocky').get('gated') == [{'step': 'Ship it, carefully', 'gate': 'approval'}], frow('blocky').get('gated'))
+# R8. Same name under features and workflows: facts stay with their own row.
+expect('R8 workflow keeps its PR, takes no claims', frow('ms', 'workflows').get('prs') == [5] and frow('ms', 'workflows').get('claims') == [] and frow('ms', 'workflows').get('flags') == [], frow('ms', 'workflows'))
+expect('R8 feature keeps its claims, takes no PR', frow('ms').get('prs') == [], frow('ms'))
+# R11. A building row with no step list is not "finished".
+expect('R11 no step list is not no_open_steps', 'no_open_steps' not in frow('bare').get('flags', ['x']), frow('bare'))
+# R10. A folded gotcha's age follows its newest line.
+write(f'{d}/.continuity/feature-status.yml', HARD.replace('second line', 'second line, rewritten'))
+commit(d, 'rewrite a gotcha body', when=now - 2 * day)
+rc, doc2, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+ages = [x.get('age_days') for x in (doc2 or {}).get('gotchas', {}).get('entries', [])]
+expect('R10 editing a gotcha body makes it younger', ages == [90, 2], ages)
+shutil.rmtree(d)
+
+# R2/R3. Every file about to be the record is scanned: odd names and not-yet-committed ones.
+d = repo(BOARD, {'.continuity/decisions/café.md': '# c\napi_key = "abcdef0123456789abcdef"\n'})
+write(f'{d}/.continuity/handoffs/new.md', 'AWS AKIAABCDEFGHIJKLMNOP\n')
+write(f'{d}/.continuity/decisions/fresh.md', '# fresh\n' + '- x — y\n' * 35)
+write(f'{d}/.gitignore', '.continuity/ignored.bin\n')
+write(f'{d}/.continuity/ignored.bin', 'x\n')
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+found = {(x.get('path'), x.get('kind')) for x in (doc or {}).get('secrets', [])}
+expect('R2 non-ASCII file name scanned', ('.continuity/decisions/café.md', 'assigned-secret') in found, found)
+expect('R3 uncommitted file scanned', ('.continuity/handoffs/new.md', 'aws-access-key') in found, found)
+expect('R3 uncommitted decisions file sized', any(x['path'].endswith('fresh.md') and x['over_budget'] for x in (doc or {}).get('decisions', [])), (doc or {}).get('decisions'))
+expect('R3 ignored files stay out', not any('ignored' in x['path'] for x in (doc or {}).get('unexpected_files', [])), (doc or {}).get('unexpected_files'))
+shutil.rmtree(d)
+
+# R12. A board saved with Windows line endings reads the same.
+d = repo(BOARD.replace('\n', '\r\n'))
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('R12 CRLF board: same rows and counts', [r['name'] for r in (doc or {'rows': []})['rows']][:2] == ['shipping', 'finished'] and (row(doc or {'rows': []}, 'shipping') or {}).get('open') == 3, raw[:300])
 shutil.rmtree(d)
 
 print('\nFAILED:', fails if fails else 'none')

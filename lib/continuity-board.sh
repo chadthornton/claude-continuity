@@ -9,22 +9,22 @@
 #
 #   cb_summary [cut]  the board with the bulk left out: per row its short fields
 #                     (lines over <cut> bytes cut), `next_steps` / `steps` /
-#                     `claims` as counts, no `summary` / `artifacts`; other top-level blocks
+#                     `claims` as counts, no `summary` / `artifacts` on feature rows; other top-level blocks
 #                     in full; each gotcha as its first 100 bytes
 #   cb_row <name>     one row's block, verbatim. Exit 1 when there is no such row
 #   cb_names          row names, one per line
 #   cb_gotchas        the top-level `gotchas:` block, verbatim
 #   cb_facts          tab-separated records, one per line:
-#                       row     section name status kind serves open done readable has_next_steps has_steps
-#                       gated   name step gate          (open steps that carry a gate)
-#                       claim   name status text evidence waits_on   (status: true|false|unknown)
-#                       pr      name number             (each "PR #N" a row mentions)
-#                       gotcha  line-number head
+#                       row     section name status kind serves open done readable has_next_steps has_steps claims_readable
+#                       gated   section name step gate  (open steps that carry a gate)
+#                       claim   section name status text evidence waits_on   (status: true|false|unknown)
+#                       pr      section name number     (each "PR #N" a row mentions)
+#                       gotcha  first-line head last-line
 #                       gotchalines count
 #
-# A step is done when it carries `done: true` outside a quoted string. A step
-# list this reader can't follow is `unreadable` (readable = 0), never a guessed
-# number.
+# A step is done when it carries `done: true` outside a quoted string. A step or
+# claim list this reader can't follow (an unclosed quote, a `>` or `|` block, an
+# inline list) is `unreadable` (readable = 0), never a guessed number.
 
 CB_AWK='
 function ind(s) { match(s, /^ */); return RLENGTH }
@@ -50,19 +50,29 @@ function val(s) {
 }
 
 # --- steps
-# take(key): cut `key: value` out of the item in S and return the value. A
-# quoted value may hold anything; a bare one ends at a comma, brace or line end
-# (lines of one item are joined with \001). Take free-text keys first, so a
-# later key is never found inside their text.
+# take(key): cut `key: value` out of the item in S and return the value. The
+# key must be whole (`text`, not the tail of `context`). A quoted value may hold
+# anything. A bare one ends at a comma or brace on a one-line item, at the line
+# end on a multi-line one (ML; its lines are joined with \001), and loses a
+# trailing comment. A block scalar (`>` or `|`) is not followed: bad = 1.
+# (No apostrophes in this program: it sits inside a single-quoted shell string.)
+function cutout(   v) {
+  v = substr(S, RSTART, RLENGTH); S = substr(S, 1, RSTART - 1) " " substr(S, RSTART + RLENGTH)
+  sub(/^[^:]*:[ ]*/, "", v)
+  return v
+}
 function take(key,   v) {
-  if (match(S, key ":[ ]*\"([^\"\\\\]|\\\\.)*\"")) {
-    v = substr(S, RSTART, RLENGTH); S = substr(S, 1, RSTART - 1) substr(S, RSTART + RLENGTH)
-    sub(/^[^:]*:[ ]*"/, "", v); sub(/"$/, "", v)
+  if (match(S, "(^|[ {,\001])" key ":[ ]*\"([^\"\\\\]|\\\\.)*\"")) {
+    v = cutout(); sub(/^"/, "", v); sub(/"$/, "", v)
     return unq(v)
   }
-  if (match(S, key ":[ ]*[^,}\001]*")) {
-    v = substr(S, RSTART, RLENGTH); S = substr(S, 1, RSTART - 1) substr(S, RSTART + RLENGTH)
-    sub(/^[^:]*:[ ]*/, "", v); gsub(/ +$/, "", v)
+  if (match(S, "(^|[ {,\001])" key ":[ ]*\047([^\047]|\047\047)*\047")) {
+    v = cutout(); sub(/^\047/, "", v); sub(/\047$/, "", v); gsub(/\047\047/, "\047", v)
+    return v
+  }
+  if (match(S, "(^|[ {,\001])" key ":[ ]*" (ML ? "[^\001]*" : "[^,}]*"))) {
+    v = cutout(); sub(/[ ]+#.*$/, "", v); gsub(/ +$/, "", v)
+    if (v ~ /^[>|][+-]?[0-9]*$/) bad = 1
     return v
   }
   return ""
@@ -70,21 +80,23 @@ function take(key,   v) {
 function step_close(   t, st, g, ev, w, isdone) {
   if (buf == "") return
   S = buf; buf = ""
+  ML = (index(S, "\001") > 0)
   t = S
+  gsub(/:[ ]*\047([^\047]|\047\047)*\047/, ": ", t)
   gsub(/"([^"\\]|\\.)*"/, "", t)
-  if (t ~ /"/) { bad = 1; return }
+  if (t ~ /"/ || t ~ /:[ ]*[>|][+-]?[0-9]*[ ]*(\001|$)/) { bad = 1; return }
   if (counting == "claims") {
     st = take("text"); ev = take("evidence"); w = take("waits_on"); g = tolower(take("status"))
     if (g != "true" && g != "false") g = "unknown"
     if (g == "true") ctrue++; else if (g == "false") cfalse++; else cother++
-    if (mode == "facts") print "claim\t" flat(rname) "\t" g "\t" flat(st) "\t" flat(ev) "\t" flat(w)
+    if (mode == "facts" && !bad) print "claim\t" top "\t" flat(rname) "\t" g "\t" flat(st) "\t" flat(ev) "\t" flat(w)
     return
   }
   isdone = (t ~ /(^|[ {,])done:[ ]*true([ ,}\001]|$)/)
   if (isdone) ndone++; else nopen++
   if (mode != "facts" || counting != "next_steps" || isdone || t !~ /(^|[ {,])gate:/) return
   st = take("step"); g = take("gate")
-  print "gated\t" flat(rname) "\t" flat(st) "\t" flat(g)
+  if (!bad) print "gated\t" top "\t" flat(rname) "\t" flat(st) "\t" flat(g)
 }
 function steps_begin(line, key,   rest) {
   counting = key; nopen = 0; ndone = 0; ctrue = 0; cfalse = 0; cother = 0; bad = 0; buf = ""; LI = -1
@@ -108,6 +120,7 @@ function steps_end() {
   else if (counting == "next_steps") out(pad(F) counting ": " nopen " open, " ndone " done")
   else out(pad(F) counting ": " (nopen + ndone))
   if (counting == "next_steps") { ropen = nopen; rdone = ndone; rbad = bad }
+  if (counting == "claims") rcbad = bad
   counting = ""
 }
 
@@ -115,7 +128,7 @@ function steps_end() {
 function gotcha_close() {
   if (ghead != "") {
     gl[++gn] = "  - " clip(ghead, 100)
-    if (mode == "facts") print "gotcha\t" gline "\t" flat(clip(ghead, 100))
+    if (mode == "facts") print "gotcha\t" gline "\t" flat(clip(ghead, 100)) "\t" gend
   }
   ghead = ""; gwant = 0
 }
@@ -130,7 +143,7 @@ function gotchas_end(   i) {
 function row_end() {
   steps_end()
   if (inrow && mode == "facts")
-    print "row\t" top "\t" flat(rname) "\t" flat(rstatus) "\t" flat(rkind) "\t" flat(rserves) "\t" ropen "\t" rdone "\t" (rbad ? 0 : 1) "\t" hasns "\t" hassteps
+    print "row\t" top "\t" flat(rname) "\t" flat(rstatus) "\t" flat(rkind) "\t" flat(rserves) "\t" ropen "\t" rdone "\t" (rbad ? 0 : 1) "\t" hasns "\t" hassteps "\t" (rcbad ? 0 : 1)
   inrow = 0
 }
 function top_end() { row_end(); gotchas_end() }
@@ -138,14 +151,14 @@ function prs(line,   s, n) {
   s = line
   while (match(s, /PRs? #[0-9]+/)) {
     n = substr(s, RSTART, RLENGTH); sub(/^PRs? #/, "", n)
-    if (!((rname, n) in seenpr)) { seenpr[rname, n] = 1; print "pr\t" flat(rname) "\t" n }
+    if (!((top, rname, n) in seenpr)) { seenpr[top, rname, n] = 1; print "pr\t" top "\t" flat(rname) "\t" n }
     s = substr(s, RSTART + RLENGTH)
   }
 }
 
 BEGIN { top = ""; R = -1; F = -1; found = 0; walk = (mode == "summary" || mode == "facts") }
 
-{ blank = ($0 ~ /^[ ]*(#.*)?$/) }
+{ sub(/\r$/, ""); blank = ($0 ~ /^[ ]*(#.*)?$/) }
 
 # top-level key
 !blank && /^[^ #-]/ {
@@ -184,11 +197,14 @@ top == "gotchas" {
   if (G < 0) G = ind($0)
   if (ind($0) == G && body($0) ~ /^-( |$)/) {
     gotcha_close()
-    gline = NR
+    gline = NR; gend = NR
     ghead = body($0); sub(/^-[ ]*/, "", ghead)
     if (ghead ~ /^[>|][+-]?[0-9]*$/ || ghead == "") { ghead = ""; gwant = 1 }
     else if (ghead ~ /^"/) ghead = val("x: " ghead)
-  } else if (gwant) { ghead = body($0); gwant = 0 }
+  } else {
+    gend = NR
+    if (gwant) { ghead = body($0); gwant = 0 }
+  }
   next
 }
 
@@ -200,7 +216,7 @@ blank { next }
   if (R < 0) R = ind($0)
   if (ind($0) == R && body($0) !~ /^-/) {            # a row starts
     row_end(); inrow = 1; F = -1; skipping = 0
-    rname = keyof($0); rstatus = ""; rkind = ""; rserves = ""; ropen = 0; rdone = 0; rbad = 0; hasns = 0; hassteps = 0
+    rname = keyof($0); rstatus = ""; rkind = ""; rserves = ""; ropen = 0; rdone = 0; rbad = 0; rcbad = 0; hasns = 0; hassteps = 0
     out(clip($0, cut))
     next
   }
@@ -213,7 +229,7 @@ blank { next }
     if (k == "status") rstatus = val($0)
     else if (k == "kind") rkind = val($0)
     else if (k == "serves") rserves = val($0)
-    if (k == "summary" || k == "artifacts") skipping = 1
+    if ((k == "summary" || k == "artifacts") && top != "workflows") skipping = 1
     else if (k == "next_steps" || k == "steps" || k == "claims") { steps_begin($0, k); if (k == "steps") hassteps = 1; else if (k == "next_steps") hasns = 1 }
     else out(clip($0, cut))
     next

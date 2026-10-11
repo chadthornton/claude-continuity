@@ -254,5 +254,13 @@ rc, out = state(plain, 'row', 'launch')
 expect('S16 row shows the claims in full', rc == 0 and 'claim three text' in out and 'evidence: "seen"' in out, out)
 shutil.rmtree(plain)
 
+# S17. A workflow row keeps its summary in the summarised board; startup's picker shows it.
+plain = tempfile.mkdtemp()
+write(f'{plain}/.continuity/feature-status.yml', BIG)
+rc, out = state(plain)
+sec = section(out, 'feature-status.yml')
+expect('S17 workflow summary kept, feature summary still left out', 'summary: "Weekly audit"' in sec and 'Alpha summary text' not in sec, sec[-900:])
+shutil.rmtree(plain)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)
