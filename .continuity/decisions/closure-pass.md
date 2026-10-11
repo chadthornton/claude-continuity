@@ -17,6 +17,9 @@ Project principles: `docs/principles.md`. Concept map: https://claude.ai/artifac
 - Every new field is optional — this repo's four-row board has no bets file and must keep working.
 - A tracker lives in the repo (local markdown), not GitHub Issues — principle 7; both eval readers refused the external tracker.
 - The audit script is the only reader of board storage — so splitting the board into one file per workstream later is invisible to the page and skills.
+- A board over 16 KB is summarised at startup, and gotchas show as first lines, not a count (Chad 2026-10-11) — every session was already reading every gotcha because the whole file printed; a count would have silently hidden trip-planner's 20.
+- lib/continuity-board.sh is the one reader of the board's layout — `row` shipped before the audit exists, and the audit calls the same functions, so nothing moves in step 3.
+- Gotcha usage is judged by re-learning and age, not by asking a session what it used — a gotcha that worked leaves no trace to report.
 
 ## Open
 
