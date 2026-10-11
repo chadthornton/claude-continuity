@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- **`/startup` summarises a board over 16 KB** — `continuity-state` prints each row's short fields, its steps as `N open, M done` and each gotcha's first line; `continuity-state row <name>` and `continuity-state gotchas` read the rest, and startup fetches only the row it will use. Smaller boards print exactly as before. `lib/continuity-board.sh` is the one reader of the board's layout. Why: trip-planner's board cost 92 KB (about 23,000 tokens) at every startup; the summary is 9 KB.
+
 ## [0.14.0] - 2026-10-01
 
 ### Fixed

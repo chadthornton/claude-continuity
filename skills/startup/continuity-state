@@ -8,6 +8,12 @@
 #   continuity-state              print the state sections below
 #   continuity-state show <path>  print .continuity/<path> from the same source
 #                                 the board came from (origin when stale)
+#   continuity-state row <name>   print one feature or workflow row in full
+#   continuity-state gotchas      print the board's gotchas in full
+#
+# A board over CONTINUITY_STATE_MAX_BYTES (default 16384) is summarised: each
+# row's short fields, its steps as counts, gotchas as first lines. `row` and
+# `gotchas` read the rest. Smaller boards print whole.
 #
 # Output: an identity line, a board line, then '--- <name>' sections:
 #   feature-status.yml · handoffs · last-activity.txt · git log · uncommitted
@@ -17,10 +23,14 @@
 # trailer, don't count. The checkout itself is never modified. Works without
 # git too (board, handoffs and last activity only).
 #
-# Exit codes: 0 ok · 1 `show` path not found · 3 not usable here
+# Exit codes: 0 ok · 1 `show` path or `row` name not found · 3 not usable here
 
 set -u
-. "$(cd "$(dirname "$0")/../.." && pwd)/lib/continuity-commits.sh" || { echo "SKIP: lib/continuity-commits.sh missing"; exit 3; }
+LIB="$(cd "$(dirname "$0")/../.." && pwd)/lib"
+. "$LIB/continuity-commits.sh" || { echo "SKIP: lib/continuity-commits.sh missing"; exit 3; }
+. "$LIB/continuity-board.sh" || { echo "SKIP: lib/continuity-board.sh missing"; exit 3; }
+# Above this many bytes feature-status.yml is summarised rather than printed.
+MAX_BYTES="${CONTINUITY_STATE_MAX_BYTES:-16384}"
 IN_GIT=""
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   IN_GIT=1
@@ -36,12 +46,12 @@ SRC="" BEHIND=0
 D_REF=""
 [ -n "$IN_GIT" ] && D_REF=$(cc_default_ref)
 if [ -n "$D_REF" ]; then
-  if [ "${1:-}" != "show" ]; then   # `show` reuses the ref the first call fetched
+  case "${1:-}" in show|row|gotchas) ;; *)   # these reuse the ref the first call fetched
     # Never prompt or hang: extend the user's own ssh command, don't replace it.
     ssh_cmd="${GIT_SSH_COMMAND:-$(git config core.sshCommand 2>/dev/null || echo ssh)}"
     GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="$ssh_cmd -o BatchMode=yes -o ConnectTimeout=5" \
       git fetch -q origin "${D_REF#origin/}" 2>/dev/null
-  fi
+  ;; esac
   BEHIND=$(cc_behind "$D_REF")   # own landed saves and synced-in peer commits don't count
   [ "$BEHIND" -gt 0 ] && SRC="$D_REF"
 fi
@@ -63,6 +73,20 @@ if [ "${1:-}" = "show" ]; then
   exit 0
 fi
 
+if [ "${1:-}" = "row" ]; then
+  r="${2:-}"
+  [ -n "$r" ] || { echo "usage: continuity-state row <feature or workflow name>"; exit 3; }
+  read_c feature-status.yml | cb_row "$r" && exit 0
+  echo "not found: row $r in feature-status.yml${SRC:+ on $SRC}"
+  echo "rows: $(read_c feature-status.yml | cb_names | tr '\n' ' ')"
+  exit 1
+fi
+
+if [ "${1:-}" = "gotchas" ]; then
+  read_c feature-status.yml | cb_gotchas
+  exit 0
+fi
+
 if [ -n "$IN_GIT" ]; then
   echo "checkout: $(basename "$TOP")  branch: $(git symbolic-ref --short -q HEAD || echo '(detached)')"
 else
@@ -71,7 +95,14 @@ fi
 if [ -n "$SRC" ]; then echo "board: $SRC ($BEHIND continuity commit(s) behind)"; else echo "board: local"; fi
 
 echo "--- feature-status.yml"
-read_c feature-status.yml || echo "(missing)"
+size=$(read_c feature-status.yml | wc -c | tr -d ' ')
+if [ "$size" -gt "$MAX_BYTES" ]; then
+  echo "# SUMMARISED: the board is $size bytes, over the $MAX_BYTES-byte limit. Step lists are shown as counts,"
+  echo "# row summaries are left out and long lines are cut. One row in full: continuity-state row <name>"
+  read_c feature-status.yml | cb_summary
+else
+  read_c feature-status.yml || echo "(missing)"
+fi
 
 echo "--- handoffs"
 if [ -n "$SRC" ]; then

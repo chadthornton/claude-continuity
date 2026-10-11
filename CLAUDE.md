@@ -7,12 +7,13 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 
 - `plugin.json` — manifest with hook registrations
 - `lib/continuity-commits.sh` — the shared rules for which commits are continuity state (landed/sync/merge/mixed/pending), the default-branch lookup and the stale count; sourced by continuity-save, continuity-state, away and both hooks. Change the rules here, nowhere else.
+- `lib/continuity-board.sh` — the one reader of feature-status.yml's layout (row summary, one row, step counts, gotchas); sourced by continuity-state. Anything else that needs a row or a count calls it.
 - `hooks/session-start.sh` — init hint; flags continuity commits stranded on local branches
 - `hooks/session-end.sh` — writes `.continuity/last-activity.txt` on session exit
 - `hooks/worktree-remove.sh` — blocks worktree removal that would lose `.continuity/` edits
 - `hooks/pre-compact.sh` — backs up transcript JSONL before compaction
 - `skills/startup/SKILL.md` — session triage: dashboard + mode/area pick + focused brief
-- `skills/startup/continuity-state` — all state startup reads in one allowlistable call; `show <path>` reads a .continuity file from the same source
+- `skills/startup/continuity-state` — all state startup reads in one allowlistable call; `show <path>` reads a .continuity file from the same source; a board over 16 KB is summarised and `row <name>` / `gotchas` read the rest
 - `skills/wrap-up/SKILL.md` — session end: update status + decisions + handoff if mid-stream
 - `skills/wrap-up/continuity-save` — commits only `.continuity/`; opt-in lands it on origin/<default> without shipping code
 - `skills/away/` — `/away`: hand this session's task to a cloud session (`away launch|park|land` script)
