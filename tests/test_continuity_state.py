@@ -239,5 +239,20 @@ except UnicodeDecodeError as e:
 expect('S15 summary is valid UTF-8', ok and b'SUMMARISED' in r.stdout, r.stdout[:300])
 shutil.rmtree(plain)
 
+# S16. A milestone's claims show as a count in the summary, and in full through `row`.
+plain = tempfile.mkdtemp()
+CLAIMS = ('  launch:\n    kind: milestone\n    status: building\n    claims:\n'
+          '      - { text: "claim one text", status: true, evidence: "seen" }\n'
+          '      - { text: "claim two text", status: false }\n'
+          '      - text: "claim three text"\n        status: unknown\n')
+write(f'{plain}/.continuity/feature-status.yml', BIG.replace('workflows:\n', CLAIMS + 'workflows:\n'))
+rc, out = state(plain)
+sec = section(out, 'feature-status.yml')
+expect('S16 claims counted by status', 'claims: 3 (1 true, 1 false, 1 unknown)' in sec and 'kind: milestone' in sec, sec[-1200:])
+expect('S16 claim text left out of the summary', 'claim one text' not in sec, sec[-1200:])
+rc, out = state(plain, 'row', 'launch')
+expect('S16 row shows the claims in full', rc == 0 and 'claim three text' in out and 'evidence: "seen"' in out, out)
+shutil.rmtree(plain)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

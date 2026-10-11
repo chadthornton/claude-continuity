@@ -99,6 +99,17 @@ last_session:
     - "Rate-limit config lives in a separate env var, not in .env.example"
 ```
 
+A row can also be a **milestone** (optional): it owns claims, not work. A claim is a sentence that must be true by some event, with a status and the evidence for it. The work that makes it true stays in its own feature.
+
+```yaml
+  invite-rehearsal:
+    kind: milestone
+    status: building
+    claims:
+      - { text: "Both mails arrive and neither is in spam", status: true, evidence: "Real send 2026-10-10" }
+      - { text: "Pasted places make a list", status: false, waits_on: "the import fix" }
+```
+
 Decision files capture the *why*, not just the *what*:
 
 ```markdown
