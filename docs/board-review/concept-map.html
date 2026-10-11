@@ -36,6 +36,7 @@ figcaption { color: var(--muted); font-size: 13px; max-width: 70ch; }
 .soft { fill: var(--sunk); stroke: var(--line); stroke-width: 1; }
 .wire { fill: none; stroke: var(--ink); stroke-width: 1.2; }
 .wire-ac { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+.read { stroke-dasharray: 5 4; }
 .t { fill: var(--ink); font-size: 12px; }
 .tb { fill: var(--ink); font-size: 13px; font-weight: 600; }
 .tm { fill: var(--muted); font-size: 11px; }
@@ -102,7 +103,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <text class="tb" x="22" y="196">Open question</text>
           <text class="t" x="22" y="213">Can a place be on more</text>
           <text class="t" x="22" y="228">than one list?</text>
-          <line class="wire" x1="90" y1="176" x2="90" y2="86" marker-end="url(#ah)"/>
+          <line class="wire read" x1="90" y1="176" x2="90" y2="86" marker-end="url(#ah)"/>
           <text class="tm" x="98" y="135">judged by</text>
           <line class="wire" x1="170" y1="208" x2="248" y2="208" marker-end="url(#ah)"/>
           <text class="tm" x="209" y="201" text-anchor="middle">gates</text>
@@ -114,9 +115,9 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <rect class="box" x="460" y="180" width="180" height="56" rx="4"/>
           <text class="tb" x="472" y="203">app</text>
           <text class="tm" x="472" y="222">polishing · 16 open items</text>
-          <line class="wire" x1="340" y1="180" x2="340" y2="86" marker-end="url(#ah)"/>
+          <line class="wire read" x1="340" y1="180" x2="340" y2="86" marker-end="url(#ah)"/>
           <text class="tm" x="332" y="137" text-anchor="end">serves</text>
-          <line class="wire" x1="550" y1="180" x2="550" y2="86" marker-end="url(#ah)"/>
+          <line class="wire read" x1="550" y1="180" x2="550" y2="86" marker-end="url(#ah)"/>
           <text class="tm" x="542" y="137" text-anchor="end">serves</text>
 
           <!-- items -->
@@ -149,13 +150,19 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <text class="tm" x="700" y="407">One-line paste: junk place</text>
 
           <!-- makes true -->
-          <path class="wire-ac" d="M640,372 H652 V309 H688" marker-end="url(#ahc)"/>
+          <path class="wire-ac read" d="M640,372 H652 V309 H688" marker-end="url(#ahc)"/>
           <text class="tac" x="648" y="336" text-anchor="end">makes true</text>
-          <path class="wire-ac" d="M340,410 V470 H664 V385 H688" marker-end="url(#ahc)"/>
+          <path class="wire-ac read" d="M340,410 V470 H664 V385 H688" marker-end="url(#ahc)"/>
           <text class="tac" x="500" y="463" text-anchor="middle">makes true</text>
+
+          <!-- legend -->
+          <line class="wire" x1="10" y1="436" x2="58" y2="436"/>
+          <text class="tm" x="66" y="440">stored on the board</text>
+          <line class="wire read" x1="10" y1="458" x2="58" y2="458"/>
+          <text class="tm" x="66" y="462">read by a reviewer</text>
         </svg>
       </div>
-      <figcaption>Read upward for why: an item belongs to a workstream, and a workstream serves a bet. Read left for what holds work back: an open question gates a workstream, and a principle judges the answer. Read right for when: a milestone holds claims, each with its status and the evidence for it, and each claim is made true by an item that stays in its own workstream. The milestone owns no work.</figcaption>
+      <figcaption>Read upward for why: an item belongs to a workstream, and a workstream serves a bet. Read left for what holds work back: an open question gates a workstream, and a principle judges the answer. Read right for when: a milestone holds claims, each with its status and the evidence for it, and each claim is made true by an item that stays in its own workstream. The milestone owns no work. Solid lines are stored on the board: an item sits in its row, a gate sits on its item, a claim sits on its milestone. Dashed lines are stored nowhere. A reviewer reads them from the board and the bets document, and you correct the ones it gets wrong.</figcaption>
     </figure>
   </section>
 
@@ -207,7 +214,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
       <div>
         <h3>Three things I would add</h3>
         <ul>
-          <li><b>Each workstream names the bet it serves.</b> This is the one link missing today, and it is the one that makes drift visible.</li>
+          <li><b>A reviewer says which bet each workstream serves, and you correct it.</b> Only a correction is written down, so the board holds your intent where it differs from what the text implies.</li>
           <li><b>Each milestone has a forcing event outside the codebase.</b> A person, a date or a release. Without one it is a wish list.</li>
           <li><b>Closing a milestone includes one look back.</b> Which claims were wrong as written, and which bet that touches.</li>
         </ul>
@@ -217,22 +224,23 @@ td:first-child { font-weight: 600; white-space: nowrap; }
 
   <section>
     <h2>What a reviewer could check once the links exist</h2>
-    <p>The diagram's arrows are four fields in the board file: which bet a workstream serves, whether a row is a milestone, the milestone's claims with their evidence, and which claim an item is for. With those written down, the board is a small graph that fits in a few kilobytes.</p>
+    <p>The board stores two small things beyond its rows and steps: a milestone's claims, each with its status and evidence, and the gate on an item. An audit script reads those and counts. Everything else in the diagram is read by a reviewing Claude from the audit's findings and the bets document.</p>
     <div class="pair">
       <div>
         <h3>A script can find</h3>
         <ul>
-          <li>A workstream that serves no bet.</li>
-          <li>A bet with no live work behind it.</li>
           <li>A claim marked true with no evidence.</li>
-          <li>A false claim with no item aimed at it.</li>
-          <li>Open items that serve no claim while a milestone is open.</li>
-          <li>Build items moving ahead of an open question that gates them.</li>
+          <li>A row still marked building with nothing left open.</li>
+          <li>Open items waiting on your approval or your decision.</li>
+          <li>A decisions file or a gotcha list past its budget.</li>
+          <li>A merged pull request still cited as pending work.</li>
         </ul>
       </div>
       <div>
         <h3>A reviewing Claude can judge</h3>
         <ul>
+          <li>Which bet each workstream serves, and which serve none.</li>
+          <li>A bet with no live work behind it.</li>
           <li>Two workstreams solving the same problem under different names.</li>
           <li>A decision that contradicts the principle it cites.</li>
           <li>A bet that no longer describes what is shipping.</li>
@@ -240,13 +248,13 @@ td:first-child { font-weight: 600; white-space: nowrap; }
         </ul>
       </div>
     </div>
-    <p class="note">The reviewer reads the script's findings and the compact graph, then writes a short reflection as a section on the review page, where you can reply to it. It reads the graph, never the full 118 KB board.</p>
+    <p class="note">The reviewer reads the script's findings and the bets document, then writes a short reflection as a section on the review page, where you can reply to it. It reads the findings, never the full 118 KB board.</p>
   </section>
 
   <section>
     <h2>Not yet decided</h2>
     <ul>
-      <li>Whether to add all four links at once or start with one. I would start with the bet link, <code>serves</code>, since it costs one line per workstream.</li>
+      <li>Whether two reviewers agree on which workstream serves which bet. An experiment on trip-planner will show it before the deep review is built.</li>
       <li>Whether trip-planner's <code>lists</code> questions move to an in-repo wayfinder map or stay in the decisions file.</li>
       <li>How often the reflection runs. It costs a model call each time.</li>
     </ul>
