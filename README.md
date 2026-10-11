@@ -156,6 +156,8 @@ Cross-session memory is a crowded space, and much of it is genuinely good. Conti
 
 ## Design principles
 
+The thesis, three bets and eight principles are in [`docs/principles.md`](docs/principles.md). The four rules below are how the plugin holds itself to them day to day.
+
 - **Prune over accumulate.** Decision files stay under ~30 lines. Old items get removed once they're absorbed into the code.
 - **Decisions need rationale.** "Use Postgres" isn't a decision. "Use Postgres — need concurrent writes" is.
 - **Light ceremonies.** Startup and wrap-up each take under a minute. If they feel heavy, something's wrong.

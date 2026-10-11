@@ -38,9 +38,12 @@ A better system should satisfy these properties:
 - **S8: Accident-proof.** If compaction happens unexpectedly, the full transcript is preserved somewhere recoverable.
 
 ### Anti-goals
-- **A1: No heavyweight infrastructure.** No databases, no embedding systems, no Docker. Markdown files and shell scripts only.
+
+A1 and A3 were retired on 2026-10-11. Principle 7 in `principles.md` ("The record belongs to the project") replaces them; see its "Retired" section. Their text stays here as the record of what they held.
+
+- **A1 (retired): No heavyweight infrastructure.** No databases, no embedding systems, no Docker. Markdown files and shell scripts only.
 - **A2: No context bloat.** The continuity system should not routinely consume more than ~15-20% of a session's context on startup.
-- **A3: No false precision.** Don't track things at a granularity that creates maintenance burden without proportional value. A few sentences about a decision are better than a structured schema nobody fills out.
+- **A3 (retired): No false precision.** Don't track things at a granularity that creates maintenance burden without proportional value. A few sentences about a decision are better than a structured schema nobody fills out.
 
 ## Constraints
 

@@ -65,42 +65,47 @@ td:first-child { font-weight: 600; white-space: nowrap; }
 <div class="wrap">
   <header>
     <h1>Continuity Concept Map</h1>
-    <p class="lede">Six nouns, each answering a different question about the product. The examples are from trip-planner's board as it stood on 2026-10-11.</p>
+    <p class="lede">Seven nouns, each answering a different question about the product. The examples are from trip-planner's board as it stood on 2026-10-11.</p>
   </header>
 
   <section>
     <figure>
       <div class="scroll">
-        <svg viewBox="0 0 880 500" role="img" aria-label="Work belongs to a workstream, a workstream serves a principle, and a milestone cuts across workstreams: each of its claims is made true by an item that lives in some workstream.">
+        <svg viewBox="0 0 880 500" role="img" aria-label="Work belongs to a workstream and a workstream serves a bet. A principle judges the open question that gates a workstream. A milestone cuts across workstreams: each of its claims carries evidence and is made true by an item that lives in some workstream.">
           <defs>
             <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker>
             <marker id="ahc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head-ac" d="M0,0 L10,5 L0,10 z"/></marker>
           </defs>
 
           <!-- row labels -->
-          <text class="tm" x="250" y="14">PRINCIPLES</text>
+          <text class="tm" x="10" y="14">PRINCIPLE</text>
+          <text class="tm" x="250" y="14">BETS</text>
           <text class="tm" x="250" y="174">WORKSTREAMS</text>
           <text class="tm" x="250" y="344">ITEMS</text>
 
-          <!-- principles -->
+          <!-- bets -->
           <rect class="box" x="250" y="20" width="180" height="64" rx="4"/>
-          <text class="tb" x="262" y="40">P2</text>
-          <text class="t" x="262" y="57">Concepts appear when</text>
-          <text class="t" x="262" y="72">they have work to do</text>
+          <text class="tb" x="262" y="46">Portable taste</text>
+          <text class="tm" x="262" y="65">the growth wedge</text>
           <rect class="box" x="460" y="20" width="180" height="64" rx="4"/>
-          <text class="tb" x="472" y="40">P1</text>
-          <text class="t" x="472" y="57">Commit at the resolution</text>
-          <text class="t" x="472" y="72">you have</text>
+          <text class="tb" x="472" y="46">Prepared spontaneity</text>
+          <text class="tm" x="472" y="65">the experience wedge, the lead</text>
+
+          <!-- principle: judges the open question, and nothing points a row at it -->
+          <rect class="box" x="10" y="20" width="160" height="64" rx="4"/>
+          <text class="tb" x="22" y="40">P2</text>
+          <text class="t" x="22" y="57">Concepts appear when</text>
+          <text class="t" x="22" y="72">they have work to do</text>
 
           <!-- open question -->
-          <rect class="box" x="10" y="20" width="160" height="64" rx="4" stroke-dasharray="5 3"/>
-          <text class="tb" x="22" y="40">Open question</text>
-          <text class="t" x="22" y="57">Can a place be on more</text>
-          <text class="t" x="22" y="72">than one list?</text>
-          <line class="wire" x1="170" y1="52" x2="248" y2="52" marker-end="url(#ah)"/>
-          <text class="tm" x="209" y="45" text-anchor="middle">judged by</text>
-          <path class="wire" d="M90,84 V208 H248" marker-end="url(#ah)"/>
-          <text class="tm" x="170" y="201" text-anchor="middle">gates</text>
+          <rect class="box" x="10" y="176" width="160" height="64" rx="4" stroke-dasharray="5 3"/>
+          <text class="tb" x="22" y="196">Open question</text>
+          <text class="t" x="22" y="213">Can a place be on more</text>
+          <text class="t" x="22" y="228">than one list?</text>
+          <line class="wire" x1="90" y1="176" x2="90" y2="86" marker-end="url(#ah)"/>
+          <text class="tm" x="98" y="135">judged by</text>
+          <line class="wire" x1="170" y1="208" x2="248" y2="208" marker-end="url(#ah)"/>
+          <text class="tm" x="209" y="201" text-anchor="middle">gates</text>
 
           <!-- workstreams -->
           <rect class="box" x="250" y="180" width="180" height="56" rx="4"/>
@@ -127,27 +132,30 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <text class="tm" x="542" y="298" text-anchor="end">belongs to</text>
 
           <!-- milestone -->
-          <rect class="soft" x="680" y="150" width="190" height="262" rx="6"/>
+          <rect class="soft" x="680" y="150" width="190" height="280" rx="6"/>
           <text class="tb" x="692" y="172">Milestone: invite email</text>
-          <text class="tm" x="692" y="189">3 claims · 1 true</text>
-          <rect class="box" x="690" y="200" width="170" height="56" rx="4"/>
-          <text class="t" x="700" y="223">Invite lands in the inbox</text>
-          <text class="tok" x="700" y="243">true</text>
-          <rect class="box" x="690" y="270" width="170" height="56" rx="4"/>
-          <text class="t" x="700" y="293">Sign-up works on a phone</text>
-          <text class="tm" x="700" y="313">not walked yet</text>
-          <rect class="box" x="690" y="340" width="170" height="56" rx="4"/>
-          <text class="t" x="700" y="363">Article imports as a list</text>
-          <text class="twarn" x="700" y="383">false</text>
+          <text class="tm" x="692" y="189">1 true · 2 with evidence</text>
+          <rect class="box" x="690" y="200" width="170" height="66" rx="4"/>
+          <text class="t" x="700" y="221">Invite lands in the inbox</text>
+          <text class="tok" x="700" y="238">true</text>
+          <text class="tm" x="700" y="255">Real send: neither in spam</text>
+          <rect class="box" x="690" y="276" width="170" height="66" rx="4"/>
+          <text class="t" x="700" y="297">Sign-up works on a phone</text>
+          <text class="tm" x="700" y="314">not walked yet</text>
+          <text class="tm" x="700" y="331">No evidence yet</text>
+          <rect class="box" x="690" y="352" width="170" height="66" rx="4"/>
+          <text class="t" x="700" y="373">Article imports as a list</text>
+          <text class="twarn" x="700" y="390">false</text>
+          <text class="tm" x="700" y="407">Paste probe: 12 of 13 pass</text>
 
           <!-- makes true -->
-          <path class="wire-ac" d="M640,372 H652 V298 H688" marker-end="url(#ahc)"/>
+          <path class="wire-ac" d="M640,372 H652 V309 H688" marker-end="url(#ahc)"/>
           <text class="tac" x="648" y="336" text-anchor="end">makes true</text>
-          <path class="wire-ac" d="M340,410 V470 H664 V368 H688" marker-end="url(#ahc)"/>
+          <path class="wire-ac" d="M340,410 V470 H664 V385 H688" marker-end="url(#ahc)"/>
           <text class="tac" x="500" y="463" text-anchor="middle">makes true</text>
         </svg>
       </div>
-      <figcaption>Read upward for why: an item belongs to a workstream, and a workstream serves a principle. Read sideways for when: a milestone holds claims, and each claim is made true by an item that stays in its own workstream. The milestone owns no work.</figcaption>
+      <figcaption>Read upward for why: an item belongs to a workstream, and a workstream serves a bet. Read left for what holds work back: an open question gates a workstream, and a principle judges the answer. Read right for when: a milestone holds claims, each with its status and the evidence for it, and each claim is made true by an item that stays in its own workstream. The milestone owns no work.</figcaption>
     </figure>
   </section>
 
@@ -157,16 +165,18 @@ td:first-child { font-weight: 600; white-space: nowrap; }
       <table>
         <thead><tr><th>Concept</th><th>The question it answers</th><th>Where it lives</th><th>Trip-planner example</th><th>Lasts</th></tr></thead>
         <tbody>
-          <tr><td>Principle</td><td>What do we believe about this product?</td><td><code>docs/product-principles.md</code></td><td>P2, concepts appear when they have work to do</td><td>Years</td></tr>
+          <tr><td>Bet</td><td>What are we wagering this product wins on?</td><td><code>docs/product-principles.md</code></td><td>Prepared spontaneity, the lead wedge</td><td>Years</td></tr>
+          <tr><td>Principle</td><td>What is every decision judged against?</td><td><code>docs/product-principles.md</code></td><td>P2, concepts appear when they have work to do</td><td>Years</td></tr>
           <tr><td>Workstream</td><td>Which area are we investing in, and why?</td><td>A row on the board</td><td><code>lists</code>, <code>app</code></td><td>Months</td></tr>
           <tr><td>Milestone</td><td>What has to be true together, and by when?</td><td>A row on the board, marked as a milestone</td><td><code>invite-rehearsal</code></td><td>Weeks, then it leaves</td></tr>
-          <tr><td>Claim</td><td>What will a user find true?</td><td>On its milestone</td><td>Both mails arrive from login@jauntfully.com and neither is in spam</td><td>Until true</td></tr>
+          <tr><td>Claim</td><td>What will a user find true?</td><td>On its milestone, with its status and evidence</td><td>Both mails arrive from login@jauntfully.com and neither is in spam</td><td>Until true</td></tr>
           <tr><td>Item</td><td>What is the next piece of work?</td><td>On its workstream; as tickets when there are many</td><td>Rebuild PR #87</td><td>Days</td></tr>
           <tr><td>Open question</td><td>What do we have to decide before building?</td><td>The workstream's decisions file</td><td>Can a place be on more than one list?</td><td>Until decided</td></tr>
         </tbody>
       </table>
     </div>
     <p class="muted">A tracker and a wayfinder map are not on this list. A tracker is where items are stored when one workstream has too many for a list. A map is where open questions are stored when one workstream has too many for a decisions file. Neither adds a concept.</p>
+    <p class="muted">There are no lanes either. Whose call an item is lives on the item, in its <code>gate</code>. The review page reads the gates and sorts rows into <b>needs you</b> and <b>moving without you</b>.</p>
   </section>
 
   <section>
@@ -197,9 +207,9 @@ td:first-child { font-weight: 600; white-space: nowrap; }
       <div>
         <h3>Three things I would add</h3>
         <ul>
-          <li><b>Each workstream names the principle it serves.</b> This is the one link missing today, and it is the one that makes drift visible.</li>
+          <li><b>Each workstream names the bet it serves.</b> This is the one link missing today, and it is the one that makes drift visible.</li>
           <li><b>Each milestone has a forcing event outside the codebase.</b> A person, a date or a release. Without one it is a wish list.</li>
-          <li><b>Closing a milestone includes one look back.</b> Which claims were wrong as written, and which principle that touches.</li>
+          <li><b>Closing a milestone includes one look back.</b> Which claims were wrong as written, and which bet that touches.</li>
         </ul>
       </div>
     </div>
@@ -207,13 +217,14 @@ td:first-child { font-weight: 600; white-space: nowrap; }
 
   <section>
     <h2>What a reviewer could check once the links exist</h2>
-    <p>The diagram's arrows are four fields in the board file: which principle a workstream serves, whether a row is a milestone, the milestone's claims, and which claim an item is for. With those written down, the board is a small graph that fits in a few kilobytes.</p>
+    <p>The diagram's arrows are four fields in the board file: which bet a workstream serves, whether a row is a milestone, the milestone's claims with their evidence, and which claim an item is for. With those written down, the board is a small graph that fits in a few kilobytes.</p>
     <div class="pair">
       <div>
         <h3>A script can find</h3>
         <ul>
-          <li>A workstream that serves no principle.</li>
-          <li>A principle with no live work behind it.</li>
+          <li>A workstream that serves no bet.</li>
+          <li>A bet with no live work behind it.</li>
+          <li>A claim marked true with no evidence.</li>
           <li>A false claim with no item aimed at it.</li>
           <li>Open items that serve no claim while a milestone is open.</li>
           <li>Build items moving ahead of an open question that gates them.</li>
@@ -224,7 +235,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
         <ul>
           <li>Two workstreams solving the same problem under different names.</li>
           <li>A decision that contradicts the principle it cites.</li>
-          <li>A principle that no longer describes what is shipping.</li>
+          <li>A bet that no longer describes what is shipping.</li>
           <li>A connection across workstreams nobody has drawn.</li>
         </ul>
       </div>
@@ -235,7 +246,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
   <section>
     <h2>Not yet decided</h2>
     <ul>
-      <li>Whether to add all four links at once or start with one. I would start with the principle link, since it costs one line per workstream.</li>
+      <li>Whether to add all four links at once or start with one. I would start with the bet link, <code>serves</code>, since it costs one line per workstream.</li>
       <li>Whether trip-planner's <code>lists</code> questions move to a wayfinder map or stay in the decisions file.</li>
       <li>How often the reflection runs. It costs a model call each time.</li>
     </ul>
