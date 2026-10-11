@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **`lib/continuity-audit`** — prints JSON facts about a board: per row its open and done steps, open gated steps and cited PRs, with flags for building/polishing rows that have nothing open, feature rows filed under `workflows:` and rows that name nothing they serve; plus decisions files over 30 lines, each gotcha's age from git history and the list against its 10-line cap, PR states from one `gh pr list` ("unknown" without gh), secret-looking strings by path and line (never the value) and tracked files under `.continuity/` that aren't plain text. Why: the board review page and skill read this and nothing else, so board storage can change without touching them; trip-planner's first review needed three hand-run audits.
+
 ### Changed
 - **`/startup` summarises a board over 16 KB** — `continuity-state` prints each row's short fields, its steps as `N open, M done` and each gotcha's first line; `continuity-state row <name>` and `continuity-state gotchas` read the rest, and startup fetches only the row it will use. Smaller boards print exactly as before. `lib/continuity-board.sh` is the one reader of the board's layout. Why: trip-planner's board cost 92 KB (about 23,000 tokens) at every startup; the summary is 9 KB.
 
