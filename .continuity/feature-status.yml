@@ -7,7 +7,7 @@ features:
     status: building
     mandate: 2026-10-11
     owner: board-review
-    next: "Board review: step 5, the canonical review page. Steps 1-4 are on branch worktree-board-review, not merged. Owned by agent board-review"
+    next: "Board review: step 5, the canonical review page. Steps 1-4 shipped in 0.15.0. Owned by agent board-review"
     summary: >
       Keep a board small and true, and let Chad run it from a page. Grew on 2026-10-11 from
       "retire finished work" into the board review: a canonical page per project, seeded by an
@@ -27,7 +27,7 @@ features:
       - { step: "Two-reader experiment, before the deep review is built: two fresh Claudes get trip-planner's board and bets document with no link fields and say which row serves which bet and where the product drifted; Chad corrects the mapping. Record where the readers disagree and how many rows he corrects", done: false }
       - { step: "Deep-mode reflection: a reviewing Claude reads the audit's JSON and the bets document (path from a setting), infers which bet each row serves, and writes a drift section onto the page; Chad corrects a wrong one and only a correction is stored as `serves` on that row", gate: "decision: how often it runs", done: false }
       - { step: "Storage: one file per workstream behind the audit script", gate: "decision: after the page is in use, or sooner?", done: false }
-    in_progress: "Steps 1-8 per handoffs/closure-pass.md"
+    in_progress: "Step 5 (review page) per handoffs/closure-pass.md"
 
   relay-and-spawn:
     status: polishing
@@ -61,9 +61,11 @@ features:
 last_session:
   date: 2026-10-11
   feature: closure-pass
-  summary: "Design session, no code: trip-planner's board close-out became the board review; wrote docs/principles.md (thesis, 3 bets, 8 principles, tested on 15 scenarios) and the build order"
+  summary: "Board review steps 1-4 built, reviewed and released as 0.15.0: large boards summarised at startup, continuity-audit, milestone claims. Link fields cut to claims and gates after Chad found the design graph-y"
   blind_spots:
-    - "Several sessions work this repo in parallel (spawn-ux-fixes, away-back, refactor-classify built 0.10–0.13); fetch and read CHANGELOG before building, or you'll duplicate their work."
+    - "Several sessions work this repo in parallel; fetch and read CHANGELOG before building, or you'll duplicate their work."
+    - "decisions/closure-pass.md is over its 30-line budget; prune entries the code now covers before adding more."
+    - "No real cloud (/away) session has run the large-board summary; it passed on mawk and gawk locally."
 
 gotchas:
   - "Skill edits are scenario-tested: fixtures in tests/skill-scenarios/, baseline run on a snapshot of the old SKILL.md first (RED), then the edited one. Tell test agents to prefix EVERY command with the fixture PATH — they drop it and find the real ~/.local/bin/agent-spawn."
