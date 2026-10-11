@@ -10,7 +10,7 @@ Project principles: `docs/principles.md`. Concept map: https://claude.ai/artifac
 - The review has two depths: quick (script facts only) and deep (recommendations and a reflection) — the trip-planner round cost three audits and a publish, too much for every startup.
 - The review absorbs /continuity-prune — same job; prune's decision-file checks become audit findings on the row, with a chat fallback when the page can't publish.
 - One canonical page ships in the plugin; each project publishes its own copy and records the URL on its board — the trip-planner page was already generic except its title.
-- The model is six nouns: principle, workstream, milestone, claim, item, open question — a tracker or wayfinder map is storage for items or questions, not a concept.
+- The model is seven nouns: bet, principle, workstream, milestone, claim, item, open question (bet added by Chad 2026-10-11, since rows serve bets and the map needed the thing they point at) — a tracker or wayfinder map is storage for items or questions, not a concept.
 - Rows serve bets; principles judge decisions — on trip-planner 5 of 11 rows mapped cleanly to a bet, 2 were forced (group-trips, city-browse) and 4 had none; P1–P6 are constraints.
 - A milestone is a row with `kind: milestone` that owns claims (text, status, evidence), not work — invite-rehearsal's checklist was already 22 rows of that shape; a false claim can be fixed by rewording it.
 - No lanes: whose call a thing is lives per item in the existing `gate:` field; the page computes "needs you" and "moving without you" — a lane per row would hide the lists migration inside a product row.
