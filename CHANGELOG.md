@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-11
+
 ### Added
 - **Milestone rows (optional)** — a row with `kind: milestone` owns `claims`, each with `text`, `status` (true, false or unknown), `evidence` and an optional `waits_on`. The audit lists them and flags a claim marked true with no evidence; a large board's startup summary shows them as a count; a milestone with no steps is not reported as finished. Boards without milestones behave as before. Why: trip-planner's invite rehearsal was already 22 rows of this shape inside a handoff file, where nothing could check it.
 - **`lib/continuity-audit`** — prints JSON facts about a board: per row its open and done steps, open gated steps and cited PRs, with flags for building/polishing rows that have nothing open and feature rows filed under `workflows:`; plus decisions files over 30 lines, each gotcha's age from git history and the list against its 10-line cap, PR states from one `gh pr list` ("unknown" without gh), secret-looking strings by path and line (never the value) and tracked files under `.continuity/` that aren't plain text. Why: the board review page and skill read this and nothing else, so board storage can change without touching them; trip-planner's first review needed three hand-run audits.
