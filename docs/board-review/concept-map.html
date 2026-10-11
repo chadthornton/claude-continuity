@@ -1,0 +1,243 @@
+<title>Continuity Concept Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column, max 900px. The diagram comes first; every section after it explains one part of the picture. */
+:root {
+  --bg: #f2f4f7; --surface: #ffffff; --sunk: #e7ebf0; --ink: #1a2430; --muted: #5a6776; --line: #cdd5de;
+  --accent: #4a3fb5; --ok: #1f7446; --warn: #a5432a;
+  --display: "Newsreader", Georgia, serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #10151b; --surface: #182029; --sunk: #212b36; --ink: #e4eaf1; --muted: #93a0af; --line: #2d3945;
+  --accent: #a99ff7; --ok: #6fcf97; --warn: #f0906f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #10151b; --surface: #182029; --sunk: #212b36; --ink: #e4eaf1; --muted: #93a0af; --line: #2d3945;
+  --accent: #a99ff7; --ok: #6fcf97; --warn: #f0906f; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); padding-inline: 16px; padding-block: 32px 72px; }
+.wrap { max-width: 900px; margin-inline: auto; display: flex; flex-direction: column; gap: 40px; }
+section, header { display: flex; flex-direction: column; gap: 12px; }
+h1 { font: 600 32px/1.15 var(--display); margin: 0; text-wrap: balance; }
+h2 { font: 600 22px/1.2 var(--display); margin: 0; text-wrap: balance; }
+h3 { font: 600 12px/1.3 var(--body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 0; }
+p { margin: 0; max-width: 66ch; }
+.lede { font-size: 17px; }
+.muted { color: var(--muted); }
+code { font: 0.88em var(--mono); background: var(--sunk); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; max-width: 68ch; }
+
+figure { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.scroll svg { display: block; min-width: 760px; width: 100%; height: auto; color: var(--ink); font-family: var(--body); }
+figcaption { color: var(--muted); font-size: 13px; max-width: 70ch; }
+.box { fill: var(--surface); stroke: var(--ink); stroke-width: 1.2; }
+.soft { fill: var(--sunk); stroke: var(--line); stroke-width: 1; }
+.wire { fill: none; stroke: var(--ink); stroke-width: 1.2; }
+.wire-ac { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+.t { fill: var(--ink); font-size: 12px; }
+.tb { fill: var(--ink); font-size: 13px; font-weight: 600; }
+.tm { fill: var(--muted); font-size: 11px; }
+.tac { fill: var(--accent); font-size: 11px; font-weight: 600; }
+.tok { fill: var(--ok); font-size: 11px; font-weight: 600; }
+.twarn { fill: var(--warn); font-size: 11px; font-weight: 600; }
+.head { fill: var(--ink); }
+.head-ac { fill: var(--accent); }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font: 600 12px/1.3 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+@media (max-width: 640px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+.pair > div { display: flex; flex-direction: column; gap: 8px; }
+.uses { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 0 16px; border-top: 1px solid var(--line); }
+.uses > div { padding-block: 10px; border-bottom: 1px solid var(--line); }
+.uses > div:nth-child(odd) { font-weight: 600; }
+@media (max-width: 560px) { .uses { grid-template-columns: minmax(0, 1fr); } .uses > div:nth-child(odd) { border-bottom: 0; padding-bottom: 0; } }
+.note { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Continuity Concept Map</h1>
+    <p class="lede">Six nouns, each answering a different question about the product. The examples are from trip-planner's board as it stood on 2026-10-11.</p>
+  </header>
+
+  <section>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 880 500" role="img" aria-label="Work belongs to a workstream, a workstream serves a principle, and a milestone cuts across workstreams: each of its claims is made true by an item that lives in some workstream.">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="ahc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head-ac" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+
+          <!-- row labels -->
+          <text class="tm" x="250" y="14">PRINCIPLES</text>
+          <text class="tm" x="250" y="174">WORKSTREAMS</text>
+          <text class="tm" x="250" y="344">ITEMS</text>
+
+          <!-- principles -->
+          <rect class="box" x="250" y="20" width="180" height="64" rx="4"/>
+          <text class="tb" x="262" y="40">P2</text>
+          <text class="t" x="262" y="57">Concepts appear when</text>
+          <text class="t" x="262" y="72">they have work to do</text>
+          <rect class="box" x="460" y="20" width="180" height="64" rx="4"/>
+          <text class="tb" x="472" y="40">P1</text>
+          <text class="t" x="472" y="57">Commit at the resolution</text>
+          <text class="t" x="472" y="72">you have</text>
+
+          <!-- open question -->
+          <rect class="box" x="10" y="20" width="160" height="64" rx="4" stroke-dasharray="5 3"/>
+          <text class="tb" x="22" y="40">Open question</text>
+          <text class="t" x="22" y="57">Can a place be on more</text>
+          <text class="t" x="22" y="72">than one list?</text>
+          <line class="wire" x1="170" y1="52" x2="248" y2="52" marker-end="url(#ah)"/>
+          <text class="tm" x="209" y="45" text-anchor="middle">judged by</text>
+          <path class="wire" d="M90,84 V208 H248" marker-end="url(#ah)"/>
+          <text class="tm" x="170" y="201" text-anchor="middle">gates</text>
+
+          <!-- workstreams -->
+          <rect class="box" x="250" y="180" width="180" height="56" rx="4"/>
+          <text class="tb" x="262" y="203">lists</text>
+          <text class="tm" x="262" y="222">exploring · 7 open items</text>
+          <rect class="box" x="460" y="180" width="180" height="56" rx="4"/>
+          <text class="tb" x="472" y="203">app</text>
+          <text class="tm" x="472" y="222">polishing · 16 open items</text>
+          <line class="wire" x1="340" y1="180" x2="340" y2="86" marker-end="url(#ah)"/>
+          <text class="tm" x="332" y="137" text-anchor="end">serves</text>
+          <line class="wire" x1="550" y1="180" x2="550" y2="86" marker-end="url(#ah)"/>
+          <text class="tm" x="542" y="137" text-anchor="end">serves</text>
+
+          <!-- items -->
+          <rect class="box" x="250" y="350" width="180" height="60" rx="4"/>
+          <text class="t" x="262" y="375">Import makes a list</text>
+          <text class="t" x="262" y="392">on purpose</text>
+          <rect class="box" x="460" y="350" width="180" height="60" rx="4"/>
+          <text class="t" x="472" y="375">Re-walk the sign-up</text>
+          <text class="t" x="472" y="392">screens at 390px</text>
+          <line class="wire" x1="340" y1="350" x2="340" y2="238" marker-end="url(#ah)"/>
+          <text class="tm" x="332" y="298" text-anchor="end">belongs to</text>
+          <line class="wire" x1="550" y1="350" x2="550" y2="238" marker-end="url(#ah)"/>
+          <text class="tm" x="542" y="298" text-anchor="end">belongs to</text>
+
+          <!-- milestone -->
+          <rect class="soft" x="680" y="150" width="190" height="262" rx="6"/>
+          <text class="tb" x="692" y="172">Milestone: invite email</text>
+          <text class="tm" x="692" y="189">3 claims · 1 true</text>
+          <rect class="box" x="690" y="200" width="170" height="56" rx="4"/>
+          <text class="t" x="700" y="223">Invite lands in the inbox</text>
+          <text class="tok" x="700" y="243">true</text>
+          <rect class="box" x="690" y="270" width="170" height="56" rx="4"/>
+          <text class="t" x="700" y="293">Sign-up works on a phone</text>
+          <text class="tm" x="700" y="313">not walked yet</text>
+          <rect class="box" x="690" y="340" width="170" height="56" rx="4"/>
+          <text class="t" x="700" y="363">Article imports as a list</text>
+          <text class="twarn" x="700" y="383">false</text>
+
+          <!-- makes true -->
+          <path class="wire-ac" d="M640,372 H652 V298 H688" marker-end="url(#ahc)"/>
+          <text class="tac" x="648" y="336" text-anchor="end">makes true</text>
+          <path class="wire-ac" d="M340,410 V470 H664 V368 H688" marker-end="url(#ahc)"/>
+          <text class="tac" x="500" y="463" text-anchor="middle">makes true</text>
+        </svg>
+      </div>
+      <figcaption>Read upward for why: an item belongs to a workstream, and a workstream serves a principle. Read sideways for when: a milestone holds claims, and each claim is made true by an item that stays in its own workstream. The milestone owns no work.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>What each one answers</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Concept</th><th>The question it answers</th><th>Where it lives</th><th>Trip-planner example</th><th>Lasts</th></tr></thead>
+        <tbody>
+          <tr><td>Principle</td><td>What do we believe about this product?</td><td><code>docs/product-principles.md</code></td><td>P2, concepts appear when they have work to do</td><td>Years</td></tr>
+          <tr><td>Workstream</td><td>Which area are we investing in, and why?</td><td>A row on the board</td><td><code>lists</code>, <code>app</code></td><td>Months</td></tr>
+          <tr><td>Milestone</td><td>What has to be true together, and by when?</td><td>A row on the board, marked as a milestone</td><td><code>invite-rehearsal</code></td><td>Weeks, then it leaves</td></tr>
+          <tr><td>Claim</td><td>What will a user find true?</td><td>On its milestone</td><td>Both mails arrive from login@jauntfully.com and neither is in spam</td><td>Until true</td></tr>
+          <tr><td>Item</td><td>What is the next piece of work?</td><td>On its workstream; as tickets when there are many</td><td>Rebuild PR #87</td><td>Days</td></tr>
+          <tr><td>Open question</td><td>What do we have to decide before building?</td><td>The workstream's decisions file</td><td>Can a place be on more than one list?</td><td>Until decided</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">A tracker and a wayfinder map are not on this list. A tracker is where items are stored when one workstream has too many for a list. A map is where open questions are stored when one workstream has too many for a decisions file. Neither adds a concept.</p>
+  </section>
+
+  <section>
+    <h2>A milestone is any moment with claims attached</h2>
+    <p>The invite email was a UX walk, but the shape is general: a forcing event, plus a list of sentences that must be true when it arrives. Five kinds fit.</p>
+    <div class="uses">
+      <div>A real-world event</div><div>Three guests join the Tokyo trip on 2026-11-07. Claim: a guest with no account can open the invite on a phone and add a place.</div>
+      <div>A release</div><div>Plugin 0.15 ships. Claim: a project with no review page gets one on its first run.</div>
+      <div>A cutover</div><div>Lists move to the new model. Claim: no code reads <code>places.list_id</code>.</div>
+      <div>An evidence checkpoint</div><div>The first multi-person trip ends. Claim: every open research question has an event count beside it. Trip-planner's <code>social-decisions-review</code> workflow already waits on this trigger.</div>
+      <div>A quality bar</div><div>Before inviting anyone outside the family. Claim: every screen is usable at 390px.</div>
+    </div>
+    <p class="muted">Not a milestone: an area you keep investing in (that is a workstream), a single task (an item), or a date with no claims (a deadline).</p>
+  </section>
+
+  <section>
+    <h2>The practices this encodes</h2>
+    <div class="pair">
+      <div>
+        <h3>What you are already doing</h3>
+        <ul>
+          <li><b>Writing the outcome before the work.</b> The email was the spec, and each sentence became a check.</li>
+          <li><b>Rehearsing on the real thing.</b> The first rehearsal found three phone layout bugs that no plan listed.</li>
+          <li><b>Keeping few things in flight.</b> The close-out took the board from 29 rows toward 8.</li>
+          <li><b>Recording why.</b> Every decision carries its reason.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Three things I would add</h3>
+        <ul>
+          <li><b>Each workstream names the principle it serves.</b> This is the one link missing today, and it is the one that makes drift visible.</li>
+          <li><b>Each milestone has a forcing event outside the codebase.</b> A person, a date or a release. Without one it is a wish list.</li>
+          <li><b>Closing a milestone includes one look back.</b> Which claims were wrong as written, and which principle that touches.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What a reviewer could check once the links exist</h2>
+    <p>The diagram's arrows are four fields in the board file: which principle a workstream serves, whether a row is a milestone, the milestone's claims, and which claim an item is for. With those written down, the board is a small graph that fits in a few kilobytes.</p>
+    <div class="pair">
+      <div>
+        <h3>A script can find</h3>
+        <ul>
+          <li>A workstream that serves no principle.</li>
+          <li>A principle with no live work behind it.</li>
+          <li>A false claim with no item aimed at it.</li>
+          <li>Open items that serve no claim while a milestone is open.</li>
+          <li>Build items moving ahead of an open question that gates them.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>A reviewing Claude can judge</h3>
+        <ul>
+          <li>Two workstreams solving the same problem under different names.</li>
+          <li>A decision that contradicts the principle it cites.</li>
+          <li>A principle that no longer describes what is shipping.</li>
+          <li>A connection across workstreams nobody has drawn.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">The reviewer reads the script's findings and the compact graph, then writes a short reflection as a section on the review page, where you can reply to it. It reads the graph, never the full 118 KB board.</p>
+  </section>
+
+  <section>
+    <h2>Not yet decided</h2>
+    <ul>
+      <li>Whether to add all four links at once or start with one. I would start with the principle link, since it costs one line per workstream.</li>
+      <li>Whether trip-planner's <code>lists</code> questions move to a wayfinder map or stay in the decisions file.</li>
+      <li>How often the reflection runs. It costs a model call each time.</li>
+    </ul>
+  </section>
+</div>
