@@ -22,5 +22,6 @@ Project principles: `docs/principles.md`. Concept map: https://claude.ai/artifac
 
 - [decision] One file per workstream: after the review page is in use, or sooner if agents keep colliding on the board?
 - [decision] Which link fields ship first; lean `serves` only.
+- [decision] How does a technical row say what it serves: `serves` may name a standard as well as a bet, or a row may declare it serves none? 4 of trip-planner's 11 rows are technical and would be flagged as drift forever; design session leans `serves` names a standard. Raise in the step 4 plan.
 - [decision] How often the deep reflection runs; it costs a model call.
 - [question] Does trip-planner's `lists` row move its open questions to an in-repo wayfinder map? Needs Chad to run /setup-matt-pocock-skills there.
