@@ -4,7 +4,8 @@
 <first-action>
 1. Read `docs/principles.md`, then `.continuity/decisions/closure-pass.md`. They are the spec; cite the principles.
 2. Run `lib/continuity-audit` in this repo and read its header comment. Its JSON is the only thing the page and skill may read about a board.
-3. Post a short plan for step 5 and get Chad's go-ahead before any code, then the same for each later step.
+3. Work on the branch `closure-pass-1-step-5`, cut from main (0.15.0 holds steps 1-4).
+4. Post a short plan for step 5 and get Chad's go-ahead before any code, then the same for each later step.
 </first-action>
 <stops>
 - Every step needs a short plan and Chad's go-ahead before code. He is a product designer and does not read code: show test output, not diffs.

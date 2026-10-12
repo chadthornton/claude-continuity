@@ -6,8 +6,8 @@ features:
   closure-pass:
     status: building
     mandate: 2026-10-11
-    owner: board-review
-    next: "Board review: step 5, the canonical review page. Steps 1-4 shipped in 0.15.0. Owned by agent board-review"
+    owner: closure-pass-1
+    next: "Board review: step 5, the canonical review page. Steps 1-4 shipped in 0.15.0. Owned by agent closure-pass-1"
     summary: >
       Keep a board small and true, and let Chad run it from a page. Grew on 2026-10-11 from
       "retire finished work" into the board review: a canonical page per project, seeded by an
