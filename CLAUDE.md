@@ -10,9 +10,10 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 - `lib/continuity-board.sh` — the one reader of feature-status.yml's layout (row summary, one row, step and claim counts, gotchas); sourced by continuity-state and continuity-audit. Anything else that needs a row or a count calls it.
 - `lib/continuity-audit` — JSON facts about a board for the board review (row counts and flags, gated steps, milestone claims, PR states, decisions sizes, gotcha ages, secret-looking strings, stray files). Read-only; needs jq. The review reads this, never the board files.
 - `hooks/session-start.sh` — init hint; flags continuity commits stranded on local branches
-- `hooks/session-end.sh` — writes `.continuity/last-activity.txt` on session exit
+- `hooks/session-end.sh` — writes `.continuity/last-activity.txt` on session exit; clears the session's context-meter files
 - `hooks/worktree-remove.sh` — blocks worktree removal that would lose `.continuity/` edits
 - `hooks/pre-compact.sh` — backs up transcript JSONL before compaction
+- `hooks/context-pressure.sh` — one notice per session at 60% of the context window, sending the agent to wrap-up; reads `~/.claude/state/continuity-context/<session_id>.json`, which a status line command writes (hooks get no context figures)
 - `skills/startup/SKILL.md` — session triage: dashboard + mode/area pick + focused brief
 - `skills/startup/continuity-state` — all state startup reads in one allowlistable call; `show <path>` reads a .continuity file from the same source; a board over 16 KB is summarised and `row <name>` / `gotchas` read the rest
 - `skills/wrap-up/SKILL.md` — session end: update status + decisions + handoff if mid-stream

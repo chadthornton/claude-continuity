@@ -1,9 +1,16 @@
 #!/bin/bash
-# Writes last-activity.txt on session end.
+# Writes last-activity.txt on session end; clears the session's context-meter files.
 # Automatic safety net — captures minimal state even if wrap-up skill wasn't run.
 
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd')
+
+# Drop this session's context-meter files (see context-pressure.sh).
+SESSION=$(echo "$INPUT" | jq -r '.session_id // empty')
+case "$SESSION" in ''|*[!A-Za-z0-9_-]*) ;; *)
+  CTX_DIR="${CONTINUITY_CONTEXT_DIR:-$HOME/.claude/state/continuity-context}"
+  rm -f "$CTX_DIR/$SESSION.json" "$CTX_DIR/$SESSION.told" ;;
+esac
 CONTINUITY_DIR="$CWD/.continuity"
 
 # Only write if this project has a .continuity directory

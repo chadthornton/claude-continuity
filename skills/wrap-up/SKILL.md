@@ -59,7 +59,7 @@ Read the current `.continuity/feature-status.yml` and update the relevant sectio
 - **summary** — if the workflow's description needs clarifying, update it
 - Don't set `in_progress` for workflows — they're either done or they aren't. If interrupted mid-workflow, set it on the top-level `in_progress` field.
 
-**Minimal wrap-up (context pressure):** If the user mentions token pressure, or the session is being cut short, do a minimal wrap-up: update only `next_steps` (mark done/not-done), `in_progress`, and `last_session`. Skip decisions file updates — preserving where-you-are matters more than capturing rationale when tokens are scarce. **Never skip Step 6 (Make It Durable)** — it is one command, and a minimal update that isn't saved is no update.
+**Minimal wrap-up (context pressure):** If the user mentions token pressure, or the session is being cut short, do a minimal wrap-up: update only `next_steps` (mark done/not-done), `in_progress`, and `last_session`. Skip decisions file updates — preserving where-you-are matters more than capturing rationale when tokens are scarce. **Never skip Step 6 (Make It Durable)** — it is one command, and a minimal update that isn't saved is no update. A session ending for context can't continue the work itself, so it doesn't skip Step 6b either: see **Context handoff** there.
 
 **Always update:**
 
@@ -211,7 +211,9 @@ Writing the mandate:
 3. Once every qualifying feature has its mandate, run continuity-save once (`-m "continuity: mandate {features}"`).
 4. Add a line per feature to the Step 7 summary: `MANDATE: {feature} steps {first}–{last} left for the next session (say "drop the {feature} mandate" to remove)`.
 
-**Offering a relay.** If `command -v agent-spawn` succeeds, ask once with AskUserQuestion. With one mandate: **"Continue {feature} steps {first}–{last} with a new agent now, or leave it for the next session?"** Options: **Continue with a new agent** / **Leave it for the next session**. With several: **"Which of these should new agents continue now?"** with `multiSelect: true` and one option per mandated feature (`{feature}: steps {first}–{last}`); selecting none leaves them all for the next session. The question holds four options at most: with more mandates, offer the four features this session worked on most, and name the rest in the summary as left for the next session. With no spawner, don't ask.
+**Context handoff.** When this wrap-up runs because the session is ending for context (a `CONTEXT HANDOFF` notice from the context-pressure hook, or the user said so), two things change. A feature this session worked on gets a mandate with **1** not-done step, not 2; the other conditions stand. And if `command -v agent-spawn` succeeds, don't ask: relay every feature that just got a mandate, following the relay steps below. Leaving it for the next session would stop the work until the user notices, and asking spends context this session doesn't have. With no spawner, or when the first not-done step is gated, end the summary with the decision or action the user owes, never with "start a fresh session".
+
+**Offering a relay.** Otherwise, if `command -v agent-spawn` succeeds, ask once with AskUserQuestion. With one mandate: **"Continue {feature} steps {first}–{last} with a new agent now, or leave it for the next session?"** Options: **Continue with a new agent** / **Leave it for the next session**. With several: **"Which of these should new agents continue now?"** with `multiSelect: true` and one option per mandated feature (`{feature}: steps {first}–{last}`); selecting none leaves them all for the next session. The question holds four options at most: with more mandates, offer the four features this session worked on most, and name the rest in the summary as left for the next session. With no spawner, don't ask.
 
 For the features chosen, relay them all in one save, then spawn one agent per feature:
 

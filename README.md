@@ -61,6 +61,12 @@ There's no shortage of context-management approaches: CLAUDE.md, AGENTS.md, memo
 
 `/checkpoint` is the zero-question version: it infers the active feature, captures what's changed, saves it with `continuity-save` (landing it on the default branch when `push_to_default_branch` is set), and nudges you when context is getting full enough to `/clear`.
 
+### Handing off before context runs out
+
+An agent can't see how much of its context window it has used. A hook tells it once, at 60% of the window, to finish its task and run wrap-up; wrap-up then relays the remaining steps to a new agent without asking. Set `CONTINUITY_HANDOFF_PCT` to move the threshold.
+
+Claude Code gives context figures to status line commands but not to hooks, so the notice needs your status line to write them. On each run, write `{"used": <input + cache tokens>, "size": <context_window.context_window_size>}` to `~/.claude/state/continuity-context/<session_id>.json`. Without that file the hook stays silent.
+
 ## What gets tracked
 
 Continuity tracks your project as a handful of **features** — the workstreams from the tagline — in a `.continuity/` directory of a few small files:
