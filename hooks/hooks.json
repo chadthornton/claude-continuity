@@ -1,5 +1,5 @@
 {
-  "description": "Continuity system hooks: init reminder + unlanded-continuity notice on start, auto-save on end, transcript backup before compaction, refuse worktree removal that would lose .continuity/ edits",
+  "description": "Continuity system hooks: init reminder + unlanded-continuity notice on start, auto-save on end, a context-handoff notice at 60% of the window, transcript backup before compaction, refuse worktree removal that would lose .continuity/ edits",
   "hooks": {
     "SessionStart": [
       {
@@ -18,6 +18,17 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/context-pressure.sh",
             "timeout": 5
           }
         ]

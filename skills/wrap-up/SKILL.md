@@ -59,7 +59,7 @@ Read the current `.continuity/feature-status.yml` and update the relevant sectio
 - **summary** — if the workflow's description needs clarifying, update it
 - Don't set `in_progress` for workflows — they're either done or they aren't. If interrupted mid-workflow, set it on the top-level `in_progress` field.
 
-**Minimal wrap-up (context pressure):** If the user mentions token pressure, or the session is being cut short, do a minimal wrap-up: update only `next_steps` (mark done/not-done), `in_progress`, and `last_session`. Skip decisions file updates — preserving where-you-are matters more than capturing rationale when tokens are scarce. **Never skip Step 6 (Make It Durable)** — it is one command, and a minimal update that isn't saved is no update.
+**Minimal wrap-up (context pressure):** If the user mentions token pressure, or the session is being cut short, do a minimal wrap-up: update only `next_steps` (mark done/not-done), `in_progress`, and `last_session`. Skip decisions file updates — preserving where-you-are matters more than capturing rationale when tokens are scarce. **Never skip Step 6 (Make It Durable)** — it is one command, and a minimal update that isn't saved is no update. A session ending for context can't continue the work itself, so it doesn't skip Step 6b either: see **Context handoff** there.
 
 **Always update:**
 
@@ -175,7 +175,7 @@ A `WorktreeRemove` hook refuses to delete a worktree with uncommitted or unlande
 
 When the next steps are clear enough to hand over cold, write them down as a **mandate**: a commission for whichever session picks the work up next, now or days later. Check each feature this session worked on. Write one without asking when **all** of these hold for it:
 
-- it has **2 or more** not-done steps;
+- it has **2 or more** not-done steps (**1** on a context handoff, described under **Context handoff** below);
 - the first not-done step has no `gate:`;
 - each step in the chain is concrete enough to act on cold: it names the file, command, or artifact to produce. "Polish the UI" or "clean things up" is not concrete, so the feature gets no mandate;
 - its `owner` is absent or is this checkout.
@@ -211,7 +211,15 @@ Writing the mandate:
 3. Once every qualifying feature has its mandate, run continuity-save once (`-m "continuity: mandate {features}"`).
 4. Add a line per feature to the Step 7 summary: `MANDATE: {feature} steps {first}–{last} left for the next session (say "drop the {feature} mandate" to remove)`.
 
-**Offering a relay.** If `command -v agent-spawn` succeeds, ask once with AskUserQuestion. With one mandate: **"Continue {feature} steps {first}–{last} with a new agent now, or leave it for the next session?"** Options: **Continue with a new agent** / **Leave it for the next session**. With several: **"Which of these should new agents continue now?"** with `multiSelect: true` and one option per mandated feature (`{feature}: steps {first}–{last}`); selecting none leaves them all for the next session. The question holds four options at most: with more mandates, offer the four features this session worked on most, and name the rest in the summary as left for the next session. With no spawner, don't ask.
+**Context handoff.** When this wrap-up runs because the session is ending for context (a `CONTEXT HANDOFF` notice from the context-pressure hook, or the user said so), a feature needs only 1 not-done step for a mandate, and the relay is not a question: the session can't continue the work, so leaving it for the next session stops it until the user notices. If `command -v agent-spawn` succeeds, relay the features that just got a mandate, following the relay steps below, within these limits:
+
+- **At most four agents.** With more mandated features, relay the four this session worked on most and name the rest in the summary as left for the next session.
+- **Don't relay the same step twice.** If this checkout is the feature's `owner` because it was relayed here, and this session finished none of its steps, don't spawn for it: the step doesn't fit in one session, and another agent would stall on it the same way. Keep the mandate and say in the summary that the step needs splitting.
+- **Hand over the branch with the board.** Push this session's branch for the feature first. If it holds commits that aren't on `origin/{default}`, the handoff's first action checks that branch out (`git fetch -q origin && git switch {branch}`) instead of cutting a new one from `origin/{default}`, and this session lets go of it (`git switch --detach`) so the new worktree can take it.
+
+With no spawner, or when the first not-done step is gated, end the summary with the decision or action the user owes, never with "start a fresh session".
+
+**Offering a relay.** Otherwise, if `command -v agent-spawn` succeeds, ask once with AskUserQuestion. With one mandate: **"Continue {feature} steps {first}–{last} with a new agent now, or leave it for the next session?"** Options: **Continue with a new agent** / **Leave it for the next session**. With several: **"Which of these should new agents continue now?"** with `multiSelect: true` and one option per mandated feature (`{feature}: steps {first}–{last}`); selecting none leaves them all for the next session. The question holds four options at most: with more mandates, offer the four features this session worked on most, and name the rest in the summary as left for the next session. With no spawner, don't ask.
 
 For the features chosen, relay them all in one save, then spawn one agent per feature:
 
