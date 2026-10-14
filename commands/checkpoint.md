@@ -70,14 +70,9 @@ Think about implicit assumptions, gotchas, or context from the session so far th
 
 Save to `last_session.blind_spots` in `feature-status.yml` as a list. Keep the buckets distinct: a *tested dead end* belongs in `## Ruled out`, not here. If the grade is below 7, revisit the decisions file — something important is probably missing.
 
-### Step 6: Check Context Health
+### Step 6: Leave Context Alone
 
-After updating files, check the proxy diagnostics to estimate current context usage. Use the `proxy_diagnostics` MCP tool if available, or check the conversation's approximate size from the context.
-
-Categorize:
-- **Low** (under 60k tokens): Plenty of room
-- **Medium** (60k-120k tokens): Getting full, clearing soon would help
-- **High** (over 120k tokens): Should clear soon to avoid compaction
+Don't estimate context usage or advise the user to `/clear`. An agent can't see its own usage, and a guess sized for one model's window is wrong for another's. The context-pressure hook measures it and says when to hand off.
 
 ### Step 7: Save It
 
@@ -89,7 +84,7 @@ Run wrap-up's save script so the checkpoint reaches other checkouts, not just th
 
 It commits only `.continuity/` and, when `feature-status.yml` has `settings: { push_to_default_branch: true }`, lands that commit on `origin/<default>` without shipping any code on this branch. Keep its **first output line** for the confirmation. Whatever it prints — `SAVED LOCALLY`, `CONFLICT`, `SKIP` — report the line as-is and move on. Don't resolve, retry, or ask: a conflict waits for the next `/wrap-up`, and the commit is safe on this branch meanwhile.
 
-### Step 8: Confirm With Context Nudge
+### Step 8: Confirm
 
 Return a brief confirmation to the main session:
 
@@ -98,20 +93,13 @@ Checkpointed {feature}: {N} decisions saved, {N} questions added.
 Next: {updated next field}
 Blind spots ({grade}/10): {1-2 most notable items, inline}
 Saved: {continuity-save's first line}
-Context: ~{N}k tokens. {nudge}
 ```
-
-The nudge varies by context level:
-- **Low:** "Plenty of room — keep going."
-- **Medium:** "Getting full. You could `/clear` safely — everything important is saved."
-- **High:** "Running hot. Recommend `/clear` now — your progress is checkpointed. Run `/startup` after to resume."
 
 Or if nothing meaningful to capture:
 
 ```
 Checkpointed {feature}: no new decisions found. Status unchanged.
 Saved: {continuity-save's first line}
-Context: ~{N}k tokens. {nudge}
 ```
 
 ## Guidelines

@@ -9,6 +9,9 @@
 - **Wrap-up relays without asking on a context handoff** — when the session is ending for context, a feature with one not-done ungated step gets a mandate (normally two), and mandated features are relayed to new agents with no question: four at most, never the same unfinished step twice, and with the session's branch pushed and handed over. Why: the session can't continue the work, so "leave it for the next session" stopped it until the user noticed; the stopped sessions ended with "start a fresh session".
 - **SessionEnd clears the session's context-meter files.**
 
+### Removed
+- **`/checkpoint`'s context estimate and `/clear` nudge** — it guessed usage from the conversation against 60k and 120k bands sized for a 200K window, then told the user to `/clear` and run `/startup`. The context-pressure hook measures instead.
+
 ## [0.15.0] - 2026-10-11
 
 ### Added
