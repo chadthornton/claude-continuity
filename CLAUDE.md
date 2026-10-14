@@ -13,7 +13,7 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 - `hooks/session-end.sh` — writes `.continuity/last-activity.txt` on session exit; clears the session's context-meter files
 - `hooks/worktree-remove.sh` — blocks worktree removal that would lose `.continuity/` edits
 - `hooks/pre-compact.sh` — backs up transcript JSONL before compaction
-- `hooks/context-pressure.sh` — one notice per session at 60% of the context window, sending the agent to wrap-up; reads `~/.claude/state/continuity-context/<session_id>.json`, which a status line command writes (hooks get no context figures)
+- `hooks/context-pressure.sh` — one notice at 60% of the context window (again only after a compaction), sending the agent to wrap-up; reads `~/.claude/state/continuity-context/<session_id>.json`, which a status line command writes (hooks get no context figures)
 - `skills/startup/SKILL.md` — session triage: dashboard + mode/area pick + focused brief
 - `skills/startup/continuity-state` — all state startup reads in one allowlistable call; `show <path>` reads a .continuity file from the same source; a board over 16 KB is summarised and `row <name>` / `gotchas` read the rest
 - `skills/wrap-up/SKILL.md` — session end: update status + decisions + handoff if mid-stream

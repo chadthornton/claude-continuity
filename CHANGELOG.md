@@ -3,10 +3,10 @@
 ## [Unreleased]
 
 ### Added
-- **Context-handoff notice** — a `PostToolUse` hook (`hooks/context-pressure.sh`) tells the main agent once per session that it has used 60% of its context window and should finish its task and run wrap-up. The share is of the session's own window, so it holds for any model; `CONTINUITY_HANDOFF_PCT` moves it. A hook is not given context figures, so a status line command must write `{"used", "size"}` to `~/.claude/state/continuity-context/<session_id>.json`; with no file the hook is silent. Subagents and projects without `.continuity/` get no notice. Why: agents cannot see their usage, and five sessions judged "approaching the limit" by feel, stopping between 26% and 56% of a 1M window.
+- **Context-handoff notice** — a `PostToolUse` hook (`hooks/context-pressure.sh`) tells the main agent that it has used 60% of its context window and should finish its task and run wrap-up. It speaks once, and again only after usage has fallen below half the threshold (a compaction). The share is of the session's own window, so it holds for any model; `CONTINUITY_HANDOFF_PCT` moves it. A hook is not given context figures, so a status line command must write `{"used", "size"}` to `~/.claude/state/continuity-context/<session_id>.json`; with no file the hook is silent. Subagents and projects without `.continuity/` get no notice. Why: agents cannot see their usage, and five sessions judged "approaching the limit" by feel, stopping between 26% and 56% of a 1M window.
 
 ### Changed
-- **Wrap-up relays without asking on a context handoff** — when the session is ending for context, a feature with one not-done ungated step gets a mandate (normally two), and every mandated feature is relayed to a new agent with no question. Why: the session can't continue the work, so "leave it for the next session" stopped it until the user noticed; the stopped sessions ended with "start a fresh session".
+- **Wrap-up relays without asking on a context handoff** — when the session is ending for context, a feature with one not-done ungated step gets a mandate (normally two), and mandated features are relayed to new agents with no question: four at most, never the same unfinished step twice, and with the session's branch pushed and handed over. Why: the session can't continue the work, so "leave it for the next session" stopped it until the user noticed; the stopped sessions ended with "start a fresh session".
 - **SessionEnd clears the session's context-meter files.**
 
 ## [0.15.0] - 2026-10-11

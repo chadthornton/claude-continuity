@@ -63,9 +63,18 @@ There's no shortage of context-management approaches: CLAUDE.md, AGENTS.md, memo
 
 ### Handing off before context runs out
 
-An agent can't see how much of its context window it has used. A hook tells it once, at 60% of the window, to finish its task and run wrap-up; wrap-up then relays the remaining steps to a new agent without asking. Set `CONTINUITY_HANDOFF_PCT` to move the threshold.
+An agent can't see how much of its context window it has used. A hook tells it, at 60% of the window, to finish its task and run wrap-up; wrap-up then relays the remaining steps to a new agent without asking. Set `CONTINUITY_HANDOFF_PCT` to move the threshold.
 
-Claude Code gives context figures to status line commands but not to hooks, so the notice needs your status line to write them. On each run, write `{"used": <input + cache tokens>, "size": <context_window.context_window_size>}` to `~/.claude/state/continuity-context/<session_id>.json`. Without that file the hook stays silent.
+Claude Code gives context figures to status line commands but not to hooks, so the notice needs your status line to write them. On each run, write this to `~/.claude/state/continuity-context/<session_id>.json`:
+
+```json
+{"used": 412000, "size": 1000000}
+```
+
+- `used` is the context in use now: `input_tokens + cache_creation_input_tokens + cache_read_input_tokens` from `context_window.current_usage`. The session's running totals (`total_input_tokens`) would overshoot within a few turns.
+- `size` is `context_window.context_window_size`.
+
+Without that file the hook stays silent, so the notice is off until a status line writes it. It fires again only after usage falls below half the threshold, which is what a compaction looks like.
 
 ## What gets tracked
 

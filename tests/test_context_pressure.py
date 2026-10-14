@@ -3,6 +3,8 @@ import json, os, subprocess, sys, tempfile
 
 HOOKS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'hooks')
 fails = []
+# the caller's own threshold or project must not leak into the scenarios
+BASE_ENV = {k: v for k, v in os.environ.items() if k not in ('CONTINUITY_HANDOFF_PCT', 'CLAUDE_PROJECT_DIR')}
 
 
 def expect(name, cond, detail=''):
@@ -25,7 +27,7 @@ def meter(ctx, session, used, size):
 
 def hook(ctx, payload, name='context-pressure.sh', **env):
     r = subprocess.run(['bash', f'{HOOKS}/{name}'], input=json.dumps(payload),
-                       env=dict(os.environ, CONTINUITY_CONTEXT_DIR=ctx, **env), capture_output=True, text=True)
+                       env=dict(BASE_ENV, CONTINUITY_CONTEXT_DIR=ctx, **env), capture_output=True, text=True)
     return r.returncode, r.stdout.strip(), r.stderr.strip()
 
 
@@ -92,6 +94,47 @@ expect('silent without .continuity', rc == 0 and out == '', (rc, out, err))
 meter(ctx, 's9', 450_000, 1_000_000)
 rc, out, err = hook(ctx, {'session_id': 's9', 'cwd': cwd}, CONTINUITY_HANDOFF_PCT='40')
 expect('CONTINUITY_HANDOFF_PCT moves the threshold', 'CONTEXT HANDOFF' in out and '45%' in out, (rc, out, err))
+
+# an unusable threshold falls back to 60 instead of switching the notice off
+meter(ctx, 's10', 700_000, 1_000_000)
+rc, out, err = hook(ctx, {'session_id': 's10', 'cwd': cwd}, CONTINUITY_HANDOFF_PCT='60%')
+expect('bad CONTINUITY_HANDOFF_PCT falls back to 60', 'CONTEXT HANDOFF' in out and err == '', (rc, out, err))
+
+# a compaction drops usage well below the threshold: the notice is armed again for the next climb
+meter(ctx, 's11', 700_000, 1_000_000)
+hook(ctx, {'session_id': 's11', 'cwd': cwd})
+meter(ctx, 's11', 590_000, 1_000_000)
+rc, out, err = hook(ctx, {'session_id': 's11', 'cwd': cwd})
+meter(ctx, 's11', 700_000, 1_000_000)
+rc, out2, err = hook(ctx, {'session_id': 's11', 'cwd': cwd})
+expect('a dip just under the threshold does not re-arm', out == '' and out2 == '', (out, out2))
+meter(ctx, 's11', 200_000, 1_000_000)
+rc, out, err = hook(ctx, {'session_id': 's11', 'cwd': cwd})
+meter(ctx, 's11', 650_000, 1_000_000)
+rc, out2, err = hook(ctx, {'session_id': 's11', 'cwd': cwd})
+expect('re-armed after usage falls below half the threshold', out == '' and 'CONTEXT HANDOFF' in out2, (out, out2))
+
+# several tool calls in one turn run the hook at once: still one notice
+meter(ctx, 's12', 700_000, 1_000_000)
+procs = [subprocess.Popen(['bash', f'{HOOKS}/context-pressure.sh'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                          text=True, env=dict(BASE_ENV, CONTINUITY_CONTEXT_DIR=ctx)) for _ in range(8)]
+outs = [p.communicate(json.dumps({'session_id': 's12', 'cwd': cwd}))[0] for p in procs]
+expect('one notice from 8 concurrent runs', sum('CONTEXT HANDOFF' in o for o in outs) == 1, outs)
+
+# the session may have cd'd below the project root
+sub = f'{cwd}/packages/api'; os.makedirs(sub)
+subprocess.run(['git', 'init', '-q', cwd], check=True)
+meter(ctx, 's13', 700_000, 1_000_000)
+rc, out, err = hook(ctx, {'session_id': 's13', 'cwd': sub})
+expect('fires from a subdirectory of the project', 'CONTEXT HANDOFF' in out, (rc, out, err))
+meter(ctx, 's14', 700_000, 1_000_000)
+rc, out, err = hook(ctx, {'session_id': 's14', 'cwd': '/'}, CLAUDE_PROJECT_DIR=cwd)
+expect('fires when only CLAUDE_PROJECT_DIR names the project', 'CONTEXT HANDOFF' in out, (rc, out, err))
+
+# a status line written in shell may quote its numbers
+open(f'{ctx}/s15.json', 'w').write('{"used": "700000", "size": "1000000"}')
+rc, out, err = hook(ctx, {'session_id': 's15', 'cwd': cwd})
+expect('numeric strings in the meter file are read', 'CONTEXT HANDOFF' in out, (rc, out, err))
 
 # session end clears this session's meter files and leaves other sessions' alone
 rc, out, err = hook(ctx, {'session_id': 's1', 'cwd': cwd}, name='session-end.sh')
