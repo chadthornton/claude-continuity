@@ -49,6 +49,18 @@ features:
     next_steps: []
     in_progress: null
 
+  task-sync:
+    status: planned
+    next: "Plan it after closure-pass ships; it touches hooks and wrap-up, which that work also edits"
+    summary: >
+      A TaskCompleted hook ticks off the matching board step when Claude completes a
+      built-in task, so wrap-up reconstructs less. Idea from backloghq/backlog (2026-10-16);
+      its storage (outside git, 24 MCP tools) was rejected. See decisions/task-sync.md.
+    next_steps:
+      - { step: "Confirm the TaskCompleted hook payload (task subject, session, cwd) against Claude Code docs; decide how a task matches a board step (exact text, or a step id in the task)", done: false }
+      - { step: "Hook writes a pending tick to a file under .continuity/, never edits feature-status.yml directly; wrap-up applies the ticks. Scenario test first", gate: "decision: auto-apply ticks, or show them at wrap-up for a yes?", done: false }
+    in_progress: null
+
   away-back:
     status: polishing
     next: "(owned by the session that built it)"
