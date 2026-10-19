@@ -272,6 +272,14 @@ Blind spots (7/10):
   • User prefers Finder-style navigation feel, not IDE-style
 ```
 
+**Review offer.** If this session changed 3 or more features in `feature-status.yml` (status, steps marked done or added, a feature added) or added a feature, end the summary with one line:
+
+```
+Several features changed. Say "review the board" to see where effort goes next.
+```
+
+Otherwise print nothing about reviews.
+
 **Phase gate note:** If the worked-on feature has a `phase` field and higher-phase features exist in the YAML, append a phase status line:
 
 - If the feature's status is now `building` or `exploring` → `"Phase N is underway. Phase N+1 unblocks when it completes."`

@@ -13,6 +13,7 @@
 - **`/continuity-review`** — the board review, end to end: audit, pack, a routine reviewer as one tool-free call (`lib/continuity-review-oneshot`, ~61k tokens on trip-planner against an agent's 128k) or a full one as an agent, seed, then publish the project's page (URL in `settings.review_url`) or refresh it. On "go" it applies the confirmed round with `lib/continuity-review-apply` (your corrections, areas and sizes marked `inferred`, `settings.last_review`, starters as new initiatives), asks once before each close or merge, keeps within the capacity lanes, and starts one agent per session (a message instead when an agent is already on it). Board writers (`cb_set_setting`, `cb_set_field`, `cb_set_areas`, `cb_add_row`) join the reader in `lib/continuity-board.sh`. Why: the review is how one person decides where many agents go next.
 
 ### Changed
+- **`/startup` and wrap-up offer the board review in one line** — startup, when nothing is waiting to resume and the last review is over 7 days old (or there has been none and the board has 8+ features); wrap-up, when the session changed 3 or more features or added one. Why: the review should come up at the moments of choosing direction without getting between the user and a quick start.
 - **`/continuity-prune` is retired** — it now only points to `/continuity-review`, and goes in the next release. Every project using the plugin loses the command. Why: the review does the same job with facts from the audit and a yes per change.
 
 ### Fixed
