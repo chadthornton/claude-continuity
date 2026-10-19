@@ -7,7 +7,8 @@
 # The user's correction: discovery's size is L. Page notes: discovery's (the review read it, unchanged) and pages'
 # (written after the review, beside a size correction M). The page store isn't reachable: each write_db the
 # skill would make goes as one JSON line ({op, collection, doc_id, data, if_version}) to <dir>/db.log; every
-# override was read at version 1 (<dir>/w/versions.json). lists-4 matches lists by name only. The user answers yes to every
+# override was read at version 1 (<dir>/w/versions.json); tell the agent any read it makes now answers version 2
+# (the user is still on the page), so only writes pinned to step 1's versions pass the check. lists-4 matches lists by name only. The user answers yes to every
 # board change. A fake agent-spawn in <dir>/bin logs to <dir>/spawn.log.
 # A worktree pages-3 ended earlier on `pages`: it is listed, not running.
 # --applied: the round was already sent (applied_at set): nothing may start.

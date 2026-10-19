@@ -229,5 +229,20 @@ expect('N2 kept note keeps its timestamp', (nx or {}).get('quiet') == {'notes': 
 expect('N2 a non-document entry is left out', 'pages' not in (nx or {'pages': 1}), raw[:600])
 shutil.rmtree(d)
 
+# N3. A correction on a row apply couldn't write (not on the board) stays on the page.
+d = repo(BOARD)
+seed3 = json.loads(json.dumps(SEED)); seed3['initiatives'].append(dict(seed3['initiatives'][0], row='renamed-away'))
+rc, summary, raw = apply(d, files(d, seed=seed3, overrides={'renamed-away': {'size': 'S', 'at': 'x'}, 'discovery': {'size': 'L', 'at': 'x'}}))
+nx = (summary or {}).get('overrides_next') or {}
+expect('N3 correction on a row not on the board kept', rc == 0 and 'renamed-away' not in nx and nx.get('discovery', 1) is None, raw[:600])
+shutil.rmtree(d)
+
+# N4. A seed apply can't read fails before the board changes, and clears nothing.
+d = repo(BOARD)
+before = open(f'{d}/.continuity/feature-status.yml').read()
+rc, summary, raw = apply(d, files(d, seed=dict(SEED, initiatives='broken'), overrides={'discovery': {'size': 'L'}}))
+expect('N4 unreadable seed: refused, board untouched', rc == 1 and summary is None and open(f'{d}/.continuity/feature-status.yml').read() == before, raw[:400])
+shutil.rmtree(d)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

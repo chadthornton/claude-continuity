@@ -90,7 +90,7 @@ echo
 if [ -n "$NOTES" ] && jq -e 'type == "object"' "$NOTES" >/dev/null 2>&1; then
   jq -r --slurpfile a "$tmp/audit.json" '
     ([$a[0].rows[].name]) as $rows
-    | to_entries | map(select((.value.notes // "") | type == "string" and length > 0))
+    | to_entries | map(select((.value | type) == "object" and ((.value.notes // "") | type == "string" and length > 0)))
     | if length == 0 then "(none)" else .[] | "- \(.key)\(if (.key as $k | $rows | index($k)) then "" else " (not on the board)" end): \(.value.notes | gsub("\n"; " / "))" end' "$NOTES"
 else
   echo "(none)"

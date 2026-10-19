@@ -27,7 +27,8 @@
 # corrections and keeps go, and so does a note this review read, unchanged.
 #
 # Exit codes: 0 ok · 1 the round is not confirmed, was already applied, or
-# belongs to another review · 3 not usable here
+# belongs to another review, or the seed or overrides can't be read (the board
+# is left as it was) · 3 not usable here
 set -u
 LIB="$(cd "$(dirname "$0")" && pwd)"
 . "$LIB/continuity-board.sh" || { echo "SKIP: lib/continuity-board.sh missing" >&2; exit 3; }
@@ -61,13 +62,18 @@ jq -e '.applied_at' "$ROUND" >/dev/null 2>&1 && { echo "not applied: this round 
 # its job; one edited or written since hasn't reached a review and stays, with its timestamp. null deletes
 # the document (nothing left but a timestamp counts as empty); one that wouldn't change is left out, and so is
 # an entry that isn't a document.
-next=$(jq -c --slurpfile o "$OV" '(.notes_read // {}) as $read | [($o[0] // {}) | to_entries[]
+# A correction only goes when apply writes it: on a row both the review and the board have.
+onboard=$(cb_names < "$B" | jq -R . | jq -sc .)
+next=$(jq -c --slurpfile o "$OV" --argjson onboard "$onboard" '(.notes_read // {}) as $read
+  | ([.initiatives[].row] - ([.initiatives[].row] - $onboard)) as $written
+  | [($o[0] // {}) | to_entries[]
   | select(.value | type == "object") | .key as $k | .value as $v
-  | ($v | del(.area, .size, .aspiration, .keep)
+  | ($v | (if $written | index($k) then del(.area, .size, .aspiration) else . end) | del(.keep)
         | if .notes != null and .notes == $read[$k] then del(.notes) else . end) as $n
-  | select($n != $v or ($n | del(.at)) == {})
-  | {key: $k, value: (if ($n | del(.at)) == {} then null else $n end)}] | from_entries' "$SEED") \
-  || { echo "not applied: could not read the overrides" >&2; exit 1; }
+  | ($n | del(.at) == {}) as $empty
+  | select($n != $v or $empty)
+  | {key: $k, value: (if $empty then null else $n end)}] | from_entries' "$SEED") \
+  || { echo "not applied: could not read the seed or the overrides" >&2; exit 1; }
 
 tmp=$(mktemp -d) || exit 3
 trap 'rm -rf "$tmp"' EXIT
@@ -97,7 +103,7 @@ jq -r --slurpfile ov "$OV" --arg mode "$(jq -r .mode "$SEED")" '
   | ($w | map(select(.inf) | .f)) as $inferred
   | ($write[] | [$i.row, .f, (if .f == "size" then .v else (.v | tojson) end)] | @tsv),
     (if ($w | length) > 0 then [$i.row, "inferred", (if ($inferred | length) > 0 then "[" + ($inferred | join(", ")) + "]" else "" end)] | @tsv else empty end)
-' "$SEED" > "$tmp/fields"
+' "$SEED" > "$tmp/fields" || { echo "not applied: could not read the review's initiatives" >&2; exit 1; }
 while IFS=$'\t' read -r r k v; do
   grep -qxF "$r" "$tmp/names" || continue
   edit cb_set_field "$r" "$k" "$v"; fields=$((fields + 1))

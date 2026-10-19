@@ -111,6 +111,12 @@ rc, out = pack(d, CONTINUITY_AUDIT_GH=gh)
 expect('K5 no notes file: none', section(out, 'Your notes').strip() == '(none)', section(out, 'Your notes'))
 os.remove(nf)
 
+# K6. An overrides entry that isn't a document is skipped; the other notes still print.
+write(nf, '{"x": "str", "busy": {"notes": "Ask Sam"}}')
+rc, out = pack(d, '--notes', nf, CONTINUITY_AUDIT_GH=gh)
+expect('K6 non-document entry skipped, notes still printed', '- busy: Ask Sam' in section(out, 'Your notes'), section(out, 'Your notes'))
+os.remove(nf)
+
 # K3. Without gh the PR section says so; the rest is still there.
 rc, out = pack(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
 expect('K3 no gh: says unavailable, exit 0', rc == 0 and 'unavailable' in section(out, 'Merged'), section(out, 'Merged'))

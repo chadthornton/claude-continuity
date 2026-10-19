@@ -138,8 +138,8 @@ changes. Treat the answer as a confirmed round.
    notes this review read; a note no review read stays, so never delete an
    override document `overrides_next` doesn't name as `null`. If the batch is
    refused because a document changed since step 1, the user is writing on the
-   page: drop that document from the batch (it stays as they left it) and send
-   the rest.
+   page: drop the document it names (it stays as they left it) and send the
+   rest, repeating until the batch goes through or nothing is left.
 7. Report one line per item: what started where, what got a message, what was
    held, what changed on the board. End with `Check on them: agent-spawn status`
    when anything started.
