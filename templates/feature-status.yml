@@ -40,6 +40,8 @@ features:
   #   aspiration: "Every place on the map is real, open and well described."
   #   inferred: [size, aspiration]
 
+# settings.product_doc (optional) names the product's bets-and-principles
+# document; the board review reads it from here and the audit checks it exists.
 # settings.last_review (optional, YYYY-MM-DD) is written by the board review;
 # the audit counts activity since then (else the last 14 days).
 

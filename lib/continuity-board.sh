@@ -27,6 +27,7 @@
 #                       area    name what open_question   (each item of a top-level `areas:` list)
 #                       areasok 1|0   (present only when there is an `areas:` block)
 #                       lastreview date   (settings.last_review, when set)
+#                       productdoc path   (settings.product_doc, when set)
 #
 # A step is done when it carries `done: true` outside a quoted string. A step or
 # claim list this reader can't follow (an unclosed quote, a `>` or `|` block, an
@@ -231,6 +232,7 @@ top == "gotchas" {
 }
 
 top == "settings" && mode == "facts" && keyof($0) == "last_review" { print "lastreview\t" val($0) }
+top == "settings" && mode == "facts" && keyof($0) == "product_doc" { print "productdoc\t" val($0) }
 
 top == "areas" && mode == "facts" { if (!blank) steps_feed($0); next }
 

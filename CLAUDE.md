@@ -9,6 +9,8 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 - `lib/continuity-commits.sh` — the shared rules for which commits are continuity state (landed/sync/merge/mixed/pending), the default-branch lookup and the stale count; sourced by continuity-save, continuity-state, away and both hooks. Change the rules here, nowhere else.
 - `lib/continuity-board.sh` — the one reader of feature-status.yml's layout (row summary, one row, step and claim counts, gotchas); sourced by continuity-state and continuity-audit. Anything else that needs a row or a count calls it.
 - `lib/continuity-audit` — JSON facts about a board for the board review (row counts and flags, gated steps, milestone claims, areas and sizes, PR states, decisions sizes, gotcha ages, secret-looking strings, stray files). Read-only; needs jq. The review reads this, never the board files.
+- `lib/continuity-review-check` — is a reviewer's JSON well formed (fields, sizes, proposal kinds, the chore rule; with the audit, real rows and no gated step as a chore)
+- `skills/continuity-review/reviewer.md` — the brief a reviewing Claude follows (routine and full modes) and the JSON it writes; reads the product document only through `settings.product_doc`
 - `hooks/session-start.sh` — init hint; flags continuity commits stranded on local branches
 - `hooks/session-end.sh` — writes `.continuity/last-activity.txt` on session exit; clears the session's context-meter files
 - `hooks/worktree-remove.sh` — blocks worktree removal that would lose `.continuity/` edits

@@ -522,5 +522,18 @@ rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDI
 expect('W5 no wt:status: unavailable, exit 0', rc == 0 and (doc or {}).get('sessions') == {'source': 'unavailable', 'items': []}, raw[:400])
 shutil.rmtree(d); shutil.rmtree(wtdir)
 
+# P1. settings.product_doc is reported with whether the file exists; unset is null.
+d = repo(BOARD.replace('  push_to_default_branch: true\n', '  push_to_default_branch: true\n  product_doc: docs/principles.md\n', 1), files={'docs/principles.md': '# Bets\n'})
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('P1 product doc found', (doc or {}).get('product_doc') == {'path': 'docs/principles.md', 'exists': True}, (doc or {}).get('product_doc'))
+os.remove(f'{d}/docs/principles.md')
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('P1 moved or deleted doc reported missing', (doc or {}).get('product_doc') == {'path': 'docs/principles.md', 'exists': False}, (doc or {}).get('product_doc'))
+shutil.rmtree(d)
+d = repo(BOARD)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('P1 unset: null', 'product_doc' in (doc or {}) and doc['product_doc'] is None, raw[:300])
+shutil.rmtree(d)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)
