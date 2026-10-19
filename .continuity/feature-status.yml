@@ -7,7 +7,7 @@ settings:
 features:
   closure-pass:
     status: building
-    next: "Release 0.16.0 on Chad's ship it, then the trip-planner trial"
+    next: "Trip-planner trial: briefed trip-planner-27 on 2026-10-19; collect its numbers (board bytes, tokens)"
     summary: >
       Keep a board small and true, and let Chad direct it from a page. Since 2026-10-14 the page
       is a planning table: one table grouped by lasting areas (initiatives under them, sizes,
@@ -29,7 +29,7 @@ features:
       - { step: "Wrap-up marks a gotcha that got re-learned. Skill scenario fixture", done: true }
       - { step: "Fix the 10 code-review findings on closure-pass-1-step-5 test first (list in handoffs/closure-pass.md), or dismiss each with a reason", done: true }
       - { step: "Merge closure-pass-1-step-5 into main with the review line in the message (b589373: 9+8 fixed, 3 dismissed over two rounds)", done: true }
-      - { step: "Release 0.16.0: CHANGELOG, bump .claude-plugin/{plugin,marketplace}.json, update the installed plugin", gate: approval, done: false }
+      - { step: "Release 0.16.0: CHANGELOG, bump .claude-plugin/{plugin,marketplace}.json, update the installed plugin (69db0cd, v0.16.0)", gate: approval, done: true }
       - { step: "Trial on trip-planner through its own session: a real round with tokens measured; whether it adopts areas on its board is its call", done: false }
     in_progress: null
 
@@ -88,7 +88,7 @@ last_session:
   feature: closure-pass
   summary: "Fixed review findings 1-9 test first, dismissed 10; a second review round on the fixes (2 Criticals fixed) found 10 more: 8 fixed, 2 dismissed; merged to main as b589373. Not released."
   blind_spots:
-    - "The installed plugin is still 0.15.0: /continuity-review exists only on main until the 0.16.0 release (gotcha below has the commands)."
+    - "0.16.0 released (69db0cd, tag v0.16.0); the plugin loads from ~/Projects/claude-continuity, so a release means fast-forwarding that checkout, not `claude plugin update`."
     - "Chad asked (2026-10-19) that new non-critical bugs found mid-task go on review-followups, not get fixed in place."
     - "The scratch review page (https://claude.ai/artifact/NNtwC7xZfgLdxw6EKZcqen) holds trip-planner test data; trip-planner's real page gets published by its own first /continuity-review."
 gotchas:
