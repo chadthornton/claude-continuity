@@ -65,6 +65,9 @@ td.ini { width: 38%; }
 .ml { flex: 0 0 104px; font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 .mv { flex: 1 1 auto; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
 .mv .add { margin-left: auto; }
+.notes { display: block; margin-top: 8px; }
+.notes textarea { width: 100%; box-sizing: border-box; min-height: 52px; resize: vertical; font: inherit; font-size: 13px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.notes textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 table.narrow { min-width: 720px; }
 thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; text-align: left; font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 td { padding: 9px 12px; border-top: 1px solid var(--line); vertical-align: top; }
@@ -136,7 +139,7 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
   var KIND = { decision: ["live", "Decision session"], think: ["live", "Think it through"], "continue": ["back", "Continue"], chores: ["quiet", "Chores"], board: ["", "Board change"] };
   var LANE_LABEL = { live: "Needs you live", back: "Reports back", quiet: "Quiet" };
   var SIZES = ["S", "M", "L", "XL"];
-  var S = { review: null, overrides: {}, round: null, open: new Set(), showReview: false, canWrite: true, loaded: false };
+  var S = { review: null, overrides: {}, round: null, open: new Set(), drafts: {}, showReview: false, canWrite: true, loaded: false };
   var db = null, chains = {};
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -195,22 +198,29 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
       (s.v ? "" : '<option value="">—</option>') + SIZES.map(function (z) { return "<option" + (z === s.v ? " selected" : "") + ">" + z + "</option>"; }).join("") + "</select>" + (s.who === "claude" ? tag(true) : "");
   }
 
-  // The right-hand column: one labelled mini row per fact, instead of a table column each.
-  function mini(rows) { return rows.map(function (r) { return '<div class="mr"><span class="ml">' + r[0] + '</span><div class="mv">' + r[1] + "</div></div>"; }).join(""); }
+  // The right-hand column: one labelled mini row per fact, instead of a table column each; a null row is an empty fact and is left out.
+  function mini(rows) { return rows.filter(Boolean).map(function (r) { return '<div class="mr"><span class="ml">' + r[0] + '</span><div class="mv">' + r[1] + "</div></div>"; }).join(""); }
+
+  // Your notes on a row: kept in overrides/<row> beside your corrections; a draft survives a re-render until it saves on blur.
+  function notesField(i) {
+    var v = S.drafts[i.row] != null ? S.drafts[i.row] : ov(i.row).notes || "";
+    if (!S.canWrite || !db) return v ? '<p class="notes sub">' + esc(v) + "</p>" : "";
+    return '<label class="notes"><textarea id="notes-' + esc(i.row) + '" data-ov="notes" data-row="' + esc(i.row) + '" placeholder="Notes" aria-label="Notes on ' + esc(i.row) + '">' + esc(v) + "</textarea></label>";
+  }
 
   function rowHTML(i) {
-    var p = proposal(i), open = S.open.has(i.row), sg = suggestion(i), asp = val(i, "aspiration"), area = val(i, "area");
+    var p = proposal(i), open = S.open.has(i.row), sg = suggestion(i), asp = val(i, "aspiration"), area = val(i, "area"), act = i.activity || {};
     var html = "<tr><td class=\"ini\"><div class=\"name\"><button type=\"button\" data-toggle=\"" + esc(i.row) + '" aria-expanded="' + open + '">' + esc(i.row) + "</button>" +
         '<span class="pill">' + esc(i.status || i.section) + "</span>" +
         (sg ? '<span class="pill warn">' + esc(sg.action) + '<span class="tag">Claude</span></span>' : ov(i.row).keep ? '<span class="pill">kept<span class="tag you">You</span></span>' : "") +
         '</div><div class="what"><span class="claude">' + esc(i.line || "") + "</span></div></td><td>" + mini([
           ["Size", sizeCell(i)],
-          ["Done", bar(i)],
-          ["Activity", spark(i) + '<span class="sub num">' + ((i.activity || {}).board_edits || 0) + " edits · " + (((i.activity || {}).prs_merged || []).length) + " PRs</span>"],
-          ["Waiting on you", i.waiting ? '<span class="waitn">' + plural(i.waiting, "call") + "</span>" : '<span class="sub">none</span>'],
-          ["Who's on it", i.running ? '<span class="mono">' + esc(i.running) + (idle(i) ? " (idle)" : "") + "</span>" : '<span class="sub">no one</span>'],
-          ["Next session", (p ? kindPill(p) + ' <span class="claude">' + esc(p.title) + '</span><span class="add">' + addCell(p) + "</span>" : i.running && !idle(i) ? '<span class="sub">Running</span>' : '<span class="sub">—</span>')]
-        ]) + "</td></tr>";
+          frac(i.progress) != null && ["Done", bar(i)],
+          (act.board_edits || (act.prs_merged || []).length) && ["Activity", spark(i) + '<span class="sub num">' + (act.board_edits || 0) + " edits · " + (act.prs_merged || []).length + " PRs</span>"],
+          i.waiting && ["Waiting on you", '<span class="waitn">' + plural(i.waiting, "call") + "</span>"],
+          i.running && ["Who's on it", '<span class="mono">' + esc(i.running) + (idle(i) ? " (idle)" : "") + "</span>"],
+          (p || (i.running && !idle(i))) && ["Next session", p ? kindPill(p) + ' <span class="claude">' + esc(p.title) + '</span><span class="add">' + addCell(p) + "</span>" : '<span class="sub">Running</span>']
+        ]) + notesField(i) + "</td></tr>";
     if (open) {
       var areas = (S.review.areas || []).map(function (a) { return a.name; });
       html += '<tr class="detail"><td colspan="2"><div class="dgrid">' +
@@ -234,7 +244,7 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
       app.innerHTML = '<div class="empty">' + (S.loaded ? "No review has been seeded yet. Claude fills this page when it runs a board review; then you choose what to send." : db === null && S.loaded ? "" : "Loading the review…") + "</div>";
       document.getElementById("co").hidden = true; return;
     }
-    var y = window.scrollY;
+    var y = window.scrollY, f = document.activeElement, fid = f && f.id, fs = f && f.selectionStart, fe = f && f.selectionEnd;
     document.getElementById("title").textContent = (R.project || "Board") + " board review";
     document.getElementById("meta").textContent = (R.mode === "full" ? "Full review" : "Routine review") + " · since " + short(R.since) + " · seeded " + short(R.generated) + (R.board_source && R.board_source !== "local" ? " · board read from " + R.board_source : "");
     document.getElementById("read").textContent = R.read || "";
@@ -253,7 +263,6 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
       st.filter(function (s) { return s.area === a.name; }).forEach(function (s) {
         body += '<tr class="starter"><td class="ini"><div class="name"><b>' + esc(s.label) + '</b><span class="pill back">not started<span class="tag">Claude</span></span></div><div class="what">' + esc(s.aspiration) + "</div></td><td>" + mini([
           ["Size", '<b class="claude">' + esc(s.size) + "</b>"],
-          ["Who's on it", '<span class="sub">no one</span>'],
           ["Next session", kindPill(s) + ' <span class="claude">' + esc(s.brief) + '</span><span class="add">' + addCell(s) + "</span>"]
         ]) + "</td></tr>";
       });
@@ -271,6 +280,8 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
     app.innerHTML = html;
     checkout();
     window.scrollTo(0, y);
+    var g = fid && document.getElementById(fid);
+    if (g && g.focus) { g.focus(); if (fs != null && g.setSelectionRange) try { g.setSelectionRange(fs, fe); } catch (x) {} }
   }
 
   function sentence(p) {
@@ -337,7 +348,11 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
   });
   document.addEventListener("change", function (e) {
     var t = e.target, d = t.dataset || {};
-    if (d.ov && d.row) { var patch = {}; patch[d.ov] = t.value.trim(); saveOverride(d.row, patch); }
+    if (d.ov && d.row) { var patch = {}; patch[d.ov] = t.value.trim(); if (d.ov === "notes") delete S.drafts[d.row]; saveOverride(d.row, patch); }
+  });
+  document.addEventListener("input", function (e) {
+    var d = e.target.dataset || {};
+    if (d.ov === "notes" && d.row) S.drafts[d.row] = e.target.value;
   });
 
   render();

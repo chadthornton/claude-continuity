@@ -137,5 +137,12 @@ expect('G5 keep written, suggestion gone', ov and ov[-1]['data'].get('keep') is 
 out = run([['seed', REVIEW], ['click', {'add': 'p:lists'}]], can_write=False)
 expect('G6 read-only: no Add, no Confirm, no writes', 'data-add=' not in out['shots'][-1]['app'] and 'data-confirm' not in out['shots'][-1]['co'] and not out['writes'], out['writes'])
 
+# G7. A note saves into the row's overrides beside a correction, and comes back in the box.
+out = run([['seed', REVIEW], ['change', {'ov': 'size', 'row': 'discovery'}, 'L'], ['change', {'ov': 'notes', 'row': 'discovery'}, '  ask about merge  ']])
+ov = [w for w in out['writes'] if w['path'] == 'overrides/discovery']
+disc = out['shots'][-1]['app'].split('data-toggle="discovery"')[1].split('</tr>')[0]
+expect('G7 note written with the size kept', ov and ov[-1]['data'].get('notes') == 'ask about merge' and ov[-1]['data'].get('size') == 'L', out['writes'])
+expect('G7 note shown in its box', '>ask about merge</textarea>' in disc, disc[-500:])
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

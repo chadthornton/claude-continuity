@@ -3,7 +3,9 @@
 ## [Unreleased]
 
 ### Changed
-- **Review page: two-column initiatives table** — the initiative on the left; size, done, activity, waiting on you, who's on it and next session (with Add) as labelled mini rows on the right. Why: eight columns forced a 1060px table and sideways scrolling; two columns fit a laptop and read top to bottom.
+- **Review page: two-column initiatives table** — the initiative on the left; size, done, activity, waiting on you, who's on it and next session (with Add) as labelled mini rows on the right. Why: eight columns forced a 1060px table and sideways scrolling; two columns fit a laptop and read top to bottom. Mini rows with nothing to say (no activity, nobody waiting, no one on it, no next session) are left out, so a quiet initiative is two lines.
+- **Review page: notes per initiative** — a box under each initiative's mini rows; saved on blur into `overrides/<row>` as `notes` (apply ignores it), and a draft survives a re-render. Why: you take notes while reading the review, beside the row they're about.
+
 
 ## [0.16.0] - 2026-10-19
 
