@@ -13,13 +13,19 @@
 #   rows[]            name, section, status, kind, serves, open, done,
 #                     steps_readable, gated[{step, gate}], prs[],
 #                     claims[{text, status, evidence, waits_on}],
-#                     claims_readable, flags[]
-#                     flags: no_open_steps (building/polishing with a step
+#                     claims_readable, area, size, aspiration,
+#                     inferred[] (fields Claude guessed), flags[]
+#                     flags: unknown_area (names an area not listed) ·
+#                            unknown_size (not S/M/L/XL; value kept) ·
+#                            no_open_steps (building/polishing with a step
 #                            list and nothing open, not a milestone) ·
 #                            feature_under_workflows ·
 #                            true_claim_without_evidence · claims_unreadable
 #                     `serves` is reported when a row states it; a row
 #                     without it is not a finding
+#   areas[]           name, what, open_question, initiatives (rows naming
+#                     it), empty — from a top-level `areas:` list
+#   areas_readable    false when that list holds what this reader can't follow
 #   decisions[]       path, bytes, lines, over_budget (more than 30 lines)
 #   gotchas           count, lines, cap, over_cap, entries[{line, head,
 #                     last_edited, age_days}] — age is when git last saw that
@@ -122,6 +128,8 @@ recs($facts) as $f
 | ($f | map(select(.[0] == "gated"))) as $gated
 | ($f | map(select(.[0] == "pr"))) as $prs
 | ($f | map(select(.[0] == "claim"))) as $claims
+| ($f | map(select(.[0] == "rowx"))) as $rowx
+| [$f[] | select(.[0] == "area") | .[1]] as $anames
 | ($gh[0] | map({key: (.number | tostring), value: .state}) | from_entries) as $state
 | (recs($blame) | map({key: .[0], value: (.[1] | tonumber)}) | from_entries) as $edited
 | ($f | map(select(.[0] == "gotcha"))) as $gotchas
@@ -138,12 +146,21 @@ recs($facts) as $f
            age_days: (if $t then ((($now | tonumber) - $t) / 86400 | floor) else null end)}
       ]
     },
+    areas: [
+      $f[] | select(.[0] == "area") | . as $a
+      | {name: (.[1] | nn), what: (.[2] // "" | nn), open_question: (.[3] // "" | nn),
+         initiatives: ([$rowx[] | select(.[3] == $a[1] and $a[1] != "")] | length)}
+      | .empty = (.initiatives == 0)
+    ],
+    areas_readable: ($f | map(select(.[0] == "areasok")) | if length == 0 then true else .[0][1] == "1" end),
     secrets: [recs($secrets)[] | {path: .[0], line: (.[1] | tonumber), kind: .[2]}],
     unexpected_files: [recs($other)[] | {path: .[0], bytes: (.[1] | tonumber), binary: (.[2] == "1")}],
     rows: [
       $f[] | select(.[0] == "row") | . as $r
       | ($r[8] == "1") as $ok
       | ($r[1] == "workflows" and ($r[3] != "" or $r[9] == "1")) as $misfiled
+      | ([$rowx[] | select(.[1] == $r[1] and .[2] == $r[2])] | .[0] // []) as $x
+      | ($x[3] // "" | nn) as $area | ($x[4] // "" | nn) as $size
       | [$claims[] | select(.[1] == $r[1] and .[2] == $r[2]) | {text: .[4], status: .[3], evidence: (.[5] // "" | nn), waits_on: (.[6] // "" | nn)}] as $rc
       | {
           name: $r[2], section: $r[1], status: ($r[3] | nn), kind: ($r[4] | nn), serves: ($r[5] | nn),
@@ -154,7 +171,11 @@ recs($facts) as $f
           prs: [$prs[] | select(.[1] == $r[1] and .[2] == $r[2]) | .[3] | tonumber],
           claims: $rc,
           claims_readable: ($r[11] == "1"),
+          area: $area, size: $size, aspiration: ($x[5] // "" | nn),
+          inferred: ($x[6] // "" | if . == "" then [] else split(",") end),
           flags: [
+            (if $area != null and ($anames | index($area)) == null then "unknown_area" else empty end),
+            (if $size != null and (["S", "M", "L", "XL"] | index($size)) == null then "unknown_size" else empty end),
             (if $ok and $r[9] == "1" and $r[4] != "milestone" and ($r[3] == "building" or $r[3] == "polishing") and $r[6] == "0" then "no_open_steps" else empty end),
             (if $misfiled then "feature_under_workflows" else empty end),
             (if ($rc | any(.status == "true" and .evidence == null)) then "true_claim_without_evidence" else empty end),

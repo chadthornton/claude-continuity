@@ -21,6 +21,9 @@
 #                       pr      section name number     (each "PR #N" a row mentions)
 #                       gotcha  first-line head last-line
 #                       gotchalines count
+#                       rowx    section name area size aspiration inferred   (inferred: comma list)
+#                       area    name what open_question   (each item of a top-level `areas:` list)
+#                       areasok 1|0   (present only when there is an `areas:` block)
 #
 # A step is done when it carries `done: true` outside a quoted string. A step or
 # claim list this reader can't follow (an unclosed quote, a `>` or `|` block, an
@@ -85,6 +88,11 @@ function step_close(   t, st, g, ev, w, isdone) {
   gsub(/:[ ]*\047([^\047]|\047\047)*\047/, ": ", t)
   gsub(/"([^"\\]|\\.)*"/, "", t)
   if (t ~ /"/ || t ~ /:[ ]*[>|][+-]?[0-9]*[ ]*(\001|$)/) { bad = 1; return }
+  if (counting == "areas") {
+    st = take("name"); ev = take("what"); w = take("open_question")
+    if (mode == "facts" && !bad) print "area\t" flat(st) "\t" flat(ev) "\t" flat(w)
+    return
+  }
   if (counting == "claims") {
     st = take("text"); ev = take("evidence"); w = take("waits_on"); g = tolower(take("status"))
     if (g != "true" && g != "false") g = "unknown"
@@ -114,6 +122,7 @@ function steps_feed(line) {
 }
 function steps_end() {
   if (counting == "") return
+  if (counting == "areas") { step_close(); if (mode == "facts") print "areasok\t" (bad ? 0 : 1); counting = ""; return }
   step_close()
   if (bad) out(pad(F) counting ": unreadable")
   else if (counting == "claims") out(pad(F) "claims: " (ctrue + cfalse + cother) " (" ctrue " true, " cfalse " false, " cother " unknown)")
@@ -144,6 +153,8 @@ function row_end() {
   steps_end()
   if (inrow && mode == "facts")
     print "row\t" top "\t" flat(rname) "\t" flat(rstatus) "\t" flat(rkind) "\t" flat(rserves) "\t" ropen "\t" rdone "\t" (rbad ? 0 : 1) "\t" hasns "\t" hassteps "\t" (rcbad ? 0 : 1)
+  if (inrow && mode == "facts")
+    print "rowx\t" top "\t" flat(rname) "\t" flat(rarea) "\t" flat(rsize) "\t" flat(rasp) "\t" flat(rinf)
   inrow = 0
 }
 function top_end() { row_end(); gotchas_end() }
@@ -170,6 +181,7 @@ BEGIN { top = ""; R = -1; F = -1; found = 0; walk = (mode == "summary" || mode =
       ginline = ($0 !~ /^gotchas:[ ]*(#.*)?$/)
       if (ginline) out($0)
     } else out($0)
+    if (mode == "facts" && top == "areas") steps_begin($0, "areas")
   }
   if (mode == "gotchas" && top == "gotchas") print
   next
@@ -208,6 +220,8 @@ top == "gotchas" {
   next
 }
 
+top == "areas" && mode == "facts" { if (!blank) steps_feed($0); next }
+
 !rows { out($0); next }
 
 blank { next }
@@ -216,7 +230,7 @@ blank { next }
   if (R < 0) R = ind($0)
   if (ind($0) == R && body($0) !~ /^-/) {            # a row starts
     row_end(); inrow = 1; F = -1; skipping = 0
-    rname = keyof($0); rstatus = ""; rkind = ""; rserves = ""; ropen = 0; rdone = 0; rbad = 0; rcbad = 0; hasns = 0; hassteps = 0
+    rname = keyof($0); rstatus = ""; rkind = ""; rserves = ""; ropen = 0; rdone = 0; rbad = 0; rcbad = 0; hasns = 0; hassteps = 0; rarea = ""; rsize = ""; rasp = ""; rinf = ""
     out(clip($0, cut))
     next
   }
@@ -229,6 +243,10 @@ blank { next }
     if (k == "status") rstatus = val($0)
     else if (k == "kind") rkind = val($0)
     else if (k == "serves") rserves = val($0)
+    else if (k == "area") rarea = val($0)
+    else if (k == "size") rsize = val($0)
+    else if (k == "aspiration") { rasp = val($0); if (rasp ~ /^[>|][+-]?[0-9]*$/) rasp = "" }
+    else if (k == "inferred") { rinf = val($0); gsub(/^\[|\]$|[ ]/, "", rinf) }
     if ((k == "summary" || k == "artifacts") && top != "workflows") skipping = 1
     else if (k == "next_steps" || k == "steps" || k == "claims") { steps_begin($0, k); if (k == "steps") hassteps = 1; else if (k == "next_steps") hasns = 1 }
     else out(clip($0, cut))

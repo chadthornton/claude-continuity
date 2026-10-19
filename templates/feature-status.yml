@@ -27,6 +27,19 @@ features:
   #   status is true | false | unknown. A true claim says what showed it
   #   (evidence); a claim that can't be settled yet says what it waits on.
 
+  # Areas (optional) are lasting parts of the product; a feature can name one,
+  # with a size (S | M | L | XL) and its aspiration. `inferred` lists the
+  # fields Claude guessed; a confirmed field comes off it. Add at top level:
+  # areas:
+  #   - name: Place knowledge
+  #     what: What the product knows and says about each place.
+  #     open_question: "What is a place's description for?"
+  # and on a feature:
+  #   area: Place knowledge
+  #   size: XL
+  #   aspiration: "Every place on the map is real, open and well described."
+  #   inferred: [size, aspiration]
+
 # Workflows are repeatable operations, not features to build.
 # They appear in the dashboard alongside features but have different fields.
 workflows:

@@ -262,5 +262,18 @@ sec = section(out, 'feature-status.yml')
 expect('S17 workflow summary kept, feature summary still left out', 'summary: "Weekly audit"' in sec and 'Alpha summary text' not in sec, sec[-900:])
 shutil.rmtree(plain)
 
+# S18. A summarised board keeps its areas (each one's open question) and each initiative's area, size and aspiration.
+plain = tempfile.mkdtemp()
+AREA_BIG = big_board().replace('features:\n', 'areas:\n  - name: Core\n    what: The heart of it.\n    open_question: "What is the core for?"\n\nfeatures:\n', 1) \
+                      .replace('    status: building\n    phase: 1\n', '    status: building\n    phase: 1\n    area: Core\n    size: L\n    aspiration: "Alpha does its job."\n    inferred: [size]\n', 1)
+write(f'{plain}/.continuity/feature-status.yml', AREA_BIG)
+rc, out = state(plain)
+sec = section(out, 'feature-status.yml')
+expect('S18 summarised', 'SUMMARISED' in sec, sec[:300])
+expect('S18 areas and open question kept', 'name: Core' in sec and 'What is the core for?' in sec, sec[:900])
+expect('S18 initiative area, size, aspiration, inferred kept',
+       all(x in sec for x in ('area: Core', 'size: L', 'aspiration: "Alpha does its job."', 'inferred: [size]')), sec[:1200])
+shutil.rmtree(plain)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

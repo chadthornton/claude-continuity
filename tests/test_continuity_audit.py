@@ -399,5 +399,70 @@ rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
 expect('R12 CRLF board: same rows and counts', [r['name'] for r in (doc or {'rows': []})['rows']][:2] == ['shipping', 'finished'] and (row(doc or {'rows': []}, 'shipping') or {}).get('open') == 3, raw[:300])
 shutil.rmtree(d)
 
+AREAS = '''areas:
+  - name: Place knowledge
+    what: What Jauntfully knows about each place.
+    open_question: "What is a place's description for?"
+  - name: Empty area
+    what: Nothing lives here yet.
+    open_question: Who would use it?
+features:
+  enrichment:
+    status: polishing
+    area: Place knowledge
+    size: XL
+    aspiration: "Every place is real, open and well described."
+    inferred: [size, aspiration]
+    next_steps:
+      - { step: "one", done: false }
+  stray:
+    status: building
+    area: Nowhere
+    size: XXL
+    next_steps: []
+'''
+
+# AR1. Areas are listed with how many initiatives name each; an area nobody names is empty.
+d = repo(AREAS)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('AR1 areas listed in order, counted, empty one marked', (doc or {}).get('areas') == [
+    {'name': 'Place knowledge', 'what': 'What Jauntfully knows about each place.', 'open_question': "What is a place's description for?", 'initiatives': 1, 'empty': False},
+    {'name': 'Empty area', 'what': 'Nothing lives here yet.', 'open_question': 'Who would use it?', 'initiatives': 0, 'empty': True}], raw[:600])
+expect('AR1 areas readable', (doc or {}).get('areas_readable') is True, raw[:300])
+shutil.rmtree(d)
+
+# AR2. An initiative reports its area, size, aspiration and which fields Claude inferred;
+#      a missing area or a size outside S/M/L/XL is reported and the value kept.
+d = repo(AREAS)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+e = row(doc or {'rows': []}, 'enrichment') or {}
+s = row(doc or {'rows': []}, 'stray') or {}
+expect('AR2 fields read', [e.get(k) for k in ('area', 'size', 'aspiration', 'inferred')] ==
+       ['Place knowledge', 'XL', 'Every place is real, open and well described.', ['size', 'aspiration']], e)
+expect('AR2 a good initiative has no area flags', not {'unknown_area', 'unknown_size'} & set(e.get('flags', [])), e.get('flags'))
+expect('AR2 unknown area and size flagged, values kept', {'unknown_area', 'unknown_size'} <= set(s.get('flags', [])) and s.get('size') == 'XXL' and s.get('area') == 'Nowhere', s)
+shutil.rmtree(d)
+
+# AR4. Malformed areas: an unnamed area is listed with a null name; a block-scalar field makes the list unreadable;
+#      a folded aspiration is reported as null rather than ">"; nothing crashes.
+d = repo(AREAS.replace('  - name: Empty area\n', '  - what_only: x\n    name: ""\n'))
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('AR4 unnamed area listed with a null name', rc == 0 and any(a.get('name') is None for a in (doc or {}).get('areas', [])), raw[:600])
+shutil.rmtree(d)
+d = repo(AREAS.replace("    what: What Jauntfully knows about each place.\n", "    what: >\n      Folded text.\n")
+              .replace('    aspiration: "Every place is real, open and well described."\n', '    aspiration: >\n      Folded aspiration.\n'))
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('AR4 block scalar in areas: exit 0, not readable', rc == 0 and (doc or {}).get('areas_readable') is False, raw[:600])
+expect('AR4 folded aspiration is null, not ">"', (row(doc or {'rows': []}, 'enrichment') or {}).get('aspiration') is None, raw[:600])
+shutil.rmtree(d)
+
+# AR3. A board without areas: an empty list, null fields, no new flags.
+d = repo(BOARD)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+r = row(doc or {'rows': []}, 'shipping') or {}
+expect('AR3 no areas: empty list, readable', (doc or {}).get('areas') == [] and (doc or {}).get('areas_readable') is True, raw[:300])
+expect('AR3 no areas: row fields null, nothing inferred', [r.get(k) for k in ('area', 'size', 'aspiration', 'inferred')] == [None, None, None, []], r)
+shutil.rmtree(d)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)
