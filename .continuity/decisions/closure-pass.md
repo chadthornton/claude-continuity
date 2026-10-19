@@ -4,7 +4,6 @@ Principles: `docs/principles.md` (9 and 10 govern the review). Prototype and not
 
 ## Decided
 
-- Finished steps are sorted before deletion, never just deleted — 83/116 of trip-planner's done steps cited no commit; they held rationale and dead ends git doesn't record.
 - The review is a planning table, not a close-out (Chad 2026-10-14) — round-1's verdict page read as hygiene; the static product read was the first version he called "about my product".
 - Vocabulary: an area is lasting and carries its open question; an initiative is bounded, with a size and an aspiration; "workstream" retires (Chad 2026-10-19) — trip-planner ran six permanent areas as endless rows, which is how polishing beat open questions.
 - Areas, sizes and aspirations are stored on the board, optional (Chad 2026-10-19) — re-inferring them each review was most of the ~150k-token cost per pass.
