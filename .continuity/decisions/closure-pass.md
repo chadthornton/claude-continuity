@@ -20,7 +20,7 @@ Principles: `docs/principles.md` (9 and 10 govern the review). Prototype and not
 
 - Initiative rows are two columns, facts as labelled mini rows with empty ones hidden; a board change shows as the row's Next step, its button named by the change (Chad 2026-10-19, 0.17.0) — eight columns needed 1060px, and "close" beside "polishing" read as a second status.
 - A row's read is a line of at most 160 characters plus at most three 160-character points, and `read` at most 480, enforced by the checker (2026-10-19) — the brief said "one sentence" with no check, and trip-planner's lines averaged 319 characters, one 913.
-- Page notes live in `overrides/<row>.notes` and reach the reviewer through `pack --notes`; apply ignores them (2026-10-19) — they're the reader's view of a row, not a board field.
+- Page notes live in `overrides/<row>.notes` and reach the reviewer through `pack --notes`; apply ignores them; on go a note the review read and that is unchanged is cleared, matched by text in the seed's `notes_read` (Chad 2026-10-19, 0.17.1) — a note should steer one review, and a timestamp would clear notes typed while the reviewer ran.
 
 ## Ruled out
 

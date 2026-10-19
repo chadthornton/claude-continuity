@@ -40,7 +40,7 @@ features:
     next_steps:
       - { step: "continuity-save: `push_to_default_branch` in flow style (`settings: { push_to_default_branch: true }`, which its own hint suggests) is missed by its grep (`^[[:space:]]*push_to_default_branch:`); match it anywhere on the line, test with a flow-style board", done: false }
       - { step: "continuity-review-pack: take --audit <path> so it doesn't re-run the audit SKILL step 2 already ran (13 s on trip-planner)", done: false }
-      - { step: "Review page notes never clear: a note keeps reaching every later review until edited away. Decide whether an applied round (or the next seed) clears or dates them", gate: "decision: when does a page note expire?", done: false }
+      - { step: "Page notes clear once a review read them and its round is sent (Chad 2026-10-19); also fixed go deleting unread notes (v0.17.1, eed5e98)", done: true }
       - { step: "Review page: starters (areas not yet started) get no notes box; their key s:<area>:<n> shifts between reviews, so a note would attach to the wrong starter", done: false }
       - { step: "continuity-review-apply: a starter named <row>-2 matches the audit's <row>-N worktree name guess; pick a suffix the guess can't match", done: false }
     in_progress: null
@@ -89,7 +89,7 @@ features:
 last_session:
   date: 2026-10-19
   feature: closure-pass
-  summary: "Redesigned the review page from Chad's first look at trip-planner's (two columns, mini rows, notes, Next step with Close/Park/Merge, type pass), passed page notes to the reviewer, capped line/points/read; released 0.17.0."
+  summary: "Released 0.17.1 (page notes clear after steering one review; go no longer deletes unread notes; two review rounds). Before that: redesigned the review page from Chad's first look at trip-planner's (two columns, mini rows, notes, Next step with Close/Park/Merge, type pass), passed page notes to the reviewer, capped line/points/read; released 0.17.0."
   blind_spots:
     - "trip-planner's review page (https://claude.ai/artifact/G5PFFv4HWhZzkEgRdzZhWY) was republished by hand from this repo's page.html with its <title> set; its review/current is still 0.16-era text (long lines, 'Chad'), which the page splits and folds until the next review."
     - "Chad asked (2026-10-19) that new non-critical bugs found mid-task go on review-followups, not get fixed in place."
