@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.17.4] - 2026-10-19
+
 ### Fixed
 - **False "CONTINUITY NOT LANDED" on busy repos.** `cc_landed_sources` read `Continuity-Source` trailers from only the last 500 commits of the default branch. It now reads the whole branch, filtered by `--grep`, which takes 0.13s on trip-planner's 1,581 commits. Why: trip-planner pushed 657 commits in 14 days, so three landed saves read as pending. Re-landing them, as SessionStart and continuity-save would have done, would have reverted a later board close-out.
 
