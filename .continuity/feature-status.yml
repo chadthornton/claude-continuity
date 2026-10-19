@@ -7,27 +7,28 @@ features:
     status: building
     mandate: 2026-10-11
     owner: closure-pass-1
-    next: "Board review: step 5, the canonical review page. Steps 1-4 shipped in 0.15.0. Owned by agent closure-pass-1"
+    next: "Board review as a planning table: step 6 of 13, areas and sizes on the board. Owned by agent closure-pass-1"
     summary: >
-      Keep a board small and true, and let Chad run it from a page. Grew on 2026-10-11 from
-      "retire finished work" into the board review: a canonical page per project, seeded by an
-      audit script, where he records verdicts (close, merge, park, keep, start an agent).
-      Spec: docs/principles.md and decisions/closure-pass.md. Field evidence: trip-planner's
-      round 1 (29 rows, 118 KB, 31 verdicts in 5 minutes).
+      Keep a board small and true, and let Chad direct it from a page. Since 2026-10-14 the page
+      is a planning table: one table grouped by lasting areas (initiatives under them, sizes,
+      activity), Live on top, wind-down and chores, and a checkout bar that sends sessions within
+      capacity lanes. Spec: docs/principles.md (9, 10), decisions/closure-pass.md and the
+      prototype branch prototype/board-review-page.
     next_steps:
-      - { step: "Docs: point README 'Design principles' at docs/principles.md; mark design-brief anti-goals A1 and A3 retired; correct the concept map (rows serve bets, principles judge decisions, gates replace lanes, claims carry evidence) and republish to its URL", done: true }
-      - { step: "Cap continuity-state output: above a size limit print a per-row summary and point to `show <path>` (trip-planner printed 119 KB at /startup). Failing test first", done: true }
-      - { step: "continuity-audit script, JSON out, the only reader of board storage: open/done counts per row, building or polishing rows with zero open steps, feature-shaped rows under workflows:, secret-looking strings, non-text files under .continuity/, YAML and decisions sizes, PR references via gh, rows with no `serves`, gated items, each gotcha's age and the list against its ~10-line cap (needs a date per gotcha). Reads the board through lib/continuity-board.sh", done: true }
-      - { step: "Optional schema in templates and README: `kind: milestone` with claims (text, status, evidence, waits_on); the audit lists claims and flags a true one with no evidence. Claims only (Chad 2026-10-11): no `serves`, `for` or bets pointer on the board. Boards without them behave as today", done: true }
-      - { step: "Canonical review page in the plugin, from trip-planner's board-close-out.html: the four round-1 fixes, a 'Start an agent' verdict, milestones on top, rows grouped 'needs you' / 'moving without you' from gates. Per-project publish with the URL recorded on the board; write path exercised before handover", done: false }
-      - { step: "/continuity-review skill, quick and deep: audit -> seed -> publish -> 'apply the review' -> continuity-save -> re-seed. Prints what a handoff holds before deleting it; groups commissioned fixes by the code they touch and states the count before spawning; chat fallback; removes /continuity-prune", done: false }
-      - { step: "Offer the review from /startup when no handoff or mandate is waiting or the board passes a threshold, and from wrap-up when several rows changed. One line each", done: false }
-      - { step: "Wrap-up marks a gotcha that got re-learned: compare what the session learned the hard way against existing gotchas and record a match on the entry (Chad 2026-10-11: yes; order not set). Skill edit, needs a scenario fixture", done: false }
-      - { step: "Trial on trip-planner through its own session: run the review, fill `serves`, recast invite-rehearsal as a milestone; compare YAML lines and bytes to the 2026-09-28 baseline", gate: "decision: does trip-planner's lists row move its questions to an in-repo wayfinder map?", done: false }
-      - { step: "Two-reader experiment, before the deep review is built: two fresh Claudes get trip-planner's board and bets document with no link fields and say which row serves which bet and where the product drifted; Chad corrects the mapping. Record where the readers disagree and how many rows he corrects", done: false }
-      - { step: "Deep-mode reflection: a reviewing Claude reads the audit's JSON and the bets document (path from a setting), infers which bet each row serves, and writes a drift section onto the page; Chad corrects a wrong one and only a correction is stored as `serves` on that row", gate: "decision: how often it runs", done: false }
-      - { step: "Storage: one file per workstream behind the audit script", gate: "decision: after the page is in use, or sooner?", done: false }
-    in_progress: "Step 5 (review page) per handoffs/closure-pass.md"
+      - { step: "Docs: README points at docs/principles.md; design-brief A1/A3 retired; concept map corrected", done: true }
+      - { step: "continuity-state summarises a board over 16 KB", done: true }
+      - { step: "lib/continuity-audit: JSON facts, the only reader of board storage", done: true }
+      - { step: "Optional milestone rows with claims", done: true }
+      - { step: "Record the planning-table design: principles 9 and 10, decisions pruned and rewritten, these steps", done: true }
+      - { step: "Optional areas on the board: an `areas:` list (name, what, open question) and `area`, `size`, `aspiration` on an initiative; continuity-board.sh reads them, the audit reports them, startup's summary shows them; boards without them unchanged. Failing scenario tests first" , done: false }
+      - { step: "Audit facts for the review: activity per initiative since the last review, sessions running now (wt:status where available), last review date. No model call. Scenario tests incl. a machine without wt:status", done: false }
+      - { step: "Reviewer brief and output schema as plugin files: routine mode (audit plus changes since last review) and full mode (areas, sizes, aspirations). Hard chore rule. Schema test; one routine run on trip-planner, read-only, measuring tokens; two-reader check on areas", done: false }
+      - { step: "The page in the plugin: area table, Live, wind-down, chores, checkout with lanes (live 1, back 3, quiet 3). Per-project publish, URL on the board; overrides and the confirmed round in the page store. Proof: write as a viewer and read back, then Chad clicks Add and Confirm once", done: false }
+      - { step: "/continuity-review: audit, reviewer, seed; on 'go' read the round, write a brief per pick by kind, set owner, continuity-save, agent-spawn within lanes, message running agents, board changes listed and confirmed last. Removes /continuity-prune (every project using the plugin). Skill scenario fixture, RED first", done: false }
+      - { step: "One-line offers from /startup (no session waiting, or board past a size) and wrap-up (several initiatives changed). Skill scenario fixture", done: false }
+      - { step: "Wrap-up marks a gotcha that got re-learned. Skill scenario fixture", done: false }
+      - { step: "Trial on trip-planner through its own session: a real round with tokens measured; whether it adopts areas on its board is its call", done: false }
+    in_progress: "Step 6 (areas on the board) on branch closure-pass-1-step-5"
 
   relay-and-spawn:
     status: polishing
