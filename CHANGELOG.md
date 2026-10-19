@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+- **Page notes clear once they've steered a review** — the seed records the notes the review read (`notes_read`, from `continuity-review-seed --notes`); on "go", once the round is marked sent, a note still reading the same is removed and one edited or written since stays for the next review. Why: a note should steer one review, not every later one.
+
+### Fixed
+- **A "go" deleted unread page notes** — step 6 deleted every override document the apply touched, notes included. Apply now prints `overrides_next`, what each document becomes (corrections and keeps go, read notes go, unread ones stay; empty is deleted), and the skill writes exactly that, pinned to each document's version.
+
 ## [0.17.0] - 2026-10-19
 
 ### Added

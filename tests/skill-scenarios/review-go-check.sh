@@ -29,6 +29,12 @@ check "pages-3 (ended) got no message" "! grep -qi 'pages-3' '$root/messages.log
 check "lists now owned by the agent on it" "row lists | grep -q 'owner: lists-4'"
 check "discovery merged: row gone" "! grep -q '^  discovery:' '$B'"
 check "discovery's open step moved to lists" "row lists | grep -q 'Queue screen for suggested places'"
+db="$root/db.log"
+check "round marked sent in the store" "grep -q 'round' '$db' && grep -q 'applied_at' '$db'"
+check "discovery's override deleted (its size is on the board, the review read its note)" "grep 'overrides' '$db' | grep 'discovery' | grep -q '\"delete\"'"
+check "pages' unread note kept: its doc set to the note alone" "grep 'overrides' '$db' | grep 'pages' | grep -v '\"delete\"' | grep 'Ask about caching first' | grep -vq '\"size\"'"
+check "pages' override not deleted" "! (grep 'overrides' '$db' | grep 'pages' | grep -q '\"delete\"')"
+check "overrides cleared only after the round was marked sent" "awk '/applied_at/{s=NR} /overrides/ && !o{o=NR} END{exit !(s && o > s)}' '$db'"
 check "board landed on origin/main" "git -C '$root/work' fetch -q origin && git -C '$root/work' show origin/main:.continuity/feature-status.yml | grep -q 'owner: pages-1'"
 check "no code reached origin/main" "test -z \"\$(git -C '$root/work' diff --name-only \$(git -C '$root/work' rev-list --max-parents=0 origin/main) origin/main -- . ':(exclude).continuity')\""
 echo; [ "$fails" -eq 0 ] && echo "all passed" || { echo "$fails failed"; exit 1; }
