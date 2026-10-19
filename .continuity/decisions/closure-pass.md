@@ -25,6 +25,6 @@ Principles: `docs/principles.md` (9 and 10 govern the review). Prototype and not
 
 ## Open
 
-- [task] Routine review cost is an estimate (20k–40k tokens); measure it in step 4.
-- [task] Two-reader check: do two fresh readers infer the same areas for trip-planner?
+- [decision] A routine review cost 160k tokens on trip-planner, same as full (guess was 20k–40k): cut what the reader reads, or accept it?
+- Two readers given the brief placed all 18 trip-planner rows in the same six areas (2026-10-19).
 - [decision] Rename "workstream" across plugin text: after the trip-planner trial.
