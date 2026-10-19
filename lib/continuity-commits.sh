@@ -26,8 +26,11 @@ cc_default_ref() {
 }
 
 # cc_landed_sources <default-ref> — SHAs already landed (Continuity-Source trailers).
+# All of the default branch: a busy repo pushes past any count window, and a
+# landed copy can be far older than the original it names. No path filter either:
+# continuity-save lands an empty copy when the edit is already on origin.
 cc_landed_sources() {
-  git log "$1" -n 500 --format='%(trailers:key=Continuity-Source,valueonly,separator=%x0a)' 2>/dev/null | grep -v '^$'
+  git log "$1" --grep='^Continuity-Source:' --format='%(trailers:key=Continuity-Source,valueonly,separator=%x0a)' 2>/dev/null | grep -v '^$'
 }
 
 # cc_scan <default-ref> <rev-list args…> — "<sha> <kind>" per continuity commit in

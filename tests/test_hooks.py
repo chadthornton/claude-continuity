@@ -98,5 +98,28 @@ write(f'{wt4}/.continuity/decisions/z2.md', '# z2\n'); git(wt4, 'add', '-A'); gi
 rc, out, err = hook('worktree-remove.sh', {'worktree_path': wt4})
 expect('wr names the count of unlanded commits', rc == 2 and '2 continuity commit' in err, err)
 
+# landed copies far behind the default branch tip still count as landed (trip-planner put
+# 657 commits on master in 14 days; a 500-commit window flagged landed saves as stranded)
+LIB = os.path.join(os.path.dirname(HOOKS), 'lib', 'continuity-commits.sh')
+root5, _, clone5, wt5 = setup()
+write(f'{wt5}/.continuity/decisions/far.md', 'far\n'); git(wt5, 'add', '-A'); git(wt5, 'commit', '-qm', 'board edit')
+far = git(wt5, 'rev-parse', 'HEAD')
+write(f'{wt5}/.continuity/decisions/dup.md', 'dup\n'); git(wt5, 'add', '-A'); git(wt5, 'commit', '-qm', 'same edit as a peer')
+dup = git(wt5, 'rev-parse', 'HEAD')
+write(f'{clone5}/.continuity/decisions/far.md', 'far\n'); write(f'{clone5}/.continuity/decisions/dup.md', 'dup\n')
+git(clone5, 'add', '-A'); git(clone5, 'commit', '-qm', 'board edit', '-m', f'Continuity-Source: {far}')
+# continuity-save's commit-tree can land an empty copy when origin already has the edit
+git(clone5, 'commit', '-q', '--allow-empty', '-m', 'same edit as a peer', '-m', f'Continuity-Source: {dup}')
+subprocess.run(['bash', '-c', 'h=$(git rev-parse HEAD); t=$(git rev-parse HEAD^{tree}); '
+                'for i in $(seq 600); do h=$(echo "code $i" | git commit-tree "$t" -p "$h"); done; '
+                'git update-ref refs/heads/master "$h"'], cwd=clone5, env=ENV, check=True)
+git(clone5, 'push', '-q', 'origin', 'master'); git(clone5, 'fetch', '-q', 'origin')
+r = subprocess.run(['bash', '-c', f'. "{LIB}" && cc_scan origin/master origin/master..HEAD'], cwd=wt5, env=ENV, capture_output=True, text=True)
+rows = dict(line.split() for line in r.stdout.splitlines())
+expect('landed copy 600 commits back is landed', rows.get(far) == 'landed', r.stdout + r.stderr)
+expect('empty landed copy is landed', rows.get(dup) == 'landed', r.stdout + r.stderr)
+rc, out, err = hook('session-start.sh', {'cwd': clone5})
+expect('ss silent when landed copies are far back', out == '', out)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)
