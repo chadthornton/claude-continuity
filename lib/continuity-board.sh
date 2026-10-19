@@ -14,6 +14,8 @@
 #   cb_row <name>     one row's block, verbatim. Exit 1 when there is no such row
 #   cb_names          row names, one per line
 #   cb_gotchas        the top-level `gotchas:` block, verbatim
+#   cb_blocks         one line per row: section, name, the row block with its
+#                     lines joined by \001 (to compare two versions of a board)
 #   cb_facts          tab-separated records, one per line:
 #                       row     section name status kind serves open done readable has_next_steps has_steps claims_readable
 #                       gated   section name step gate  (open steps that carry a gate)
@@ -21,9 +23,10 @@
 #                       pr      section name number     (each "PR #N" a row mentions)
 #                       gotcha  first-line head last-line
 #                       gotchalines count
-#                       rowx    section name area size aspiration inferred   (inferred: comma list)
+#                       rowx    section name area size aspiration inferred owner   (inferred: comma list)
 #                       area    name what open_question   (each item of a top-level `areas:` list)
 #                       areasok 1|0   (present only when there is an `areas:` block)
+#                       lastreview date   (settings.last_review, when set)
 #
 # A step is done when it carries `done: true` outside a quoted string. A step or
 # claim list this reader can't follow (an unclosed quote, a `>` or `|` block, an
@@ -154,10 +157,11 @@ function row_end() {
   if (inrow && mode == "facts")
     print "row\t" top "\t" flat(rname) "\t" flat(rstatus) "\t" flat(rkind) "\t" flat(rserves) "\t" ropen "\t" rdone "\t" (rbad ? 0 : 1) "\t" hasns "\t" hassteps "\t" (rcbad ? 0 : 1)
   if (inrow && mode == "facts")
-    print "rowx\t" top "\t" flat(rname) "\t" flat(rarea) "\t" flat(rsize) "\t" flat(rasp) "\t" flat(rinf)
+    print "rowx\t" top "\t" flat(rname) "\t" flat(rarea) "\t" flat(rsize) "\t" flat(rasp) "\t" flat(rinf) "\t" flat(rowner)
   inrow = 0
 }
 function top_end() { row_end(); gotchas_end() }
+function block_flush() { if (bname != "") print btop "\t" flat(bname) "\t" flat(btext); bname = "" }
 function prs(line,   s, n) {
   s = line
   while (match(s, /PRs? #[0-9]+/)) {
@@ -184,14 +188,20 @@ BEGIN { top = ""; R = -1; F = -1; found = 0; walk = (mode == "summary" || mode =
     if (mode == "facts" && top == "areas") steps_begin($0, "areas")
   }
   if (mode == "gotchas" && top == "gotchas") print
+  if (mode == "blocks") block_flush()
   next
 }
 
 mode == "gotchas" { if (top == "gotchas") print; next }
 
-mode == "names" || mode == "row" {
+mode == "names" || mode == "row" || mode == "blocks" {
   if (!rows) next
   if (!blank && R < 0) R = ind($0)
+  if (mode == "blocks") {
+    if (!blank && ind($0) == R && body($0) !~ /^-/) { block_flush(); btop = top; bname = keyof($0); btext = $0 }
+    else if (bname != "") btext = btext "\001" $0
+    next
+  }
   if (!blank && ind($0) == R && body($0) !~ /^-/) {
     taking = 0
     if (mode == "names") print keyof($0)
@@ -220,6 +230,8 @@ top == "gotchas" {
   next
 }
 
+top == "settings" && mode == "facts" && keyof($0) == "last_review" { print "lastreview\t" val($0) }
+
 top == "areas" && mode == "facts" { if (!blank) steps_feed($0); next }
 
 !rows { out($0); next }
@@ -230,7 +242,7 @@ blank { next }
   if (R < 0) R = ind($0)
   if (ind($0) == R && body($0) !~ /^-/) {            # a row starts
     row_end(); inrow = 1; F = -1; skipping = 0
-    rname = keyof($0); rstatus = ""; rkind = ""; rserves = ""; ropen = 0; rdone = 0; rbad = 0; rcbad = 0; hasns = 0; hassteps = 0; rarea = ""; rsize = ""; rasp = ""; rinf = ""
+    rname = keyof($0); rstatus = ""; rkind = ""; rserves = ""; ropen = 0; rdone = 0; rbad = 0; rcbad = 0; hasns = 0; hassteps = 0; rarea = ""; rsize = ""; rasp = ""; rinf = ""; rowner = ""
     out(clip($0, cut))
     next
   }
@@ -244,6 +256,7 @@ blank { next }
     else if (k == "kind") rkind = val($0)
     else if (k == "serves") rserves = val($0)
     else if (k == "area") rarea = val($0)
+    else if (k == "owner") rowner = val($0)
     else if (k == "size") rsize = val($0)
     else if (k == "aspiration") { rasp = val($0); if (rasp ~ /^[>|][+-]?[0-9]*$/) rasp = "" }
     else if (k == "inferred") { rinf = val($0); gsub(/^\[|\]$|[ ]/, "", rinf) }
@@ -259,6 +272,7 @@ blank { next }
 
 END {
   if (walk) top_end()
+  if (mode == "blocks") block_flush()
   if (mode == "row") exit(found ? 0 : 1)
 }
 '
@@ -268,3 +282,4 @@ cb_row()     { LC_ALL=C awk -v mode=row -v want="$1" "$CB_AWK"; }
 cb_names()   { LC_ALL=C awk -v mode=names "$CB_AWK"; }
 cb_gotchas() { LC_ALL=C awk -v mode=gotchas "$CB_AWK"; }
 cb_facts()   { LC_ALL=C awk -v mode=facts "$CB_AWK"; }
+cb_blocks()  { LC_ALL=C awk -v mode=blocks "$CB_AWK"; }

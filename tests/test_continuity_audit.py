@@ -464,5 +464,63 @@ expect('AR3 no areas: empty list, readable', (doc or {}).get('areas') == [] and 
 expect('AR3 no areas: row fields null, nothing inferred', [r.get(k) for k in ('area', 'size', 'aspiration', 'inferred')] == [None, None, None, []], r)
 shutil.rmtree(d)
 
+DAY = 86400
+NOW = int(time.time())
+
+def edit_row(d, old, new, when):
+    p = f'{d}/.continuity/feature-status.yml'
+    write(p, open(p).read().replace(old, new, 1))
+    commit(d, 'edit', when)
+
+# W1. With no last review, the window is the last 14 days; board edits inside it count per row.
+d = repo(BOARD, when=NOW - 40 * DAY)
+edit_row(d, '"Nothing left"', '"Nothing left at all"', NOW - 30 * DAY)        # finished: outside the window
+edit_row(d, '"Pick a carrier"', '"Pick a carrier (UPS)"', NOW - 5 * DAY)    # shipping: inside
+edit_row(d, '"Only step"', '"Only step, done"', NOW - 2 * DAY)              # finished: inside
+edit_row(d, '"Pick a carrier (UPS)"', '"Pick a carrier (DHL)"', NOW - 1 * DAY)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+w = (doc or {}).get('review') or {}
+expect('W1 no last review: 14-day window', w.get('last_review') is None and w.get('since') == time.strftime('%Y-%m-%d', time.gmtime(NOW - 14 * DAY)), w)
+act = lambda n: (row(doc or {'rows': []}, n) or {}).get('activity') or {}
+expect('W1 edits inside the window counted per row', act('shipping').get('board_edits') == 2 and act('finished').get('board_edits') == 1, (act('shipping'), act('finished')))
+expect('W1 edit dates listed', act('shipping').get('dates') == sorted(time.strftime('%Y-%m-%d', time.gmtime(NOW - k * DAY)) for k in (5, 1)), act('shipping'))
+expect('W1 untouched row: zero', act('resting').get('board_edits') == 0, act('resting'))
+
+# W2. A last review in settings sets the window.
+edit_row(d, '  push_to_default_branch: true\n', '  push_to_default_branch: true\n  last_review: ' + time.strftime('%Y-%m-%d', time.gmtime(NOW - 2 * DAY - 3600)) + '\n', NOW - 1 * DAY + 60)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('W2 last review read', ((doc or {}).get('review') or {}).get('last_review') == time.strftime('%Y-%m-%d', time.gmtime(NOW - 2 * DAY - 3600)), (doc or {}).get('review'))
+expect('W2 only edits since the review count', act('shipping').get('board_edits') == 1 and act('finished').get('board_edits') == 1, (act('shipping'), act('finished')))
+shutil.rmtree(d)
+
+# W3. Cited PRs that merged inside the window count; older or unmerged ones don't.
+d = repo(BOARD, when=NOW - 40 * DAY)
+m = lambda k: time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(NOW - k * DAY))
+ghdir, gh = fake_gh("echo '[{\"number\":12,\"state\":\"MERGED\",\"mergedAt\":\"%s\"},{\"number\":14,\"state\":\"MERGED\",\"mergedAt\":\"%s\"}]'" % (m(2), m(30)))
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH=gh, CONTINUITY_AUDIT_WT='false')
+expect('W3 one cited PR merged in the window', act('shipping').get('prs_merged') == [12], act('shipping'))
+expect('W3 a row citing only an old PR: none', act('misfiled').get('prs_merged') == [12] and act('finished').get('prs_merged') == [], (act('misfiled'), act('finished')))
+shutil.rmtree(d); shutil.rmtree(ghdir)
+
+# W4. Sessions come from wt:status. An agent the board names as a row's owner is on that row;
+#     a worktree merely named like a row is a name match; other sessions are listed unmatched.
+d = repo(BOARD.replace('  shipping:\n    status: building\n', '  shipping:\n    status: building\n    owner: ship-1\n', 1))
+wtdir, wt = fake_gh(r"""printf 'repo\tpath\tname\tverdict\tstate\tuncommitted\tunpushed\tbranch\tlock_pid\tactivity\n'
+printf '/r\t/r/w/ship-1\tship-1\trunning\trunning\t0\t0\tship-1-pr\t\tworking\n'
+printf '/r\t/r/w/finished-2\tfinished-2\trunning\trunning\t0\t0\tfinished-2\t\tidle (replied)\n'
+printf '/r\t/r/w/random-x\trandom-x\tfinished\tidle\t0\t0\tx\t\t\n'""")
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT=wt)
+s = (doc or {}).get('sessions') or {}
+got = {i.get('name'): (i.get('row'), i.get('match'), i.get('verdict'), i.get('activity')) for i in s.get('items', [])}
+expect('W4 sessions read from wt:status', s.get('source') == 'wt' and len(got) == 3, s)
+expect('W4 owner match', got.get('ship-1') == ('shipping', 'owner', 'running', 'working'), got)
+expect('W4 name match', got.get('finished-2') == ('finished', 'name', 'running', 'idle (replied)'), got)
+expect('W4 unmatched session listed', got.get('random-x') == (None, None, 'finished', None), got)
+
+# W5. Without wt:status the audit says so and carries on.
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='/no/such/wt-status')
+expect('W5 no wt:status: unavailable, exit 0', rc == 0 and (doc or {}).get('sessions') == {'source': 'unavailable', 'items': []}, raw[:400])
+shutil.rmtree(d); shutil.rmtree(wtdir)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

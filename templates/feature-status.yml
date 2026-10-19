@@ -40,6 +40,9 @@ features:
   #   aspiration: "Every place on the map is real, open and well described."
   #   inferred: [size, aspiration]
 
+# settings.last_review (optional, YYYY-MM-DD) is written by the board review;
+# the audit counts activity since then (else the last 14 days).
+
 # Workflows are repeatable operations, not features to build.
 # They appear in the dashboard alongside features but have different fields.
 workflows:

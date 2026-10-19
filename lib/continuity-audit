@@ -9,12 +9,16 @@
 #   continuity-audit        run in a project that has .continuity/
 #
 # Output keys:
+#   review            last_review (settings.last_review or null), since — the
+#                     window start: midnight UTC of last_review, else 14 days ago
 #   board             path, bytes, lines
 #   rows[]            name, section, status, kind, serves, open, done,
 #                     steps_readable, gated[{step, gate}], prs[],
 #                     claims[{text, status, evidence, waits_on}],
 #                     claims_readable, area, size, aspiration,
-#                     inferred[] (fields Claude guessed), flags[]
+#                     inferred[] (fields Claude guessed),
+#                     activity{board_edits, dates[], prs_merged[]} in the
+#                     review window, flags[]
 #                     flags: unknown_area (names an area not listed) ·
 #                            unknown_size (not S/M/L/XL; value kept) ·
 #                            no_open_steps (building/polishing with a step
@@ -30,13 +34,20 @@
 #   gotchas           count, lines, cap, over_cap, entries[{line, head,
 #                     last_edited, age_days}] — age is when git last saw that
 #                     line edited, null without history
+#   sessions          source (wt | unavailable), items[{name, branch, verdict,
+#                     state, activity, row, match}] — from wt:status --tsv;
+#                     match is "owner" (the row names it as owner), "name"
+#                     (worktree named <row> or <row>-N: a guess) or null
 #   prs               source, items[{number, state, rows[]}]
 #   secrets[]         path, line, kind — never the matched text; the same
 #                     patterns are blanked in every step, claim and gotcha
 #                     this output repeats
 #   unexpected_files[] path, bytes, binary — files under .continuity/ (tracked
 #                     or about to be) that are binary or not .md/.yml/.yaml/.txt
-# PR states come from one `gh pr list`; without a working gh every state is
+# A row's board_edits are commits in the window whose version of the row
+# differs from their first parent's (merges skipped). prs_merged are PRs the
+# row cites that merged in the window. CONTINUITY_AUDIT_WT names the wt:status
+# command (tests). PR states come from one `gh pr list`; without a working gh every state is
 # "unknown" and prs.source is "unavailable". CONTINUITY_AUDIT_GH names the gh
 # binary (tests).
 #
@@ -73,11 +84,41 @@ done
 gh_src=unavailable
 echo '[]' > "$tmp/gh.json"
 if grep -q '^pr	' "$tmp/facts"; then
-  if "$GH" pr list --state all --limit 1000 --json number,state > "$tmp/gh.raw" 2>/dev/null \
+  if "$GH" pr list --state all --limit 1000 --json number,state,mergedAt > "$tmp/gh.raw" 2>/dev/null \
      && jq -e 'type == "array"' "$tmp/gh.raw" >/dev/null 2>&1; then
     cp "$tmp/gh.raw" "$tmp/gh.json"; gh_src=gh
   fi
 fi
+
+# The review window: since settings.last_review (midnight UTC), else the last 14 days.
+now=$(date +%s)
+last_review=$(awk -F'\t' '$1 == "lastreview" {print $2; exit}' "$tmp/facts")
+since=$(jq -nr --arg d "$last_review" --arg now "$now" \
+  'if ($d | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")) then ($d + "T00:00:00Z" | fromdateiso8601) else ($now | tonumber) - 14 * 86400 end')
+
+# Board edits per row in the window: each commit that touched the board, its row
+# blocks against its first parent. section<TAB>name<TAB>date per edited row.
+: > "$tmp/edits"
+if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  git log --no-merges --format='%H %ct' -- "$B" 2>/dev/null | while read -r c ct; do
+    [ "$ct" -ge "$since" ] || continue
+    git show "$c:$B" 2>/dev/null | cb_blocks > "$tmp/b.new"
+    if git rev-parse -q --verify "$c^" >/dev/null 2>&1; then git show "$c^:$B" 2>/dev/null | cb_blocks > "$tmp/b.old"; else : > "$tmp/b.old"; fi
+    day=$(jq -nr --arg t "$ct" '$t | tonumber | strftime("%Y-%m-%d")')
+    awk -F'\t' -v day="$day" 'NR == FNR { old[$1 FS $2] = $0; next } old[$1 FS $2] != $0 { print $1 "\t" $2 "\t" day }' "$tmp/b.old" "$tmp/b.new" >> "$tmp/edits"
+  done
+fi
+
+# Sessions running now: wt:status --tsv (CONTINUITY_AUDIT_WT names another command, for tests).
+wt_src=unavailable
+: > "$tmp/wt"
+if [ -n "${CONTINUITY_AUDIT_WT:-}" ]; then
+  "$CONTINUITY_AUDIT_WT" > "$tmp/wt.raw" 2>/dev/null || : > "$tmp/wt.raw"
+elif [ -f "$HOME/.config/cc/worktree.zsh" ] && command -v zsh >/dev/null 2>&1; then
+  zsh -c 'source "$HOME/.config/cc/worktree.zsh" && wt:status --tsv' > "$tmp/wt.raw" 2>/dev/null || : > "$tmp/wt.raw"
+else : > "$tmp/wt.raw"
+fi
+if head -1 "$tmp/wt.raw" | grep -q '^repo	path	name	'; then tail -n +2 "$tmp/wt.raw" > "$tmp/wt"; wt_src=wt; fi
 
 # The record's files: tracked, plus new ones the next save would commit. Not ignored ones.
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -115,6 +156,11 @@ jq -n \
   --rawfile other "$tmp/other" \
   --rawfile secrets "$tmp/secrets" \
   --rawfile blame "$tmp/blame" \
+  --rawfile edits "$tmp/edits" \
+  --rawfile wt "$tmp/wt" \
+  --arg wt_src "$wt_src" \
+  --arg last_review "$last_review" \
+  --arg since "$since" \
   --arg now "$(date +%s)" \
   --rawfile facts "$tmp/facts" \
   --slurpfile gh "$tmp/gh.json" \
@@ -131,10 +177,14 @@ recs($facts) as $f
 | ($f | map(select(.[0] == "rowx"))) as $rowx
 | [$f[] | select(.[0] == "area") | .[1]] as $anames
 | ($gh[0] | map({key: (.number | tostring), value: .state}) | from_entries) as $state
+| ($gh[0] | map(select(.mergedAt != null) | {key: (.number | tostring), value: (.mergedAt | fromdateiso8601)}) | from_entries) as $merged
+| recs($edits) as $edits
+| ($since | tonumber) as $since
 | (recs($blame) | map({key: .[0], value: (.[1] | tonumber)}) | from_entries) as $edited
 | ($f | map(select(.[0] == "gotcha"))) as $gotchas
 | (($f | map(select(.[0] == "gotchalines")) | .[0][1] // "0") | tonumber) as $glines
 | {
+    review: {last_review: ($last_review | nn), since: ($since | strftime("%Y-%m-%d"))},
     board: {path: $path, bytes: ($bytes | tonumber), lines: ($lines | tonumber)},
     decisions: [recs($decisions)[] | {path: .[0], bytes: (.[1] | tonumber), lines: (.[2] | tonumber), over_budget: ((.[2] | tonumber) > 30)}],
     gotchas: {
@@ -173,6 +223,9 @@ recs($facts) as $f
           claims_readable: ($r[11] == "1"),
           area: $area, size: $size, aspiration: ($x[5] // "" | nn),
           inferred: ($x[6] // "" | if . == "" then [] else split(",") end),
+          activity: ([$edits[] | select(.[0] == $r[1] and .[1] == $r[2]) | .[2]] as $d
+            | {board_edits: ($d | length), dates: ($d | sort),
+               prs_merged: [$prs[] | select(.[1] == $r[1] and .[2] == $r[2]) | .[3] | select(($merged[.] // 0) >= $since) | tonumber]}),
           flags: [
             (if $area != null and ($anames | index($area)) == null then "unknown_area" else empty end),
             (if $size != null and (["S", "M", "L", "XL"] | index($size)) == null then "unknown_size" else empty end),
@@ -183,6 +236,17 @@ recs($facts) as $f
           ]
         }
     ],
+    sessions: {
+      source: $wt_src,
+      items: [
+        recs($wt)[] | . as $s
+        | ([$rowx[] | select(.[7] == $s[2])] | .[0]) as $own
+        | ([$rowx[] | select(.[2] as $n | $s[2] == $n or ($s[2] | test("^" + ($n | gsub("[^A-Za-z0-9_-]"; ".")) + "-[0-9]+$")))] | .[0]) as $nm
+        | {name: .[2], branch: (.[7] // "" | nn), verdict: (.[3] // "" | nn), state: (.[4] // "" | nn), activity: (.[9] // "" | nn),
+           row: (if $own then $own[2] elif $nm then $nm[2] else null end),
+           match: (if $own then "owner" elif $nm then "name" else null end)}
+      ]
+    },
     prs: {
       source: $gh_src,
       items: [
