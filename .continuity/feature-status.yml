@@ -45,6 +45,8 @@ features:
       - { step: "Page notes clear once a review read them and its round is sent (Chad 2026-10-19); also fixed go deleting unread notes (v0.17.1, eed5e98)", done: true }
       - { step: "Review page: starters (areas not yet started) get no notes box; their key s:<area>:<n> shifts between reviews, so a note would attach to the wrong starter", done: false }
       - { step: "continuity-review-apply: a starter named <row>-2 matches the audit's <row>-N worktree name guess; pick a suffix the guess can't match", done: false }
+      - { step: "Merge PR #1 (cc_landed_sources reads the whole default branch, not -n 500: false CONTINUITY NOT LANDED on trip-planner). Branch worktree-cc-landed-window-1; tests green; rebase CHANGELOG onto 0.17.3 first", done: false }
+      - { step: "cc_behind (lib/continuity-commits.sh ~line 109) reads Continuity-Sync trailers from `git log HEAD -n 200`: same window bug, stale count only; drop the -n like cc_landed_sources", done: false }
     in_progress: null
 
   relay-and-spawn:
@@ -90,8 +92,8 @@ features:
 
 last_session:
   date: 2026-10-19
-  feature: closure-pass
-  summary: "Released 0.17.2 (Live refreshes after go, 'as of' label); started review-trial-1 in trip-planner on 0.17.1, numbers to .context/trial-0.17.1.md. Before: 0.17.1 (page notes clear after steering one review; go no longer deletes unread notes; two review rounds). Before that: redesigned the review page from Chad's first look at trip-planner's (two columns, mini rows, notes, Next step with Close/Park/Merge, type pass), passed page notes to the reviewer, capped line/points/read; released 0.17.0."
+  feature: review-followups
+  summary: "Fixed cc_landed_sources 500-commit window (false CONTINUITY NOT LANDED on trip-planner); PR #1 open, unmerged. Before: released 0.17.2/0.17.3, review-trial-1 numbers in .context/trial-0.17.1.md."
   blind_spots:
     - "trip-planner's review page (https://claude.ai/artifact/G5PFFv4HWhZzkEgRdzZhWY) was republished by hand from this repo's page.html with its <title> set; its review/current is still 0.16-era text (long lines, 'Chad'), which the page splits and folds until the next review."
     - "Chad asked (2026-10-19) that new non-critical bugs found mid-task go on review-followups, not get fixed in place."
