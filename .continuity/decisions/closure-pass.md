@@ -15,10 +15,12 @@ Principles: `docs/principles.md` (9 and 10 govern the review). Prototype and not
 - Confirm sends a basket, nothing pre-added, sized by lanes: live 1, reports back 3, quiet 3, running agents counted (Chad 2026-10-19) — Yes/Hold pre-filled eight panes; trip-planner was at capacity before anything was added.
 - Routine reviews run as one tool-free call over the review pack; full reviews run as an agent (Chad 2026-10-19) — on trip-planner one call took ~65k tokens and 2m48s against the agent's 128k, agreeing on 16 of 18 suggestions and proposals; full reviews are rare and their best findings came from digging.
 - A chore passes all of: no decision pending, nothing a traveller notices, nothing deleted live, no approval named — the reader misfiled two such items as chores.
-- The audit script is the only reader of board storage, and a script never makes a judgment — so storage can change behind it, and every judgment is a reviewer's, marked.
 - The board stores claims, gates and the optional area fields, no `serves`/`for` links, and every new field is optional — no mistake came from a missing link, and this repo's four-row board has no areas.
-
 - A round is marked sent (`applied_at`) after the save and before any agent starts; apply and the skill refuse a sent round (2026-10-19) — a missed spawn shows in wt:status and can be re-run by hand, a second "go" would start every agent twice.
+
+- Initiative rows are two columns, facts as labelled mini rows with empty ones hidden; a board change shows as the row's Next step, its button named by the change (Chad 2026-10-19, 0.17.0) — eight columns needed 1060px, and "close" beside "polishing" read as a second status.
+- A row's read is a line of at most 160 characters plus at most three 160-character points, and `read` at most 480, enforced by the checker (2026-10-19) — the brief said "one sentence" with no check, and trip-planner's lines averaged 319 characters, one 913.
+- Page notes live in `overrides/<row>.notes` and reach the reviewer through `pack --notes`; apply ignores them (2026-10-19) — they're the reader's view of a row, not a board field.
 
 ## Ruled out
 
@@ -28,5 +30,4 @@ Principles: `docs/principles.md` (9 and 10 govern the review). Prototype and not
 
 ## Open
 
-- Two readers given the brief placed all 18 trip-planner rows in the same six areas (2026-10-19).
 - [decision] Rename "workstream" across plugin text: after the trip-planner trial.
