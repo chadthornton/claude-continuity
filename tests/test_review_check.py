@@ -98,6 +98,9 @@ good = copy.deepcopy(GOOD)
 good['chore_groups'][0]['items'][0].update(title='Remove dead code paths', step='Delete the unreachable branches in trip.js and drop the unused helper')
 rc, out = check(good, AUDIT)
 expect('C4 deleting dead code is still a chore', rc == 0, out)
+good['chore_groups'][0]['items'][0].update(title='Sweep dead code', step='Delete the unreachable branch in records.mjs and tables.css')
+rc, out = check(good, AUDIT)
+expect('C4 a file named like data is still code', rc == 0, out)
 bad('C4 chore that is a gated step', lambda r: r['chore_groups'][0]['items'][0].update(step='Ship the blurb change'), 'gated', AUDIT)
 
 # C5. Against the audit: a row the board doesn't have is named.

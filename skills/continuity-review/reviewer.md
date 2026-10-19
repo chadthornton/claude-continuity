@@ -24,29 +24,27 @@ to write your output.
 
 ## What to read
 
-All commands run from the project's root. `<plugin>` is the continuity plugin's
-directory.
+Run `<plugin>/lib/continuity-review-pack` from the project's root (add `--full`
+in full mode). It prints, in one file, everything this review needs: the audit,
+each initiative that moved in the window in full with the open parts of its
+decisions file, the quiet ones as one line each, the gotchas, the commits and
+merged pull requests in the window, and in full mode the product document and
+every initiative in full. `<plugin>` is the continuity plugin's directory.
 
-1. The audit JSON. Its facts (counts, gates, activity, sessions, PR states) are
-   true for the checkout it ran in. When `continuity-state` says the board was
-   read from origin because the checkout is behind, the board it prints is
-   newer: prefer it for step counts and say so.
-2. `<plugin>/skills/startup/continuity-state` — the board, summarised when it is
-   large. Never read `.continuity/feature-status.yml` itself.
-3. `git log --since=<review.since> --oneline` and the merged pull requests in the
-   same window, to see what actually landed. The audit ties a pull request to a
-   row only when the row cites its number; tie the rest yourself from titles and
-   the decisions files, and cite each one in `recent`. A row with nothing to cite
-   gets an empty `recent`.
-4. For each initiative with activity in the window or a running session:
-   `<plugin>/skills/startup/continuity-state row <name>`, and the Open section of
-   its decisions file (`continuity-state show decisions/<name>.md`).
-5. **full only:** the document the audit names as `product_doc.path`. It holds
-   the product's bets and principles. If `product_doc` is null, or `exists` is
-   false, work without it and say so in `read` (for example: "The board names
-   docs/principles.md as the product document, but that file is missing."). Do
-   not look for another file. Read each initiative's full row only when its
-   aspiration or size is unclear from the summary.
+Read the pack and work from it. Reach past it only for something it lacks, such
+as a decided entry or a file a step names, and say why in `read` if it changed
+your judgment. Never read `.continuity/feature-status.yml` itself.
+
+- The audit's facts (counts, gates, activity, sessions, PR states) are true;
+  build on them, don't re-derive them. The pack reads the same board the audit
+  did, origin's when this checkout is behind.
+- The audit ties a pull request to a row only when the row cites its number.
+  Tie the rest yourself from titles, the steps and the decisions files, and cite
+  each one in `recent`. A row with nothing to cite gets an empty `recent`.
+- In full mode the pack's "Product document" section holds the product's bets
+  and principles, from `settings.product_doc`. If it says the board names none,
+  or the file is missing, work without it and say so in `read`. Don't look for
+  another file.
 
 ## What to write
 

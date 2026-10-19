@@ -13,8 +13,8 @@ git, write, expect, ENV, fails = ns['git'], ns['write'], ns['expect'], ns['ENV']
 
 def audit(cwd, **env):
     """Run the audit; returns (exit code, parsed JSON or None, raw output)."""
-    e = dict(ENV); e.update(env)
-    r = subprocess.run([AUDIT], cwd=cwd, env=e, capture_output=True, text=True)
+    e = dict(ENV); e.setdefault('CONTINUITY_AUDIT_WT', 'false'); e.update(env)   # the real wt:status takes seconds
+    r = subprocess.run([AUDIT], cwd=cwd, env=e, capture_output=True, text=True, stdin=subprocess.DEVNULL)
     try:
         return r.returncode, json.loads(r.stdout), r.stdout + r.stderr
     except ValueError:
@@ -534,6 +534,22 @@ d = repo(BOARD)
 rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
 expect('P1 unset: null', 'product_doc' in (doc or {}) and doc['product_doc'] is None, raw[:300])
 shutil.rmtree(d)
+
+# B1. A stale checkout: another session landed continuity on origin. The audit reads origin's
+#     board, as continuity-state does, and says so; a current checkout reads its own.
+setup = ns['setup']
+root, remote, clone, wt = setup()
+rc, doc, raw = audit(wt, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('B1 current checkout: board local', ((doc or {}).get('board') or {}).get('source') == 'local', raw[:300])
+write(f'{clone}/.continuity/feature-status.yml', ns['STATUS'].format(push='true').replace('features:\n', 'features:\n  peerrow:\n    status: building\n', 1))
+git(clone, 'add', '-A'); git(clone, 'commit', '-qm', 'peer board'); git(clone, 'push', '-q', 'origin', 'master')
+git(wt, 'fetch', '-q', 'origin')
+rc, doc, raw = audit(wt, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('B1 stale checkout: board from origin', ((doc or {}).get('board') or {}).get('source') == 'origin/master', raw[:300])
+expect('B1 origin rows read', row(doc or {'rows': []}, 'peerrow') is not None, [r['name'] for r in (doc or {'rows': []})['rows']])
+expect('B1 peer edit counted as activity', ((row(doc or {'rows': []}, 'peerrow') or {}).get('activity') or {}).get('board_edits') == 1, row(doc or {'rows': []}, 'peerrow'))
+expect('B1 checkout untouched', 'peerrow' not in open(f'{wt}/.continuity/feature-status.yml').read(), '')
+shutil.rmtree(root)
 
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

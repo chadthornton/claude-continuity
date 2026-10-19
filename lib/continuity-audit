@@ -13,7 +13,9 @@
 #                     window start: midnight UTC of last_review, else 14 days ago
 #   product_doc       {path, exists} from settings.product_doc, or null; the
 #                     reviewer reads the document this names, never a guess
-#   board             path, bytes, lines
+#   board             path, source (local, or origin/<default> when other
+#                     sessions landed continuity this checkout lacks — the
+#                     same rule as continuity-state), bytes, lines
 #   rows[]            name, section, status, kind, serves, open, done,
 #                     steps_readable, gated[{step, gate}], prs[],
 #                     claims[{text, status, evidence, waits_on}],
@@ -57,6 +59,7 @@
 set -u
 LIB="$(cd "$(dirname "$0")" && pwd)"
 . "$LIB/continuity-board.sh" || { echo "SKIP: lib/continuity-board.sh missing" >&2; exit 3; }
+. "$LIB/continuity-commits.sh" || { echo "SKIP: lib/continuity-commits.sh missing" >&2; exit 3; }
 command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-audit needs jq" >&2; exit 3; }
 GH="${CONTINUITY_AUDIT_GH:-gh}"
 
@@ -77,7 +80,18 @@ private-key	-----BEGIN [A-Z ]*PRIVATE KEY-----
 assigned-secret	([Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Pp][Aa][Ss][Ss][Ww]([Oo][Rr])?[Dd])["'"'"']?[ ]*[:=][ ]*["'"'"']?[A-Za-z0-9/+_-]{16,}'
 
 # Board text the audit repeats (steps, claims, gotchas) has the same patterns blanked.
-cb_facts < "$B" > "$tmp/facts"
+# Board source: origin/<default> when other sessions landed continuity this
+# checkout lacks — the same rule as continuity-state. No fetch here; the caller's
+# continuity-state call fetched. Everything below reads $tmp/board.yml and REV.
+SRC=""
+if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  d_ref=$(cc_default_ref 2>/dev/null)
+  [ -n "$d_ref" ] && [ "$(cc_behind "$d_ref" 2>/dev/null || echo 0)" -gt 0 ] && SRC="$d_ref"
+fi
+REV="${SRC:-HEAD}"
+if [ -n "$SRC" ]; then git show "$SRC:$B" > "$tmp/board.yml" 2>/dev/null || cp "$B" "$tmp/board.yml"; else cp "$B" "$tmp/board.yml"; fi
+
+cb_facts < "$tmp/board.yml" > "$tmp/facts"
 printf '%s\n' "$SECRET_PATTERNS" | while IFS='	' read -r kind re; do
   sed -E "s#$re#[redacted:$kind]#g" "$tmp/facts" > "$tmp/facts.r" && mv "$tmp/facts.r" "$tmp/facts"
 done
@@ -102,7 +116,7 @@ since=$(jq -nr --arg d "$last_review" --arg now "$now" \
 # blocks against its first parent. section<TAB>name<TAB>date per edited row.
 : > "$tmp/edits"
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
-  git log --no-merges --format='%H %ct' -- "$B" 2>/dev/null | while read -r c ct; do
+  git log --no-merges --format='%H %ct' "$REV" -- "$B" 2>/dev/null | while read -r c ct; do
     [ "$ct" -ge "$since" ] || continue
     git show "$c:$B" 2>/dev/null | cb_blocks > "$tmp/b.new"
     if git rev-parse -q --verify "$c^" >/dev/null 2>&1; then git show "$c^:$B" 2>/dev/null | cb_blocks > "$tmp/b.old"; else : > "$tmp/b.old"; fi
@@ -155,7 +169,7 @@ while IFS= read -r f; do
 done < "$tmp/files"
 
 # When each board line was last edited: line<TAB>epoch. Empty without git history.
-git blame --line-porcelain -- "$B" 2>/dev/null \
+if [ -n "$SRC" ]; then git blame --line-porcelain "$SRC" -- "$B" 2>/dev/null; else git blame --line-porcelain -- "$B" 2>/dev/null; fi \
   | awk '/^author-time /{t=$2} /^\t/{n++; print n "\t" t}' > "$tmp/blame"
 
 jq -n \
@@ -175,8 +189,9 @@ jq -n \
   --slurpfile gh "$tmp/gh.json" \
   --arg gh_src "$gh_src" \
   --arg path "$B" \
-  --arg bytes "$(wc -c < "$B" | tr -d ' ')" \
-  --arg lines "$(wc -l < "$B" | tr -d ' ')" '
+  --arg board_src "${SRC:-local}" \
+  --arg bytes "$(wc -c < "$tmp/board.yml" | tr -d ' ')" \
+  --arg lines "$(wc -l < "$tmp/board.yml" | tr -d ' ')" '
 def recs($s): $s | split("\n") | map(select(length > 0) | split("\t"));
 def nn: if . == "" then null else . end;
 recs($facts) as $f
@@ -195,7 +210,7 @@ recs($facts) as $f
 | {
     review: {last_review: ($last_review | nn), since: ($since | strftime("%Y-%m-%d"))},
     product_doc: (if $product_doc == "" then null else {path: $product_doc, exists: $product_doc_exists} end),
-    board: {path: $path, bytes: ($bytes | tonumber), lines: ($lines | tonumber)},
+    board: {path: $path, source: $board_src, bytes: ($bytes | tonumber), lines: ($lines | tonumber)},
     decisions: [recs($decisions)[] | {path: .[0], bytes: (.[1] | tonumber), lines: (.[2] | tonumber), over_budget: ((.[2] | tonumber) > 30)}],
     gotchas: {
       count: ($gotchas | length), lines: $glines, cap: 10, over_cap: ($glines > 10),

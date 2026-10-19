@@ -22,7 +22,7 @@ fi
 # A chore must not need anyone's yes or remove anything live. Deleting code is
 # fine; deleting, dropping or removing data, tables, backups or anything on a
 # server is not.
-CHORE_BAD='ship it|approv|go-ahead|sign-off|(delete|drop|remove|purge|truncate|wipe)[^.;]*(server|prod|live|backup|database|table|bucket|record|row|user data)|migrat|rm -rf|on prod|production|deploy'
+CHORE_BAD='ship it|approv|go-ahead|sign-off|\b(delete|drop|remove|purge|truncate|wipe)\b[^;]*\b(servers?|prod|live|backups?|databases?|tables?|buckets?|records?|rows?|user data)\b(?![.][a-z])|migrat|rm -rf|on prod|production|deploy'
 
 problems=$(jq -r --argjson audit "$audit" --arg bad "$CHORE_BAD" '
 def str: type == "string" and length > 0;
