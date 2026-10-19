@@ -62,11 +62,14 @@ table { width: 100%; min-width: 620px; border-collapse: collapse; }
 td.ini { width: 38%; }
 td.ini, td.ini + td { padding: 16px 18px; }
 thead th:first-child, thead th:nth-child(2) { padding-inline: 18px; }
-.mr { display: flex; align-items: center; gap: 14px; min-height: 26px; padding: 7px 0; border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.mr { display: flex; align-items: flex-start; gap: 14px; min-height: 26px; padding: 7px 0; border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
 .mr:first-child { border-top: 0; padding-top: 0; }
-.ml { flex: 0 0 116px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.mv { font-size: 13.5px; flex: 1 1 auto; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
-.mv .add { margin-left: auto; }
+.ml { flex: 0 0 116px; padding-top: 5px; line-height: 1.3; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.mv { font-size: 13.5px; min-height: 26px; flex: 1 1 auto; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+/* Next step: the kind pill above what the step does, its buttons top-right. */
+.step { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; width: 100%; }
+.step .body { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding-top: 2px; line-height: 1.45; }
+.step .acts { flex-wrap: nowrap; justify-content: flex-end; }
 .notes { display: block; margin-top: 12px; }
 .notes textarea { width: 100%; box-sizing: border-box; min-height: 52px; resize: vertical; font: inherit; font-size: 13px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 .notes textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
@@ -188,6 +191,7 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
   // A session is added to the round; a board change is named by what it does (Close, Park, Merge), still only into the round.
   function cap(w) { w = String(w || ""); return w.charAt(0).toUpperCase() + w.slice(1); }
   function addCell(p) { return added().some(function (x) { return x.key === p.key; }) ? '<span class="inb">✓ In this round</span>' : (S.canWrite && db ? '<button type="button" class="btn quiet" data-add="' + esc(p.key) + '">' + (p.kind === "board" ? esc(cap(p.action)) : "Add") + "</button>" : ""); }
+  function step(p, what, acts) { return '<div class="step"><div class="body">' + kindPill(p) + '<span class="claude">' + what + '</span></div><div class="acts">' + acts + "</div></div>"; }
   function keepCell(row) { return S.canWrite && db ? '<button type="button" class="btn quiet" data-keep="' + esc(row) + '">Keep it</button>' : ""; }
   function kindPill(p) { var k = KIND[p.kind] || ["", p.kind]; return '<span class="pill ' + k[0] + '">' + esc(k[1]) + "</span>"; }
 
@@ -246,8 +250,8 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
           (act.board_edits || (act.prs_merged || []).length) && ["Activity", spark(i) + '<span class="sub num">' + (act.board_edits || 0) + " edits · " + (act.prs_merged || []).length + " PRs</span>"],
           i.waiting && ["Waiting on you", '<span class="waitn">' + plural(i.waiting, "call") + "</span>"],
           i.running && ["Who's on it", '<span class="mono">' + esc(i.running) + (idle(i) ? " (idle)" : "") + "</span>"],
-          (p || bc || (i.running && !idle(i))) && ["Next session", p ? kindPill(p) + ' <span class="claude">' + esc(p.title) + '</span><span class="add">' + addCell(p) + "</span>"
-            : bc ? kindPill(bc) + ' <span class="claude">' + esc(cap(bc.title)) + ": " + esc(bc.brief) + '</span><span class="add acts">' + addCell(bc) + (added().some(function (x) { return x.key === bc.key; }) ? "" : keepCell(i.row)) + "</span>"
+          (p || bc || (i.running && !idle(i))) && ["Next step", p ? step(p, esc(p.title), addCell(p))
+            : bc ? step(bc, esc(cap(bc.title)) + ": " + esc(bc.brief), addCell(bc) + (added().some(function (x) { return x.key === bc.key; }) ? "" : keepCell(i.row)))
             : '<span class="sub">Running</span>']
         ]) + notesField(i) + "</td></tr>";
     if (open) {
@@ -295,7 +299,7 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
       st.filter(function (s) { return s.area === a.name; }).forEach(function (s) {
         body += '<tr class="starter"><td class="ini"><div class="name"><b>' + esc(s.label) + '</b><span class="pill back">not started<span class="tag">Claude</span></span></div><div class="what">' + esc(s.aspiration) + "</div></td><td>" + mini([
           ["Size", '<b class="claude">' + esc(s.size) + "</b>"],
-          ["Next session", kindPill(s) + ' <span class="claude">' + esc(s.brief) + '</span><span class="add">' + addCell(s) + "</span>"]
+          ["Next step", step(s, esc(s.brief), addCell(s))]
         ]) + "</td></tr>";
       });
     });
