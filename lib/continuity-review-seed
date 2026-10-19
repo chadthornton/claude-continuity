@@ -30,7 +30,7 @@ $r[0] as $rv | $a[0] as $au
 | ($rv.initiatives | map({key: .row, value: .}) | from_entries) as $byrow
 | ($au.sessions.items // []) as $sess
 | [ $au.rows[] | . as $row | ($byrow[.name] // {}) as $j
-    | ([$sess[] | select(.row == $row.name)] | .[0]) as $s
+    | ([$sess[] | select(.row == $row.name and (.running // (.state == "running")))] | .[0]) as $s
     | reduce ("area", "size", "aspiration") as $f ({v: {}, judged: []};
         if ($row[$f] != null) and (($row.inferred // []) | index($f) | not)
         then .v[$f] = $row[$f]

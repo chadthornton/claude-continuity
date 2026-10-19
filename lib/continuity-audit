@@ -10,7 +10,8 @@
 #
 # Output keys:
 #   review            last_review (settings.last_review or null), since — the
-#                     window start: midnight UTC of last_review, else 14 days ago
+#                     window start: midnight UTC of last_review, else 14 days ago —
+#                     and since_epoch, the same moment in seconds (git log --since=@…)
 #   review_url        settings.review_url (the project's review page) or null
 #   product_doc       {path, exists} from settings.product_doc, or null; the
 #                     reviewer reads the document this names, never a guess
@@ -41,7 +42,9 @@
 #                     dates of its "(re-learned YYYY-MM-DD)" markers) — age is when git last saw that
 #                     line edited, null without history
 #   sessions          source (wt | unavailable), items[{name, branch, verdict,
-#                     state, activity, row, match}] — from wt:status --tsv;
+#                     state, activity, running, row, match}] — from wt:status --tsv;
+#                     running is true only when its state is "running" (an ended,
+#                     safe or orphan worktree is listed, not running);
 #                     match is "owner" (the row names it as owner), "name"
 #                     (worktree named <row> or <row>-N: a guess) or null
 #   prs               source, items[{number, state, rows[]}]
@@ -223,7 +226,7 @@ recs($facts) as $f
 | ($f | map(select(.[0] == "gotcha"))) as $gotchas
 | (($f | map(select(.[0] == "gotchalines")) | .[0][1] // "0") | tonumber) as $glines
 | {
-    review: {last_review: ($last_review | nn), since: ($since | strftime("%Y-%m-%d"))},
+    review: {last_review: ($last_review | nn), since: ($since | strftime("%Y-%m-%d")), since_epoch: $since},
     review_url: ($review_url | nn),
     product_doc: (if $product_doc == "" then null else {path: $product_doc, exists: $product_doc_exists} end),
     board: {path: $path, source: $board_src, bytes: ($bytes | tonumber), lines: ($lines | tonumber)},
@@ -284,6 +287,7 @@ recs($facts) as $f
         | ([$rowx[] | select(.[7] == $s[2])] | .[0]) as $own
         | ([$rowx[] | select(.[2] as $n | $s[2] == $n or ($s[2] | test("^" + ($n | gsub("[^A-Za-z0-9_-]"; ".")) + "-[0-9]+$")))] | .[0]) as $nm
         | {name: .[2], branch: (.[7] // "" | nn), verdict: (.[3] // "" | nn), state: (.[4] // "" | nn), activity: (.[9] // "" | nn),
+           running: ((.[4] // "") == "running"),
            row: (if $own then $own[2] elif $nm then $nm[2] else null end),
            match: (if $own then "owner" elif $nm then "name" else null end)}
       ]

@@ -101,5 +101,14 @@ bad = copy.deepcopy(REVIEW); bad['initiatives'][0]['size'] = 'XXL'
 rc, doc6, raw = seed(bad, AUDIT)
 expect('D6 malformed review refused, nothing printed as JSON', rc == 1 and doc6 is None and 'size' in raw, raw[:400])
 
+# F3. An ended or orphan worktree on a row is not a running agent.
+ended = copy.deepcopy(AUDIT)
+ended['sessions']['items'] = [
+    {'name': 'quiet-1', 'branch': 'b', 'verdict': 'safe', 'state': 'ended', 'activity': 'idle (replied)', 'row': 'quiet', 'match': 'name', 'running': False},
+    dict(AUDIT['sessions']['items'][0], running=True)]
+rc, doc7, raw = seed(REVIEW, ended)
+run = {i['row']: i.get('running') for i in (doc7 or {}).get('initiatives', [])}
+expect('F3 seed: only a running session marks its row', rc == 0 and run == {'lists': 'lists-4', 'quiet': None}, run)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

@@ -621,5 +621,16 @@ rc, doc, raw = audit(wt, CONTINUITY_AUDIT_GH='no-such-gh-binary')
 expect('F6 after merging the default branch: still once each', eds(doc) == {'alpha': 3, 'beta': 3}, eds(doc))
 shutil.rmtree(root)
 
+# F3. Each session says whether it is running now: wt:status state "running", nothing else.
+d = repo(BOARD)
+wtdir, wt = fake_gh(r"""printf 'repo\tpath\tname\tverdict\tstate\tuncommitted\tunpushed\tbranch\tlock_pid\tactivity\n'
+printf '/r\t/r/w/shipping-1\tshipping-1\trunning\trunning\t0\t0\tb\t\tworking\n'
+printf '/r\t/r/w/finished-2\tfinished-2\tsafe\tended\t0\t0\tb\t\tidle (replied)\n'
+printf '/r\t/r/w/resting-1\tresting-1\torphan\t\t0\t0\t\t\t\n'""")
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT=wt)
+got = {i.get('name'): i.get('running') for i in ((doc or {}).get('sessions') or {}).get('items', [])}
+expect('F3 running only when state is running', got == {'shipping-1': True, 'finished-2': False, 'resting-1': False}, got)
+shutil.rmtree(d); shutil.rmtree(wtdir)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

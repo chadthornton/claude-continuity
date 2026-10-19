@@ -106,7 +106,23 @@ expect('K3 no gh: moved initiative still found from board edits', 'Busy step two
 os.remove(f'{d}/docs/bets.md')
 rc, out = pack(d, '--full', CONTINUITY_AUDIT_GH=gh)
 expect('K4 missing product document reported', rc == 0 and 'missing' in section(out, 'Product document'), section(out, 'Product document'))
+# F3. A worktree that ended on a row does not make it "moved".
+wtdir, wt = fake_gh(r"""printf 'repo\tpath\tname\tverdict\tstate\tuncommitted\tunpushed\tbranch\tlock_pid\tactivity\n'
+printf '/r\t/r/w/quiet-1\tquiet-1\tsafe\tended\t0\t0\tb\t\tidle (replied)\n'""")
+rc, out = pack(d, CONTINUITY_AUDIT_GH=gh, CONTINUITY_AUDIT_WT=wt)
+expect('F3 pack: ended session leaves its row quiet', 'Quiet step text' not in section(out, 'Moved') and '- quiet' in section(out, 'Quiet'), section(out, 'Moved')[:300])
+shutil.rmtree(wtdir)
 shutil.rmtree(d); shutil.rmtree(ghdir)
+
+# F7. The window starts at midnight UTC on the review date: a code commit one minute after
+#     midnight that day is in it, whatever time the pack runs.
+import calendar
+day = time.strftime('%Y-%m-%d', time.gmtime(NOW - 3 * DAY))
+d = repo('settings:\n  last_review: ' + day + '\nfeatures:\n  a:\n    status: building\n', when=NOW - 40 * DAY)
+write(f'{d}/app.js', 'x\n'); commit(d, 'feat: just after midnight', calendar.timegm(time.strptime(day + ' 00:01', '%Y-%m-%d %H:%M')))
+rc, out = pack(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F7 commit just after midnight on the review date is in the window', 'just after midnight' in section(out, 'Commits'), section(out, 'Commits'))
+shutil.rmtree(d)
 
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

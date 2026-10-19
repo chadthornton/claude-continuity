@@ -33,6 +33,7 @@ trap 'rm -rf "$tmp"' EXIT
 "$LIB/continuity-audit" > "$tmp/audit.json" || exit $?
 SRC=$(jq -r '.board.source' "$tmp/audit.json")
 since=$(jq -r '.review.since' "$tmp/audit.json")
+since_epoch=$(jq -r '.review.since_epoch' "$tmp/audit.json")   # a bare date to git means that day at this time of day
 
 # read_c <path under .continuity> — from the same source as the audit's board.
 read_c() {
@@ -76,7 +77,7 @@ jq -c 'del(.gotchas.entries)' "$tmp/audit.json"   # the gotchas are printed in f
 echo
 
 moved=$(jq -r '
-  ([.sessions.items[]? | .row // empty]) as $live
+  ([.sessions.items[]? | select(.running // (.state == "running")) | .row // empty]) as $live
   | .rows[] | select(.activity.board_edits > 0 or (.activity.prs_merged | length) > 0 or (.name as $n | $live | index($n)))
   | .name' "$tmp/audit.json")
 
@@ -128,7 +129,7 @@ echo "## Commits in the window"
 echo
 # Code changes only (board saves are already each row's board edits), the newest
 # 80; the merged pull requests below say what landed.
-git log --no-merges --since="$since" --format='%h %cs %s' "$REV" -- . ':(exclude).continuity' > "$tmp/commits" 2>/dev/null || : > "$tmp/commits"
+git log --no-merges --since="@$since_epoch" --format='%h %cs %s' "$REV" -- . ':(exclude).continuity' > "$tmp/commits" 2>/dev/null || : > "$tmp/commits"
 nc=$(wc -l < "$tmp/commits" | tr -d ' ')
 echo "$nc code commit$([ "$nc" = 1 ] || echo s) in the window$([ "$nc" -gt 80 ] && echo ", the newest 80 shown"):"
 echo
