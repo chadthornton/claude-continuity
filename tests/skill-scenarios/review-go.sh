@@ -6,8 +6,8 @@
 # `lists`, and a decision on `lists`, which an agent (lists-4) is already on.
 # The user's correction: discovery's size is L. Page notes: discovery's (the review read it, unchanged) and pages'
 # (written after the review, beside a size correction M). The page store isn't reachable: each write_db the
-# skill would make goes as one JSON line ({op, collection, doc_id, data}) to <dir>/db.log.
-# The user's correction (as before): lists-4 matches lists by name only. The user answers yes to every
+# skill would make goes as one JSON line ({op, collection, doc_id, data, if_version}) to <dir>/db.log; every
+# override was read at version 1 (<dir>/w/versions.json). lists-4 matches lists by name only. The user answers yes to every
 # board change. A fake agent-spawn in <dir>/bin logs to <dir>/spawn.log.
 # A worktree pages-3 ended earlier on `pages`: it is listed, not running.
 # --applied: the round was already sent (applied_at set): nothing may start.
@@ -84,6 +84,7 @@ cat > "$root/w/seed.json" <<JSON
  "notes_read": {"discovery": "Fold this into lists?"}}
 JSON
 echo '{"discovery": {"size": "L", "notes": "Fold this into lists?", "at": "2026-10-19T11:00:00Z"}, "pages": {"size": "M", "notes": "Ask about caching first", "at": "2026-10-19T11:02:00Z"}}' > "$root/w/overrides.json"
+echo '{"discovery": 1, "pages": 1}' > "$root/w/versions.json"
 # The audit at review time; lists-4 is running on lists (no wt:status in the fixture, so a fresh audit sees none).
 echo '{"review": {"since": "2026-10-05"}, "rows": [{"name": "lists", "gated": [{"step": "Lists build 3: whole list onto a trip", "gate": "decision: one-time copy or living link?"}]}, {"name": "discovery", "gated": []}, {"name": "pages", "gated": []}], "sessions": {"source": "wt", "items": [{"name": "lists-4", "branch": "lists-4-pr-2", "verdict": "running", "state": "running", "activity": "idle (replied)", "running": true, "row": "lists", "match": "name"}, {"name": "pages-3", "branch": "pages-3", "verdict": "safe", "state": "ended", "activity": "idle (replied)", "running": false, "row": "pages", "match": "name"}]}}' > "$root/w/audit.json"
 cat > "$root/w/round.json" <<JSON

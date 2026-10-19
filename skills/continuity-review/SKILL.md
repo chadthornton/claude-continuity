@@ -64,7 +64,8 @@ changes. Treat the answer as a confirmed round.
 
 1. Read `round/current` and the `overrides` collection with `read_db` into
    `$W/round.json` and `$W/overrides.json` (overrides as one object keyed by
-   row). If the round is not confirmed, or its `generated` differs from the
+   row, each document's data alone), and each override's `version` into
+   `$W/versions.json` (keyed by row) for step 6. If the round is not confirmed, or its `generated` differs from the
    seed's, say so and stop. If it carries `applied_at`, it was already sent:
    say when, and stop; a second go would start its sessions twice. Re-run the audit into `$W/audit-go.json` for what
    is running now; where it can't see sessions (`sessions.source` is
@@ -130,14 +131,15 @@ changes. Treat the answer as a confirmed round.
    If a spawn fails, report it and run that same `agent-spawn` again once the
    cause is fixed; another "go" won't, since the round is already marked sent.
 6. **Overrides**, only once the round is marked sent: do what apply's
-   `overrides_next` says, in one `write_db` `batch`. For each row in it,
-   `read_db` `get` `overrides/<row>` for its version; `null` is a `delete`, an
-   object a `set` of exactly that object; every entry carries its
-   `if_version`. Corrections and keeps go (they're on the board now) and so do
+   `overrides_next` says, in one `write_db` `batch`: `null` is a `delete`, an
+   object a `set` of exactly that object, and every entry's `if_version` is
+   the row's version from `$W/versions.json`, the read apply worked from (not
+   a fresh read, which would let a note written since be overwritten). Corrections and keeps go (they're on the board now) and so do
    notes this review read; a note no review read stays, so never delete an
    override document `overrides_next` doesn't name as `null`. If the batch is
-   refused because a document changed, the user is writing on the page: re-read
-   it, drop it from the batch (it stays as they left it), and send the rest.
+   refused because a document changed since step 1, the user is writing on the
+   page: drop that document from the batch (it stays as they left it) and send
+   the rest.
 7. Report one line per item: what started where, what got a message, what was
    held, what changed on the board. End with `Check on them: agent-spawn status`
    when anything started.
