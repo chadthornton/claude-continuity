@@ -105,6 +105,10 @@ what it reports until it prints OK.
   `aspiration` that the board holds and that is not listed in its `inferred` was
   confirmed by the reader: write the board's value back unchanged. A field the
   board does not hold is yours to infer.
+- **Gotchas.** The audit lists each gotcha's `relearned` dates. A gotcha
+  re-learned more than once isn't reaching sessions: say so in `read` and where
+  it could live instead (in the code, or a check). One older than 90 days and
+  never re-learned may be safe to drop: name it in `read`.
 - **Areas come from the product, not the board.** In full mode, derive the
   areas from the product document and what the product does, then place the
   rows in them. An area with no initiative is a finding, not an error.

@@ -21,7 +21,9 @@
 #                       gated   section name step gate  (open steps that carry a gate)
 #                       claim   section name status text evidence waits_on   (status: true|false|unknown)
 #                       pr      section name number     (each "PR #N" a row mentions)
-#                       gotcha  first-line head last-line
+#                       gotcha  first-line head last-line relearned
+#                               (relearned: comma list of the dates in its
+#                               "(re-learned YYYY-MM-DD)" markers, any line)
 #                       gotchalines count
 #                       rowx    section name area size aspiration inferred owner   (inferred: comma list)
 #                       area    name what open_question   (each item of a top-level `areas:` list)
@@ -142,9 +144,17 @@ function steps_end() {
 function gotcha_close() {
   if (ghead != "") {
     gl[++gn] = "  - " clip(ghead, 100)
-    if (mode == "facts") print "gotcha\t" gline "\t" flat(clip(ghead, 100)) "\t" gend
+    if (mode == "facts") print "gotcha\t" gline "\t" flat(clip(ghead, 100)) "\t" gend "\t" relearned(gtext)
   }
-  ghead = ""; gwant = 0
+  ghead = ""; gwant = 0; gtext = ""
+}
+function relearned(s,   dates, d) {
+  dates = ""
+  while (match(s, /\(re-learned [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)/)) {
+    d = substr(s, RSTART + 12, 10); dates = dates (dates == "" ? "" : ",") d
+    s = substr(s, RSTART + RLENGTH)
+  }
+  return dates
 }
 function gotchas_end(   i) {
   if (top != "gotchas" || ginline) return
@@ -221,12 +231,12 @@ top == "gotchas" {
   if (G < 0) G = ind($0)
   if (ind($0) == G && body($0) ~ /^-( |$)/) {
     gotcha_close()
-    gline = NR; gend = NR
+    gline = NR; gend = NR; gtext = $0
     ghead = body($0); sub(/^-[ ]*/, "", ghead)
     if (ghead ~ /^[>|][+-]?[0-9]*$/ || ghead == "") { ghead = ""; gwant = 1 }
     else if (ghead ~ /^"/) ghead = val("x: " ghead)
   } else {
-    gend = NR
+    gend = NR; gtext = gtext " " $0
     if (gwant) { ghead = body($0); gwant = 0 }
   }
   next

@@ -14,6 +14,7 @@
 
 ### Changed
 - **`/startup` and wrap-up offer the board review in one line** — startup, when nothing is waiting to resume and the last review is over 7 days old (or there has been none and the board has 8+ features); wrap-up, when the session changed 3 or more features or added one. Why: the review should come up at the moments of choosing direction without getting between the user and a quick start.
+- **Wrap-up marks a re-learned gotcha** — when a session hits something an existing gotcha already warned about, wrap-up appends `(re-learned <date>)` to that gotcha instead of writing another; the audit reports each gotcha's `relearned` dates and the reviewer names gotchas that keep being re-learned or never are. Why: a gotcha that works leaves no trace, so re-learning is the only signal of whether one is reaching sessions.
 - **`/continuity-prune` is retired** — it now only points to `/continuity-review`, and goes in the next release. Every project using the plugin loses the command. Why: the review does the same job with facts from the audit and a yes per change.
 
 ### Fixed

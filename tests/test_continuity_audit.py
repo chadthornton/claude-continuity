@@ -552,5 +552,15 @@ expect('B1 peer edit counted as activity', ((row(doc or {'rows': []}, 'peerrow')
 expect('B1 checkout untouched', 'peerrow' not in open(f'{wt}/.continuity/feature-status.yml').read(), '')
 shutil.rmtree(root)
 
+# G1. Re-learned markers on a gotcha are counted with their dates, including on a folded gotcha's later lines.
+d = repo(BOARD.split('gotchas:')[0] + 'gotchas:\n'
+         '  - "Test agents drop the PATH prefix (re-learned 2026-10-12) (re-learned 2026-10-19)"\n'
+         '  - >\n    The docs site builds with Hugo 0.121 exactly;\n    newer versions break the theme (re-learned 2026-10-03)\n'
+         '  - "Never re-learned"\n')
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+ents = ((doc or {}).get('gotchas') or {}).get('entries') or []
+expect('G1 markers read per gotcha', [e.get('relearned') for e in ents] == [['2026-10-12', '2026-10-19'], ['2026-10-03'], []], ents)
+shutil.rmtree(d)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

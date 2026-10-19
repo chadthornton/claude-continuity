@@ -37,7 +37,8 @@
 #   areas_readable    false when that list holds what this reader can't follow
 #   decisions[]       path, bytes, lines, over_budget (more than 30 lines)
 #   gotchas           count, lines, cap, over_cap, entries[{line, head,
-#                     last_edited, age_days}] — age is when git last saw that
+#                     last_edited, age_days, relearned[]}] (relearned: the
+#                     dates of its "(re-learned YYYY-MM-DD)" markers) — age is when git last saw that
 #                     line edited, null without history
 #   sessions          source (wt | unavailable), items[{name, branch, verdict,
 #                     state, activity, row, match}] — from wt:status --tsv;
@@ -219,7 +220,7 @@ recs($facts) as $f
       count: ($gotchas | length), lines: $glines, cap: 10, over_cap: ($glines > 10),
       entries: [
         $gotchas[] | ([range((.[1] | tonumber); (.[3] | tonumber) + 1) | $edited[tostring] // empty] | max) as $t
-        | {line: (.[1] | tonumber), head: .[2],
+        | {line: (.[1] | tonumber), head: .[2], relearned: ((.[4] // "") | if . == "" then [] else split(",") end),
            last_edited: (if $t then ($t | strftime("%Y-%m-%d")) else null end),
            age_days: (if $t then ((($now | tonumber) - $t) / 86400 | floor) else null end)}
       ]
