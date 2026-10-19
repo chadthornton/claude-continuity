@@ -198,16 +198,23 @@ r = subprocess.run([APPLY, '--url-only', 'https://claude.ai/artifact/xyz'], cwd=
 expect('F2e url-only refused write reported', r.returncode != 0 and open(f'{d}/.continuity/feature-status.yml').read() == odd, (r.returncode, r.stderr[:200]))
 shutil.rmtree(d)
 
-# N1. Notes the review read and that haven't changed since are listed for clearing; a note edited since,
-#     or written after the review, stays; a seed that read no notes clears none.
+# N1. What each override document becomes once the round is sent: applied corrections and a "keep" go (the
+#     board holds them now; keep answered this review's suggestion), a note this review read and that is
+#     unchanged goes, a note edited or written since stays; a document left empty is deleted (null); one
+#     that would not change is not listed.
 d = repo(BOARD)
 seed_n = dict(SEED, notes_read={'discovery': 'Carrier first', 'quiet': 'Ask Sam', 'gone': 'old row'})
-ov_n = {'discovery': {'size': 'L', 'notes': 'Carrier first'}, 'quiet': {'keep': True, 'area': 'Lists', 'notes': 'Ask Sam, then park'},
-        'lists': {'notes': 'Written after the review'}}
+ov_n = {'discovery': {'size': 'L', 'notes': 'Carrier first', 'at': 'x'},
+        'quiet': {'keep': True, 'area': 'Lists', 'notes': 'Ask Sam, then park', 'at': 'x'},
+        'lists': {'notes': 'Written after the review', 'at': 'x'}}
 rc, summary, raw = apply(d, files(d, seed=seed_n, overrides=ov_n))
-expect('N1 unchanged note the review read is cleared, nothing else', rc == 0 and (summary or {}).get('clear_notes') == ['discovery'], raw[:600])
+expect('N1 read note and corrections go; edited note stays; untouched doc unlisted',
+       rc == 0 and (summary or {}).get('overrides_next') == {'discovery': None, 'quiet': {'notes': 'Ask Sam, then park'}}, raw[:700])
 rc, summary, raw = apply(d, files(d))
-expect('N1 seed without notes_read: nothing to clear', rc == 0 and (summary or {}).get('clear_notes') == [], raw[:600])
+expect('N1 seed without notes_read: corrections still cleared, every doc emptied',
+       rc == 0 and (summary or {}).get('overrides_next') == {'discovery': None, 'quiet': None}, raw[:600])
+rc, summary, raw = apply(d, files(d, seed=SEED, overrides={'lists': {'notes': 'Not yet read', 'at': 'x'}}))
+expect('N1 a note no review read: nothing changes', rc == 0 and (summary or {}).get('overrides_next') == {}, raw[:600])
 rc, summary, raw = apply(d, files(d, seed=seed_n, overrides=ov_n, rnd=dict(ROUND, confirmed_at=None)))
 expect('N1 unconfirmed round: refused, nothing listed', rc == 1 and summary is None, raw[:300])
 shutil.rmtree(d)
