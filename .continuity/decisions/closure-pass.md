@@ -13,6 +13,7 @@ Principles: `docs/principles.md` (9 and 10 govern the review). Prototype and not
 - Facts look plain; Claude's judgments are marked and overridable — Chad couldn't tell who judged "waiting/ready/resting" or how to disagree.
 - Decisions are not answered on the page; a decision session is something to send — "rename the trip" sat beside "where do Plans live on a phone" and neither could be settled from a summary.
 - Confirm sends a basket, nothing pre-added, sized by lanes: live 1, reports back 3, quiet 3, running agents counted (Chad 2026-10-19) — Yes/Hold pre-filled eight panes; trip-planner was at capacity before anything was added.
+- Routine reviews run as one tool-free call over the review pack; full reviews run as an agent (Chad 2026-10-19) — on trip-planner one call took ~65k tokens and 2m48s against the agent's 128k, agreeing on 16 of 18 suggestions and proposals; full reviews are rare and their best findings came from digging.
 - A chore passes all of: no decision pending, nothing a traveller notices, nothing deleted live, no approval named — the reader misfiled two such items as chores.
 - The audit script is the only reader of board storage, and a script never makes a judgment — so storage can change behind it, and every judgment is a reviewer's, marked.
 - The board stores claims, gates and the optional area fields, no `serves`/`for` links, and every new field is optional — no mistake came from a missing link, and this repo's four-row board has no areas.
@@ -25,6 +26,5 @@ Principles: `docs/principles.md` (9 and 10 govern the review). Prototype and not
 
 ## Open
 
-- [decision] Routine review: 160k tokens, 128k with the review pack (2026-10-19); the rest is turns re-reading context. One model call over the pack, or accept?
 - Two readers given the brief placed all 18 trip-planner rows in the same six areas (2026-10-19).
 - [decision] Rename "workstream" across plugin text: after the trip-planner trial.
