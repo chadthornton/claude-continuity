@@ -48,7 +48,7 @@ features:
       - { step: "Page notes clear once a review read them and its round is sent (Chad 2026-10-19); also fixed go deleting unread notes (v0.17.1, eed5e98)", done: true }
       - { step: "Review page: starters (areas not yet started) get no notes box; their key s:<area>:<n> shifts between reviews, so a note would attach to the wrong starter", done: false }
       - { step: "continuity-review-apply: a starter named <row>-2 matches the audit's <row>-N worktree name guess; pick a suffix the guess can't match", done: false }
-      - { step: "Merge PR #1 (cc_landed_sources reads the whole default branch, not -n 500: false CONTINUITY NOT LANDED on trip-planner). Branch worktree-cc-landed-window-1; tests green, merged with 0.17.3, mergeable", done: false }
+      - { step: "cc_landed_sources reads the whole default branch, not -n 500 (false CONTINUITY NOT LANDED on trip-planner) — PR #1, v0.17.4", done: true }
       - { step: "cc_behind (lib/continuity-commits.sh ~line 109) reads Continuity-Sync trailers from `git log HEAD -n 200`: same window bug, stale count only; drop the -n like cc_landed_sources", done: false }
     in_progress: null
 
@@ -96,7 +96,7 @@ features:
 last_session:
   date: 2026-10-19
   feature: closure-pass
-  summary: "Released 0.17.0-0.17.3: review page redesign, notes to the reviewer and cleared after one review, Live refresh after go, the review's own round no longer counted as activity. Trip-planner trial on 0.17.1: 62k tokens, 132 s, no retry."
+  summary: "Released 0.17.4: cc_landed_sources reads every landed copy, not the last 500 commits (PR #1); installed. Earlier today: 0.17.2/0.17.3 and the trip-planner review trial."
   blind_spots:
     - "This repo's own board has never been reviewed: no areas, sizes, last_review or review_url. The next step is a full /continuity-review here."
     - "trip-planner's page (https://claude.ai/artifact/G5PFFv4HWhZzkEgRdzZhWY) is republished by hand from skills/continuity-review/page.html with its <title> set to 'trip-planner Board Review'; a review run only refreshes review/current, never the HTML."
