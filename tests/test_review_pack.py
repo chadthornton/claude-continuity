@@ -60,7 +60,7 @@ DECISIONS = '''# busy
 - [decision] Which carrier?
 '''
 
-d = repo(BOARD, files={'.continuity/decisions/busy.md': DECISIONS, 'docs/bets.md': '# Bets\nLead with the morning-of moment.\n'}, when=NOW - 40 * DAY)
+d = repo(BOARD, files={'.continuity/decisions/busy.md': DECISIONS, '.continuity/handoffs/busy.md': '<handoff><stops>- The jscpd check needs Chad to say ship it</stops></handoff>\n', '.continuity/handoffs/quiet.md': 'quiet handoff text\n', 'docs/bets.md': '# Bets\nLead with the morning-of moment.\n'}, when=NOW - 40 * DAY)
 p = f'{d}/.continuity/feature-status.yml'
 write(p, open(p).read().replace('Busy step one', 'Busy step one, now with detail', 1))
 commit(d, 'busy: add detail to step one', NOW - 2 * DAY)
@@ -82,6 +82,8 @@ quiet = section(out, 'Quiet')
 expect('K1 quiet initiative as one line, steps left out', 'quiet' in quiet and 'Quiet step text' not in out, quiet)
 expect('K1 gotchas in full', 'emails the owner' in section(out, 'Gotchas'), section(out, 'Gotchas'))
 expect('K1 merged PRs with titles', '#7' in section(out, 'Merged') and 'Busy thing lands' in section(out, 'Merged'), section(out, 'Merged'))
+expect('K1 moved initiative carries its handoff', 'needs Chad to say ship it' in moved, moved[:900])
+expect('K1 a quiet initiative handoff stays out', 'quiet handoff text' not in out, '')
 expect('K1 finished steps left out and counted', 'Busy finished' not in moved and '2 finished steps left out' in moved, moved[:800])
 expect('K1 commits list code changes, not board saves', 'feat: real code change' in section(out, 'Commits') and 'busy: add detail' not in section(out, 'Commits'), section(out, 'Commits'))
 expect('K1 commit total stated', '1 code commit in the window' in section(out, 'Commits'), section(out, 'Commits'))

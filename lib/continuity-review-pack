@@ -5,7 +5,8 @@
 #
 # Prints, as markdown sections: a header (mode, window, board source), the
 # audit's JSON, each initiative that moved in the window in full with the Open,
-# Ruled out and Not yet specified sections of its decisions file, the quiet
+# Ruled out and Not yet specified sections of its decisions file and its
+# handoff, the quiet
 # ones as one line each, the gotchas, the commits and the merged pull requests
 # in the window. --full adds the product document (settings.product_doc) and
 # prints every initiative in full.
@@ -89,6 +90,9 @@ full_row() {
   local dec
   dec=$(read_c "decisions/$1.md" | open_sections)
   if [ -n "$dec" ]; then echo; echo "Decisions file, open parts:"; echo; echo "$dec"; fi
+  local ho
+  ho=$(read_c "handoffs/$1.md")   # where approvals and stops live
+  if [ -n "$ho" ]; then echo; echo "Handoff:"; echo; echo "$ho"; fi
   echo
 }
 
