@@ -1,0 +1,158 @@
+#!/bin/bash
+# continuity-review-pack — everything a reviewing Claude reads, in one file.
+#
+#   continuity-review-pack [--full]   run in a project that has .continuity/
+#
+# Prints, as markdown sections: a header (mode, window, board source), the
+# audit's JSON, each initiative that moved in the window in full with the Open,
+# Ruled out and Not yet specified sections of its decisions file and its
+# handoff, the quiet
+# ones as one line each, the gotchas, the commits and the merged pull requests
+# in the window. --full adds the product document (settings.product_doc) and
+# prints every initiative in full.
+#
+# "Moved" is a fact from the audit: a board edit or a cited PR merged in the
+# window, or a session working on it. No model call, changes nothing; reads the
+# same board as continuity-state (origin when this checkout is stale).
+# CONTINUITY_AUDIT_GH / CONTINUITY_AUDIT_WT pass through to the audit (tests).
+#
+# Exit codes: 0 ok · 3 not usable here (no .continuity/, no jq)
+set -u
+LIB="$(cd "$(dirname "$0")" && pwd)"
+. "$LIB/continuity-board.sh" || { echo "SKIP: lib/continuity-board.sh missing" >&2; exit 3; }
+command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-review-pack needs jq" >&2; exit 3; }
+GH="${CONTINUITY_AUDIT_GH:-gh}"
+MODE=routine
+[ "${1:-}" = "--full" ] && MODE=full
+
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then TOP=$(git rev-parse --show-toplevel); else TOP=$PWD; fi
+cd "$TOP" || exit 3
+tmp=$(mktemp -d) || exit 3
+trap 'rm -rf "$tmp"' EXIT
+
+"$LIB/continuity-audit" > "$tmp/audit.json" || exit $?
+SRC=$(jq -r '.board.source' "$tmp/audit.json")
+since=$(jq -r '.review.since' "$tmp/audit.json")
+since_epoch=$(jq -r '.review.since_epoch' "$tmp/audit.json")   # a bare date to git means that day at this time of day
+
+# read_c <path under .continuity> — from the same source as the audit's board.
+read_c() {
+  if [ "$SRC" != "local" ]; then git show "$SRC:.continuity/$1" 2>/dev/null
+  else cat ".continuity/$1" 2>/dev/null
+  fi
+}
+# The Open, Ruled out and Not yet specified sections of a decisions file.
+open_sections() {
+  awk '/^## /{on = ($0 ~ /^## (Open|Ruled out|Not yet specified)/)} on { if ($0 ~ /^## /) $0 = "####" substr($0, 3); print }'
+}
+
+# Routine mode leaves finished steps out of a row (full mode keeps them as the
+# evidence for progress). A list item is finished when it says done: true outside
+# a quoted string; the count goes to $tmp/dropped.
+drop_done() {
+  awk -v out="$tmp/dropped" '
+    function flush() { if (buf != "") { t = buf; gsub(/"([^"\\]|\\.)*"/, "", t)
+        if (t ~ /(^|[ {,\n])done:[ ]*true([ ,}\n]|$)/) n++; else printf "%s", buf }
+      buf = ""; II = -1 }
+    { match($0, /^ */); ind = RLENGTH }
+    $0 ~ /^ *- / { flush(); buf = $0 "\n"; II = ind; next }
+    II >= 0 && ind > II { buf = buf $0 "\n"; next }
+    { flush(); print }
+    END { flush(); print n + 0 > out }'
+}
+
+read_c feature-status.yml > "$tmp/board.yml"
+REV=HEAD; [ "$SRC" != "local" ] && REV="$SRC"
+
+echo "# Review pack"
+echo
+echo "mode: $MODE"
+echo "since: $since"
+echo "board: $SRC"
+echo "generated: $(date -u +%Y-%m-%dT%H:%MZ)"
+echo
+echo "## Audit"
+echo
+jq -c 'del(.gotchas.entries)' "$tmp/audit.json"   # the gotchas are printed in full below
+echo
+
+moved=$(jq -r '
+  ([.sessions.items[]? | select(.running) | .row // empty]) as $live
+  | .rows[] | select(.activity.board_edits > 0 or (.activity.prs_merged | length) > 0 or (.name as $n | $live | index($n)))
+  | .name' "$tmp/audit.json")
+
+full_row() {
+  echo "### $1"
+  echo
+  echo '```yaml'
+  if [ "$MODE" = full ]; then cb_row "$1" < "$tmp/board.yml"; else cb_row "$1" < "$tmp/board.yml" | drop_done; fi
+  echo '```'
+  if [ "$MODE" != full ] && [ "$(cat "$tmp/dropped" 2>/dev/null || echo 0)" -gt 0 ]; then echo "($(cat "$tmp/dropped") finished steps left out)"; fi
+  local dec
+  dec=$(read_c "decisions/$1.md" | open_sections)
+  if [ -n "$dec" ]; then echo; echo "Decisions file, open parts:"; echo; echo "$dec"; fi
+  local ho
+  ho=$(read_c "handoffs/$1.md")   # where approvals and stops live
+  if [ -n "$ho" ]; then echo; echo "Handoff:"; echo; echo "$ho"; fi
+  echo
+}
+
+echo "## Moved in the window"
+echo
+if [ -n "$moved" ]; then
+  while IFS= read -r n; do full_row "$n"; done <<< "$moved"
+else
+  echo "(none)"; echo
+fi
+
+echo "## Quiet in the window"
+echo
+jq -r --arg moved "$moved" '
+  ($moved | split("\n")) as $m
+  | .rows[] | select(.name as $n | $m | index($n) | not)
+  | "- \(.name) (\(.section)): \(.status // "no status"), \(if .open == null then "steps unreadable" else "\(.open) open, \(.done) done" end)\(if .gated | length > 0 then ", \(.gated | length) gated" else "" end)"' "$tmp/audit.json"
+echo
+if [ "$MODE" = full ]; then
+  quiet=$(jq -r --arg moved "$moved" '($moved | split("\n")) as $m | .rows[] | select(.name as $n | $m | index($n) | not) | .name' "$tmp/audit.json")
+  if [ -n "$quiet" ]; then
+    echo "Quiet initiatives in full (full mode):"; echo
+    while IFS= read -r n; do full_row "$n"; done <<< "$quiet"
+  fi
+fi
+
+echo "## Gotchas"
+echo
+cb_gotchas < "$tmp/board.yml"
+echo
+
+echo "## Commits in the window"
+echo
+# Code changes only (board saves are already each row's board edits), the newest
+# 80; the merged pull requests below say what landed.
+git log --no-merges --since="@$since_epoch" --format='%h %cs %s' "$REV" -- . ':(exclude).continuity' > "$tmp/commits" 2>/dev/null || : > "$tmp/commits"
+nc=$(wc -l < "$tmp/commits" | tr -d ' ')
+echo "$nc code commit$([ "$nc" = 1 ] || echo s) in the window$([ "$nc" -gt 80 ] && echo ", the newest 80 shown"):"
+echo
+head -80 "$tmp/commits"
+echo
+
+echo "## Merged pull requests in the window"
+echo
+if "$GH" pr list --state merged --search "merged:>=$since" --limit 300 --json number,title,mergedAt > "$tmp/prs.json" 2>/dev/null \
+   && jq -e 'type == "array"' "$tmp/prs.json" >/dev/null 2>&1; then
+  jq -r --arg since "$since" '.[] | select(.mergedAt[:10] >= $since) | "- #\(.number) \(.mergedAt[:10]) \(.title)"' "$tmp/prs.json"
+else
+  echo "(unavailable: no working gh)"
+fi
+echo
+
+if [ "$MODE" = full ]; then
+  echo "## Product document"
+  echo
+  doc=$(jq -r '.product_doc.path // empty' "$tmp/audit.json")
+  if [ -z "$doc" ]; then echo "(the board names none: settings.product_doc is not set)"
+  elif [ -f "$doc" ]; then echo "From $doc:"; echo; cat "$doc"
+  else echo "(missing: the board names $doc, but that file does not exist)"
+  fi
+  echo
+fi

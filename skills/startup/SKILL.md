@@ -197,6 +197,12 @@ If there is a `workflows` section in the YAML, render a second table:
   └────────────────────┴─────────────┴────────────────────────┘
 ```
 
+**Review offer.** In this flow and the Cold Return flow only — never when a session is waiting to resume, a mandate is offered, or this checkout owns work — end the dashboard with one line when a board review is due:
+
+> A board review is due (last one {settings.last_review}). Say "review the board" to run it.
+
+It is due when `settings.last_review` is more than 7 days before today, or when there is no `last_review` and the board has 8 or more features (count `features:` rows only). With no `last_review`, the parenthesis reads `(none yet)`. Otherwise print nothing about reviews.
+
 Workflows differ from features: they don't have a build lifecycle (exploring → building → polishing). They are repeatable operations. When a user picks a workflow, load its `steps` list as the work guide and its `artifacts` as relevant file paths.
 
 #### Step 4: Ask What To Work On

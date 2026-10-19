@@ -1,12 +1,12 @@
 ---
 name: continuity-prune
-description: Propose prunes for continuity state that has gone stale or over-budget. Lists candidates with reasons; you confirm before anything is removed. Use when decision files have grown past ~30 lines, when features are parked/absorbed, or when the board feels cluttered.
+description: Trim decisions files that have grown past ~30 lines. Lists candidates with reasons; you confirm before anything is removed. Use when a decisions file is over budget. For the board itself (stale features, finished steps, gotchas) use /continuity-review.
 allowed-tools: Read, Write, Edit, Bash, Glob, AskUserQuestion
 ---
 
 # Continuity Prune
 
-Keep continuity state small and true. This command finds decisions, features, and notes that have likely outlived their usefulness and **proposes** removing them. It never deletes on its own — you confirm first. Git history is the archive, so anything removed stays recoverable via `git log`.
+Keep decisions files small and true. This command finds decided items, dead ends and open items that have likely outlived their usefulness and **proposes** removing them. The board review (`/continuity-review`) took over the rest of this command's old job; this part stays until the review can trim decisions files too. It never deletes on its own — you confirm first. Git history is the archive, so anything removed stays recoverable via `git log`.
 
 ## Prerequisites
 
@@ -16,22 +16,14 @@ The project must have a `.continuity/` directory with `feature-status.yml`. If n
 
 ### Step 1: Scan for Prune Candidates
 
-Read `.continuity/feature-status.yml` and every file in `.continuity/decisions/`. Flag candidates in these categories — each candidate needs a one-line *reason*, not just a flag:
+Read every file in `.continuity/decisions/`. Flag candidates in these categories — each candidate needs a one-line *reason*, not just a flag:
 
 **Over-budget decision files** (the primary target):
 - Any `decisions/{feature}.md` over ~30 lines. Within it, flag specific `## Decided` items that are old and fully absorbed into the codebase (the code now *is* the decision — the rationale no longer needs restating).
 - `## Ruled out` entries whose dead-end code path no longer exists.
 - Resolved-looking `## Open` items that were never cleared.
 
-**Stale feature-status entries:**
-- Features `parked` or `superseded` for a long time with no recent `last_session` activity — candidates to drop or archive-by-removal.
-- Completed `next_steps` (`done: true`) under a feature that has since shipped — the progress trail has served its purpose.
-- `gotchas` entries that are no longer true, or that duplicate a decision now in the code.
-- `blind_spots` are session-scoped and self-replace — don't propose pruning them here.
-
-**Cross-checks:**
-- A `## Decided` item duplicated by a `gotcha` or by CLAUDE.md — keep one home, propose removing the copy.
-- `blocked_by` edges pointing at a feature that's already `polishing`/`parked`/`superseded` — the block is dead and should be removed.
+**Everything else on the board** (stale features, finished steps, gotchas, dead `blocked_by` edges) is the board review's now: don't propose it here. If you notice any, say in one line at the end: "For the board itself, run `/continuity-review`."
 
 Use judgment. If nothing is stale and every file is under budget, say so and stop — a clean state needs no pruning.
 
@@ -47,10 +39,6 @@ decisions/canvas-types.md (41 lines → ~26):
       reason: shipped 3 sessions ago, now obvious from CanvasGrid.swift
   − [Ruled out] "Tried Core Animation groups — janky on resize"
       reason: the resize path was rewritten; this dead end can't recur
-
-feature-status.yml:
-  − feature "legacy-importer" (parked since Feb, no activity)
-  − gotcha "staging DB needs VPN" — reason: staging moved to public endpoint
 
 Nothing to prune in: decisions/sidebar.md, decisions/chat-layout.md
 ```
@@ -71,7 +59,6 @@ For approved removals, edit the files. Then print a short summary:
 ```
 Pruned:
   decisions/canvas-types.md — 41 → 26 lines (−2 decided, −1 ruled out)
-  feature-status.yml — dropped legacy-importer, 1 stale gotcha
 
 Recover anything via: git log -p .continuity/
 ```

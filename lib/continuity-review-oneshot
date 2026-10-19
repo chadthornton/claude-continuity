@@ -1,0 +1,59 @@
+#!/bin/bash
+# continuity-review-oneshot — a routine review as one tool-free model call.
+#
+#   continuity-review-oneshot <pack.md> <audit.json> <out.json>
+#
+# Sends the reviewer brief (skills/continuity-review/reviewer.md) as the system
+# prompt and the review pack as the message, with no tools, no settings, no
+# plugins and no MCP servers, so the reader works from the pack alone. The
+# answer is checked with continuity-review-check; a failing answer gets one
+# retry carrying the checker's complaints. Token use goes to stderr.
+# CONTINUITY_REVIEW_CLAUDE names the claude binary (tests).
+#
+# Exit codes: 0 a checked review is in <out.json> · 1 claude failed, or the
+# answer still fails the checker (the last answer is kept in <out.json>) ·
+# 3 not usable here
+set -u
+LIB="$(cd "$(dirname "$0")" && pwd)"
+BRIEF="$LIB/../skills/continuity-review/reviewer.md"
+CLAUDE="${CONTINUITY_REVIEW_CLAUDE:-claude}"
+command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-review-oneshot needs jq" >&2; exit 3; }
+command -v "$CLAUDE" >/dev/null 2>&1 || { echo "SKIP: no claude binary to call" >&2; exit 3; }
+[ $# -eq 3 ] && [ -r "$1" ] && [ -r "$2" ] && [ -r "$BRIEF" ] || { echo "usage: continuity-review-oneshot <pack.md> <audit.json> <out.json>" >&2; exit 3; }
+PACK=$1 AUDIT=$2 OUT=$3
+tmp=$(mktemp -d) || exit 3
+trap 'rm -rf "$tmp"' EXIT
+
+NOTE='# This run
+
+You have no tools. The review pack below is everything you have; it is already
+built. Reply with the JSON object only: no prose, no code fence. The caller runs
+continuity-review-check on it.
+'
+
+# call <message file> — one model call; the answer text goes to $tmp/answer.
+call() {
+  "$CLAUDE" -p --tools "" --setting-sources "" --strict-mcp-config --no-session-persistence \
+    --output-format json --system-prompt "$(cat "$BRIEF")" < "$1" > "$tmp/raw.json" 2> "$tmp/err.txt"
+  local res
+  res=$(jq -c 'if type == "array" then (map(select(.type == "result")) | .[0]) else . end' "$tmp/raw.json" 2>/dev/null)
+  if [ -z "$res" ] || [ "$res" = null ]; then echo "claude gave no result: $(head -c 300 "$tmp/err.txt")" >&2; return 1; fi
+  jq -r '.usage | "tokens: \((.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)) in, \(.output_tokens // 0) out"' <<< "$res" >&2
+  if [ "$(jq -r '.is_error // false' <<< "$res")" = true ]; then echo "claude reported an error: $(jq -r '.result // ""' <<< "$res")" >&2; return 1; fi
+  # The answer, without a code fence if one slipped in.
+  jq -r '.result // ""' <<< "$res" | awk 'NR == 1 && /^```/ {next} /^```[ ]*$/ {next} {print}' > "$tmp/answer"
+}
+
+{ printf '%s\n' "$NOTE"; cat "$PACK"; } > "$tmp/msg"
+call "$tmp/msg" || exit 1
+cp "$tmp/answer" "$OUT"
+if problems=$("$LIB/continuity-review-check" "$OUT" "$AUDIT"); then echo "OK" >&2; exit 0; fi
+
+{ printf '%s\n' "$NOTE"; cat "$PACK"
+  printf '\n# Your previous answer\n\n'; cat "$tmp/answer"
+  printf '\n\n# What continuity-review-check reported\n\n%s\n\nReturn the whole corrected JSON object.\n' "$problems"; } > "$tmp/retry"
+call "$tmp/retry" || exit 1
+cp "$tmp/answer" "$OUT"
+if problems=$("$LIB/continuity-review-check" "$OUT" "$AUDIT"); then echo "OK after one retry" >&2; exit 0; fi
+printf 'The review still fails continuity-review-check after one retry:\n%s\n' "$problems" >&2
+exit 1

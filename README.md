@@ -41,7 +41,8 @@ There's no shortage of context-management approaches: CLAUDE.md, AGENTS.md, memo
 | `/checkpoint` | Whenever | Saves progress mid-session without interrupting work |
 | `/away` | Leaving mid-task | Sends this session's task to a Claude Code cloud session so it keeps going with the lid closed |
 | `/back` | Returning | Stops the cloud session at a clean point and fast-forwards its commits into this worktree |
-| `/continuity-prune` | When state bloats | Proposes stale/over-budget items to remove — you confirm |
+| `/continuity-review` | When choosing where effort goes next | Reviews the board on a page grouped by area: what moved, what's live, what could start. You add sessions to a round within capacity limits, confirm, and say "go" |
+| `/continuity-prune` | When a decisions file passes ~30 lines | Proposes what to trim from decisions files; the board itself (close, merge, park) is `/continuity-review`'s |
 | `/continuity-init` | New project | Scaffolds `.continuity/` |
 | `/continuity-recover` | After a crash | Reconstructs state from the session transcript |
 
@@ -123,6 +124,22 @@ A row can also be a **milestone** (optional): it owns claims, not work. A claim 
     claims:
       - { text: "Both mails arrive and neither is in spam", status: true, evidence: "Real send 2026-10-10" }
       - { text: "Pasted places make a list", status: false, waits_on: "the import fix" }
+```
+
+A board can also name its **areas** (optional): lasting parts of the product that never close, each with the open question at its head. A feature then says which area it belongs to, its size (S, M, L or XL), and its aspiration, the end state it is after. `inferred` lists which of those fields Claude guessed; a field you confirm comes off the list.
+
+```yaml
+areas:
+  - name: Place knowledge
+    what: What the product knows and says about each place.
+    open_question: "What is a place's description for?"
+
+features:
+  enrichment:
+    area: Place knowledge
+    size: XL
+    aspiration: "Every place on the map is real, open and well described."
+    inferred: [size, aspiration]
 ```
 
 Decision files capture the *why*, not just the *what*:

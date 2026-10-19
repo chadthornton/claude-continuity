@@ -1,0 +1,76 @@
+#!/bin/bash
+# continuity-review-check — is a reviewer's output well formed?
+#
+#   continuity-review-check <review.json> [<audit.json>]
+#
+# The format is described in skills/continuity-review/reviewer.md. With the
+# audit (continuity-audit's JSON for the same board), initiatives must name
+# rows the board has, and no chore may be a step the board gates.
+#
+# Prints one problem per line and exits 1, or prints "OK" and exits 0.
+# Exit 3: not usable here (no jq, unreadable file).
+set -u
+command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-review-check needs jq" >&2; exit 3; }
+[ -r "${1:-}" ] || { echo "usage: continuity-review-check <review.json> [<audit.json>]" >&2; exit 3; }
+jq -e . "$1" >/dev/null 2>&1 || { echo "review: not valid JSON"; exit 1; }
+audit='null'
+if [ -n "${2:-}" ]; then
+  jq -e . "$2" >/dev/null 2>&1 || { echo "audit: not valid JSON"; exit 1; }
+  audit=$(cat "$2")
+fi
+
+# A chore must not need anyone's yes or remove anything live. Deleting code is
+# fine; deleting, dropping or removing data, tables, backups or anything on a
+# server is not.
+CHORE_BAD='ship it|approv|go-ahead|sign-off|\b(delete|drop|remove|purge|truncate|wipe)\b[^;]*\b(servers?|prod|live|backups?|databases?|tables?|buckets?|records?|rows?|user data)\b(?![.][a-z])|migrat|rm -rf|on prod|production|deploy'
+
+problems=$(jq -r --argjson audit "$audit" --arg bad "$CHORE_BAD" '
+def str: type == "string" and length > 0;
+def date: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$");
+def need($o; $k; $where): if ($o[$k] | str) then empty else "\($where): \($k) missing or empty" end;
+. as $r
+| ($r.mode == "full") as $full
+| ([$r.areas[]?.name]) as $anames
+| ($audit // {} | [.rows[]?.name]) as $rows
+| ($audit // {} | [.rows[]?.gated[]?.step | ascii_downcase]) as $gated
+| [
+    (if ($r.mode | IN("routine", "full")) then empty else "mode: must be routine or full" end),
+    need($r; "read"; "review"),
+    (if ($r.since | date) then empty else "since: not a YYYY-MM-DD date" end),
+    (if ($r.initiatives | type) == "array" then empty else "initiatives: missing" end),
+    (if ($r.chore_groups | type) == "array" then empty else "chore_groups: missing" end),
+    (if $full and (($r.areas | type) != "array" or ($r.areas | length) == 0) then "areas: full mode needs areas" else empty end),
+    ($r.areas[]? | . as $a | "area \(.name // "?")" as $w
+      | need($a; "name"; $w), need($a; "what"; $w), need($a; "open_question"; $w),
+        (.starters[]? | . as $s | "\($w) starter \(.title // "?")" as $sw
+          | need($s; "title"; $sw), need($s; "aspiration"; $sw), need($s; "brief"; $sw),
+            (if (.size | IN("S", "M", "L")) then empty else "\($sw): size must be S, M or L" end),
+            (if (.first_session | IN("think", "decision")) then empty else "\($sw): first_session must be think or decision" end))),
+    ($r.initiatives[]? | . as $i | "initiative \(.row // "?")" as $w
+      | need($i; "row"; $w), need($i; "line"; $w),
+        (if $audit != null and ($rows | index($i.row)) == null then "\($w): no row \($i.row) on the board" else empty end),
+        (if (.recent | type) == "array" then empty else "\($w): recent missing" end),
+        (.recent[]? | if (.what | str) and (.when | date) then empty else "\($w): a recent item needs what and a YYYY-MM-DD when" end),
+        (if .proposal == null then empty
+         elif (.proposal.kind | IN("decision", "think", "continue")) and (.proposal.title | str) and (.proposal.brief | str) and (.proposal.comes_back | str) then empty
+         else "\($w): proposal needs kind (decision, think, continue), title, brief and comes_back" end),
+        (if (.suggest.action | IN("keep", "park", "close", "merge")) and (.suggest.reason | str) then empty
+         else "\($w): suggest needs an action (keep, park, close, merge) and a reason" end),
+        (if .suggest.action == "merge" and (.suggest.into | str | not) then "\($w): merge needs into" else empty end),
+        (if $full then
+           need($i; "area"; $w), need($i; "aspiration"; $w), need($i; "progress"; $w), need($i; "progress_basis"; $w),
+           (if (.size | IN("S", "M", "L", "XL")) then empty else "\($w): size must be S, M, L or XL" end),
+           (if ($anames | index($i.area)) == null then "\($w): area \($i.area) is not in areas" else empty end)
+         else empty end)),
+    ($r.chore_groups[]? | . as $g | "chore group \(.title // "?")" as $w
+      | need($g; "title"; $w), need($g; "code_area"; $w), need($g; "why_together"; $w),
+        (if (.items | type) == "array" and (.items | length) > 0 then empty else "\($w): items missing" end),
+        (.items[]? | . as $c
+          | (if ($c.row | str) and ($c.title | str) and ($c.step | str) then empty else "\($w): an item needs row, title and step" end),
+            (if (("\($c.title) \($c.step)" | ascii_downcase) | test($bad)) then "\($w): chore \"\($c.title)\" needs a yes or removes something live; it is not a chore" else empty end),
+            (if ($gated | index($c.step | ascii_downcase)) != null then "\($w): chore \"\($c.title)\" is a step the board gated" else empty end)))
+  ]
+| .[]' "$1")
+
+if [ -n "$problems" ]; then printf '%s\n' "$problems"; exit 1; fi
+echo OK

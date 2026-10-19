@@ -114,6 +114,8 @@ Examples of good retrospect items:
 - **Durable project-wide fact** ("the test harness needs `CI=1` set") → the top-level `gotchas` list (see below). It stays true across many sessions, so it shouldn't evaporate on the next wrap-up.
 - **Everything else** (this-session assumptions, preferences, easy-to-miss context) → `last_session.blind_spots`, a list in `feature-status.yml`. These are session-scoped and naturally replaced on the next wrap-up.
 
+**Check the existing gotchas first.** For anything this session learned the hard way (a retry, a dead end, a rediscovery), look for a gotcha that already warned about it. If one did, the warning didn't reach this session: don't add another; append ` (re-learned {today})` to the end of that gotcha's text, inside its quotes. The board review counts these markers: a gotcha re-learned often needs a better home (in the code, or a check), and one never re-learned in months may be safe to drop.
+
 **Promote to `gotchas` sparingly.** Only a fact that will still bite three sessions from now belongs there. Keep the list under ~10 lines and prune any entry that's no longer true — it loads on cold return and competes for the startup budget. When in doubt, it's a blind spot, not a gotcha.
 
 ### Step 5: Write Handoff Block (if mid-stream)
@@ -271,6 +273,14 @@ Blind spots (7/10):
   • The WebKit content sizing workaround only applies to the split view — full-screen mode uses a different layout path
   • User prefers Finder-style navigation feel, not IDE-style
 ```
+
+**Review offer.** If this session changed 3 or more features in `feature-status.yml` (status, steps marked done or added, a feature added) or added a feature, end the summary with one line:
+
+```
+Several features changed. Say "review the board" to see where effort goes next.
+```
+
+Otherwise print nothing about reviews.
 
 **Phase gate note:** If the worked-on feature has a `phase` field and higher-phase features exist in the YAML, append a phase status line:
 

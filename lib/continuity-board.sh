@@ -14,13 +14,23 @@
 #   cb_row <name>     one row's block, verbatim. Exit 1 when there is no such row
 #   cb_names          row names, one per line
 #   cb_gotchas        the top-level `gotchas:` block, verbatim
+#   cb_blocks         one line per row: section, name, the row block with its
+#                     lines joined by \001 (to compare two versions of a board)
 #   cb_facts          tab-separated records, one per line:
 #                       row     section name status kind serves open done readable has_next_steps has_steps claims_readable
 #                       gated   section name step gate  (open steps that carry a gate)
 #                       claim   section name status text evidence waits_on   (status: true|false|unknown)
 #                       pr      section name number     (each "PR #N" a row mentions)
-#                       gotcha  first-line head last-line
+#                       gotcha  first-line head last-line relearned
+#                               (relearned: comma list of the dates in its
+#                               "(re-learned YYYY-MM-DD)" markers, any line)
 #                       gotchalines count
+#                       rowx    section name area size aspiration inferred owner   (inferred: comma list)
+#                       area    name what open_question   (each item of a top-level `areas:` list)
+#                       areasok 1|0   (present only when there is an `areas:` block)
+#                       lastreview date   (settings.last_review, when set)
+#                       productdoc path   (settings.product_doc, when set)
+#                       reviewurl url     (settings.review_url, when set)
 #
 # A step is done when it carries `done: true` outside a quoted string. A step or
 # claim list this reader can't follow (an unclosed quote, a `>` or `|` block, an
@@ -85,6 +95,11 @@ function step_close(   t, st, g, ev, w, isdone) {
   gsub(/:[ ]*\047([^\047]|\047\047)*\047/, ": ", t)
   gsub(/"([^"\\]|\\.)*"/, "", t)
   if (t ~ /"/ || t ~ /:[ ]*[>|][+-]?[0-9]*[ ]*(\001|$)/) { bad = 1; return }
+  if (counting == "areas") {
+    st = take("name"); ev = take("what"); w = take("open_question")
+    if (mode == "facts" && !bad) print "area\t" flat(st) "\t" flat(ev) "\t" flat(w)
+    return
+  }
   if (counting == "claims") {
     st = take("text"); ev = take("evidence"); w = take("waits_on"); g = tolower(take("status"))
     if (g != "true" && g != "false") g = "unknown"
@@ -114,6 +129,7 @@ function steps_feed(line) {
 }
 function steps_end() {
   if (counting == "") return
+  if (counting == "areas") { step_close(); if (mode == "facts") print "areasok\t" (bad ? 0 : 1); counting = ""; return }
   step_close()
   if (bad) out(pad(F) counting ": unreadable")
   else if (counting == "claims") out(pad(F) "claims: " (ctrue + cfalse + cother) " (" ctrue " true, " cfalse " false, " cother " unknown)")
@@ -128,9 +144,17 @@ function steps_end() {
 function gotcha_close() {
   if (ghead != "") {
     gl[++gn] = "  - " clip(ghead, 100)
-    if (mode == "facts") print "gotcha\t" gline "\t" flat(clip(ghead, 100)) "\t" gend
+    if (mode == "facts") print "gotcha\t" gline "\t" flat(clip(ghead, 100)) "\t" gend "\t" relearned(gtext)
   }
-  ghead = ""; gwant = 0
+  ghead = ""; gwant = 0; gtext = ""
+}
+function relearned(s,   dates, d) {
+  dates = ""
+  while (match(s, /\(re-learned [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)/)) {
+    d = substr(s, RSTART + 12, 10); dates = dates (dates == "" ? "" : ",") d
+    s = substr(s, RSTART + RLENGTH)
+  }
+  return dates
 }
 function gotchas_end(   i) {
   if (top != "gotchas" || ginline) return
@@ -144,9 +168,12 @@ function row_end() {
   steps_end()
   if (inrow && mode == "facts")
     print "row\t" top "\t" flat(rname) "\t" flat(rstatus) "\t" flat(rkind) "\t" flat(rserves) "\t" ropen "\t" rdone "\t" (rbad ? 0 : 1) "\t" hasns "\t" hassteps "\t" (rcbad ? 0 : 1)
+  if (inrow && mode == "facts")
+    print "rowx\t" top "\t" flat(rname) "\t" flat(rarea) "\t" flat(rsize) "\t" flat(rasp) "\t" flat(rinf) "\t" flat(rowner)
   inrow = 0
 }
 function top_end() { row_end(); gotchas_end() }
+function block_flush() { if (bname != "") print btop "\t" flat(bname) "\t" flat(btext); bname = "" }
 function prs(line,   s, n) {
   s = line
   while (match(s, /PRs? #[0-9]+/)) {
@@ -170,16 +197,23 @@ BEGIN { top = ""; R = -1; F = -1; found = 0; walk = (mode == "summary" || mode =
       ginline = ($0 !~ /^gotchas:[ ]*(#.*)?$/)
       if (ginline) out($0)
     } else out($0)
+    if (mode == "facts" && top == "areas") steps_begin($0, "areas")
   }
   if (mode == "gotchas" && top == "gotchas") print
+  if (mode == "blocks") block_flush()
   next
 }
 
 mode == "gotchas" { if (top == "gotchas") print; next }
 
-mode == "names" || mode == "row" {
+mode == "names" || mode == "row" || mode == "blocks" {
   if (!rows) next
   if (!blank && R < 0) R = ind($0)
+  if (mode == "blocks") {
+    if (!blank && ind($0) == R && body($0) !~ /^-/) { block_flush(); btop = top; bname = keyof($0); btext = $0 }
+    else if (bname != "") btext = btext "\001" $0
+    next
+  }
   if (!blank && ind($0) == R && body($0) !~ /^-/) {
     taking = 0
     if (mode == "names") print keyof($0)
@@ -197,16 +231,22 @@ top == "gotchas" {
   if (G < 0) G = ind($0)
   if (ind($0) == G && body($0) ~ /^-( |$)/) {
     gotcha_close()
-    gline = NR; gend = NR
+    gline = NR; gend = NR; gtext = $0
     ghead = body($0); sub(/^-[ ]*/, "", ghead)
     if (ghead ~ /^[>|][+-]?[0-9]*$/ || ghead == "") { ghead = ""; gwant = 1 }
     else if (ghead ~ /^"/) ghead = val("x: " ghead)
   } else {
-    gend = NR
+    gend = NR; gtext = gtext " " $0
     if (gwant) { ghead = body($0); gwant = 0 }
   }
   next
 }
+
+top == "settings" && mode == "facts" && keyof($0) == "last_review" { print "lastreview\t" val($0) }
+top == "settings" && mode == "facts" && keyof($0) == "product_doc" { print "productdoc\t" val($0) }
+top == "settings" && mode == "facts" && keyof($0) == "review_url" { print "reviewurl\t" val($0) }
+
+top == "areas" && mode == "facts" { if (!blank) steps_feed($0); next }
 
 !rows { out($0); next }
 
@@ -216,7 +256,7 @@ blank { next }
   if (R < 0) R = ind($0)
   if (ind($0) == R && body($0) !~ /^-/) {            # a row starts
     row_end(); inrow = 1; F = -1; skipping = 0
-    rname = keyof($0); rstatus = ""; rkind = ""; rserves = ""; ropen = 0; rdone = 0; rbad = 0; rcbad = 0; hasns = 0; hassteps = 0
+    rname = keyof($0); rstatus = ""; rkind = ""; rserves = ""; ropen = 0; rdone = 0; rbad = 0; rcbad = 0; hasns = 0; hassteps = 0; rarea = ""; rsize = ""; rasp = ""; rinf = ""; rowner = ""
     out(clip($0, cut))
     next
   }
@@ -229,6 +269,11 @@ blank { next }
     if (k == "status") rstatus = val($0)
     else if (k == "kind") rkind = val($0)
     else if (k == "serves") rserves = val($0)
+    else if (k == "area") rarea = val($0)
+    else if (k == "owner") rowner = val($0)
+    else if (k == "size") rsize = val($0)
+    else if (k == "aspiration") { rasp = val($0); if (rasp ~ /^[>|][+-]?[0-9]*$/) rasp = "" }
+    else if (k == "inferred") { rinf = val($0); gsub(/^\[|\]$|[ ]/, "", rinf) }
     if ((k == "summary" || k == "artifacts") && top != "workflows") skipping = 1
     else if (k == "next_steps" || k == "steps" || k == "claims") { steps_begin($0, k); if (k == "steps") hassteps = 1; else if (k == "next_steps") hasns = 1 }
     else out(clip($0, cut))
@@ -241,6 +286,7 @@ blank { next }
 
 END {
   if (walk) top_end()
+  if (mode == "blocks") block_flush()
   if (mode == "row") exit(found ? 0 : 1)
 }
 '
@@ -250,3 +296,124 @@ cb_row()     { LC_ALL=C awk -v mode=row -v want="$1" "$CB_AWK"; }
 cb_names()   { LC_ALL=C awk -v mode=names "$CB_AWK"; }
 cb_gotchas() { LC_ALL=C awk -v mode=gotchas "$CB_AWK"; }
 cb_facts()   { LC_ALL=C awk -v mode=facts "$CB_AWK"; }
+cb_blocks()  { LC_ALL=C awk -v mode=blocks "$CB_AWK"; }
+
+# --- writers: each reads the board on stdin and prints the edited board.
+# Values are YAML scalars the caller has already quoted (a JSON string is a
+# valid double-quoted YAML scalar). Lines this does not touch pass through
+# byte for byte.
+#
+#   cb_set_setting <key> <value>       set settings.<key>, creating settings: if absent;
+#                                      a flow-style `settings: { … }` is rewritten as a
+#                                      block. Exit 2, nothing usable printed, when the
+#                                      flow holds what this can't follow (a nested map)
+#   cb_set_field <row> <key> <value>   set a field on a features/workflows row; an
+#                                      empty value removes the field
+#   cb_set_areas <file>                replace the top-level areas: block with the
+#                                      file (a whole block, `areas:` line included),
+#                                      wherever it sits; insert it before features:
+#                                      when there is none
+#   cb_add_row <section> <file>        append a row to features: or workflows:; the
+#                                      file holds `name:` then its fields, unindented
+CB_W_AWK='
+function ind(s) { match(s, /^ */); return RLENGTH }
+function keyof(s) { sub(/^ +/, "", s); sub(/:.*/, "", s); return s }
+function pad(n,   s) { s = ""; while (n-- > 0) s = s " "; return s }
+function emit_file(prefix_header, prefix_body,   line, first) {
+  first = 1
+  while ((getline line < file) > 0) {
+    if (op == "areas") print line
+    else { print (first ? prefix_header : prefix_body) line; first = 0 }
+  }
+  close(file)
+}
+# flow_items(s): read a one-line flow map ("{ a: 1, b: \"x, y\" }", a trailing
+# comment allowed) into FK[i] / FV[i]; returns the count, -1 when it holds what
+# this does not follow (nesting, an unclosed quote, text after the brace).
+function flow_items(s,   i, c, q, cur, n, rest) {
+  sub(/^[ ]*/, "", s)
+  if (substr(s, 1, 1) != "{") return -1
+  n = 0; q = ""; cur = ""
+  for (i = 2; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (q != "") { cur = cur c; if (c == q && !(q == "\"" && substr(s, i - 1, 1) == "\\")) q = ""; continue }
+    if (c == "\"" || c == "\047") { q = c; cur = cur c; continue }
+    if (c == "{" || c == "[") return -1
+    if (c == "," || c == "}") {
+      if (cur ~ /[^ ]/ && !flow_kv(cur, ++n)) return -1
+      cur = ""
+      if (c == "}") { rest = substr(s, i + 1); sub(/^[ ]*(#.*)?$/, "", rest); return (rest == "" ? n : -1) }
+      continue
+    }
+    cur = cur c
+  }
+  return -1
+}
+function flow_kv(item, n) {
+  gsub(/^ +| +$/, "", item)
+  if (!match(item, /^[A-Za-z0-9_.-]+[ ]*:/)) return 0
+  FK[n] = substr(item, 1, RLENGTH); sub(/[ ]*:$/, "", FK[n])
+  FV[n] = substr(item, RLENGTH + 1); sub(/^ +/, "", FV[n])
+  return 1
+}
+BEGIN { top = ""; done = 0; R = -1; inrow = 0; F = -1; skipping = 0; cont = 0; value = ENVIRON["CB_VALUE"] }
+{ sub(/\r$/, ""); blank = ($0 ~ /^[ ]*(#.*)?$/) }
+!blank && /^[^ #-]/ {
+  # leaving a block: finish what was pending there
+  if (op == "setting" && top == "settings" && !done) { print "  " key ": " value; done = 1 }
+  if (op == "field" && inrow && !done) { if (value != "") print pad(F < 0 ? R + 2 : F) key ": " value; done = 1 }
+  if (op == "addrow" && top == section && !done) { emit_file(pad(R < 0 ? 2 : R), pad(R < 0 ? 4 : R + 2)); done = 1 }
+  inrow = 0; skipping = 0
+  top = keyof($0); R = -1
+  if (op == "areas" && top == "areas" && !done) { emit_file(); print ""; done = 1; skipping = 1; next }
+  if (op == "areas" && top == "features" && !done && !has_areas) { emit_file(); print ""; done = 1 }
+  if (op == "setting" && top == "settings" && !done && $0 !~ /^settings:[ ]*(#.*)?$/) {   # flow style: rewrite as a block
+    fv = $0; sub(/^settings:/, "", fv); n = flow_items(fv)
+    if (n < 0) { print "cb_set_setting: settings: is in a form this can not edit; write it as a block, one key per line" > "/dev/stderr"; failed = 1; exit 2 }
+    print "settings:"
+    for (i = 1; i <= n; i++) if (FK[i] == key) { print "  " key ": " value; done = 1 } else print "  " FK[i] ": " FV[i]
+    if (!done) print "  " key ": " value
+    done = 1; seen_settings = 1; next
+  }
+  if (op == "setting" && top != "settings" && !done && !seen_settings && !has_settings) { print "settings:"; print "  " key ": " value; print ""; done = 1 }
+  if (top == "settings") seen_settings = 1
+  print; next
+}
+skipping && op == "areas" && top == "areas" { next }
+op == "setting" && top == "settings" && !blank && ind($0) == 2 && keyof($0) == key && !done { print "  " key ": " value; done = 1; next }
+op == "field" && (top == "features" || top == "workflows") && !blank {
+  if (cont && ind($0) > CF) next                     # the replaced field went on over several lines
+  cont = 0
+  if (R < 0) R = ind($0)
+  if (ind($0) == R && $0 !~ /^ *-/) {
+    if (inrow && !done) { if (value != "") print pad(F < 0 ? R + 2 : F) key ": " value; done = 1 }
+    inrow = (keyof($0) == row && !done); F = -1; print; next
+  }
+  if (inrow) {
+    if (F < 0) F = ind($0)
+    if (ind($0) == F && $0 !~ /^ *-/ && keyof($0) == key) { if (value != "") print pad(F) key ": " value; done = 1; inrow = 0; cont = 1; CF = F; next }
+  }
+}
+op == "addrow" && top == section && !blank && R < 0 { R = ind($0) }
+{ print }
+END {
+  if (failed) exit 2
+  if (op == "setting" && !done) { if (top == "settings") print "  " key ": " value; else { print "settings:"; print "  " key ": " value } }
+  if (op == "field" && inrow && !done && value != "") print pad(F < 0 ? R + 2 : F) key ": " value
+  if (op == "areas" && !done) emit_file()
+  if (op == "addrow" && !done) { if (top != section) print section ":"; emit_file(pad(R < 0 ? 2 : R), pad(R < 0 ? 4 : R + 2)) }
+}
+'
+# Values travel in the environment: awk -v would turn a quoted value's \" into a bare quote.
+# The board is read twice: first for which top-level blocks exist further down.
+_cb_write() {
+  local t rc
+  t=$(mktemp) || return 3
+  cat > "$t"
+  LC_ALL=C awk -v has_settings="$(grep -c '^settings:' "$t")" -v has_areas="$(grep -c '^areas:' "$t")" "$@" "$CB_W_AWK" "$t"; rc=$?
+  rm -f "$t"; return $rc
+}
+cb_set_setting() { CB_VALUE="$2" _cb_write -v op=setting -v key="$1"; }
+cb_set_field()   { CB_VALUE="$3" _cb_write -v op=field -v row="$1" -v key="$2"; }
+cb_set_areas()   { _cb_write -v op=areas -v file="$1"; }
+cb_add_row()     { _cb_write -v op=addrow -v section="$1" -v file="$2"; }

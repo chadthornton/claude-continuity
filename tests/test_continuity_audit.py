@@ -13,8 +13,8 @@ git, write, expect, ENV, fails = ns['git'], ns['write'], ns['expect'], ns['ENV']
 
 def audit(cwd, **env):
     """Run the audit; returns (exit code, parsed JSON or None, raw output)."""
-    e = dict(ENV); e.update(env)
-    r = subprocess.run([AUDIT], cwd=cwd, env=e, capture_output=True, text=True)
+    e = dict(ENV); e.setdefault('CONTINUITY_AUDIT_WT', 'false'); e.update(env)   # the real wt:status takes seconds
+    r = subprocess.run([AUDIT], cwd=cwd, env=e, capture_output=True, text=True, stdin=subprocess.DEVNULL)
     try:
         return r.returncode, json.loads(r.stdout), r.stdout + r.stderr
     except ValueError:
@@ -397,6 +397,263 @@ shutil.rmtree(d)
 d = repo(BOARD.replace('\n', '\r\n'))
 rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
 expect('R12 CRLF board: same rows and counts', [r['name'] for r in (doc or {'rows': []})['rows']][:2] == ['shipping', 'finished'] and (row(doc or {'rows': []}, 'shipping') or {}).get('open') == 3, raw[:300])
+shutil.rmtree(d)
+
+AREAS = '''areas:
+  - name: Place knowledge
+    what: What Jauntfully knows about each place.
+    open_question: "What is a place's description for?"
+  - name: Empty area
+    what: Nothing lives here yet.
+    open_question: Who would use it?
+features:
+  enrichment:
+    status: polishing
+    area: Place knowledge
+    size: XL
+    aspiration: "Every place is real, open and well described."
+    inferred: [size, aspiration]
+    next_steps:
+      - { step: "one", done: false }
+  stray:
+    status: building
+    area: Nowhere
+    size: XXL
+    next_steps: []
+'''
+
+# AR1. Areas are listed with how many initiatives name each; an area nobody names is empty.
+d = repo(AREAS)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('AR1 areas listed in order, counted, empty one marked', (doc or {}).get('areas') == [
+    {'name': 'Place knowledge', 'what': 'What Jauntfully knows about each place.', 'open_question': "What is a place's description for?", 'initiatives': 1, 'empty': False},
+    {'name': 'Empty area', 'what': 'Nothing lives here yet.', 'open_question': 'Who would use it?', 'initiatives': 0, 'empty': True}], raw[:600])
+expect('AR1 areas readable', (doc or {}).get('areas_readable') is True, raw[:300])
+shutil.rmtree(d)
+
+# AR2. An initiative reports its area, size, aspiration and which fields Claude inferred;
+#      a missing area or a size outside S/M/L/XL is reported and the value kept.
+d = repo(AREAS)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+e = row(doc or {'rows': []}, 'enrichment') or {}
+s = row(doc or {'rows': []}, 'stray') or {}
+expect('AR2 fields read', [e.get(k) for k in ('area', 'size', 'aspiration', 'inferred')] ==
+       ['Place knowledge', 'XL', 'Every place is real, open and well described.', ['size', 'aspiration']], e)
+expect('AR2 a good initiative has no area flags', not {'unknown_area', 'unknown_size'} & set(e.get('flags', [])), e.get('flags'))
+expect('AR2 unknown area and size flagged, values kept', {'unknown_area', 'unknown_size'} <= set(s.get('flags', [])) and s.get('size') == 'XXL' and s.get('area') == 'Nowhere', s)
+shutil.rmtree(d)
+
+# AR4. Malformed areas: an unnamed area is listed with a null name; a block-scalar field makes the list unreadable;
+#      a folded aspiration is reported as null rather than ">"; nothing crashes.
+d = repo(AREAS.replace('  - name: Empty area\n', '  - what_only: x\n    name: ""\n'))
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('AR4 unnamed area listed with a null name', rc == 0 and any(a.get('name') is None for a in (doc or {}).get('areas', [])), raw[:600])
+shutil.rmtree(d)
+d = repo(AREAS.replace("    what: What Jauntfully knows about each place.\n", "    what: >\n      Folded text.\n")
+              .replace('    aspiration: "Every place is real, open and well described."\n', '    aspiration: >\n      Folded aspiration.\n'))
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('AR4 block scalar in areas: exit 0, not readable', rc == 0 and (doc or {}).get('areas_readable') is False, raw[:600])
+expect('AR4 folded aspiration is null, not ">"', (row(doc or {'rows': []}, 'enrichment') or {}).get('aspiration') is None, raw[:600])
+shutil.rmtree(d)
+
+# AR3. A board without areas: an empty list, null fields, no new flags.
+d = repo(BOARD)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+r = row(doc or {'rows': []}, 'shipping') or {}
+expect('AR3 no areas: empty list, readable', (doc or {}).get('areas') == [] and (doc or {}).get('areas_readable') is True, raw[:300])
+expect('AR3 no areas: row fields null, nothing inferred', [r.get(k) for k in ('area', 'size', 'aspiration', 'inferred')] == [None, None, None, []], r)
+shutil.rmtree(d)
+
+DAY = 86400
+NOW = int(time.time())
+
+def edit_row(d, old, new, when):
+    p = f'{d}/.continuity/feature-status.yml'
+    write(p, open(p).read().replace(old, new, 1))
+    commit(d, 'edit', when)
+
+# W1. With no last review, the window is the last 14 days; board edits inside it count per row.
+d = repo(BOARD, when=NOW - 40 * DAY)
+edit_row(d, '"Nothing left"', '"Nothing left at all"', NOW - 30 * DAY)        # finished: outside the window
+edit_row(d, '"Pick a carrier"', '"Pick a carrier (UPS)"', NOW - 5 * DAY)    # shipping: inside
+edit_row(d, '"Only step"', '"Only step, done"', NOW - 2 * DAY)              # finished: inside
+edit_row(d, '"Pick a carrier (UPS)"', '"Pick a carrier (DHL)"', NOW - 1 * DAY)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+w = (doc or {}).get('review') or {}
+expect('W1 no last review: 14-day window', w.get('last_review') is None and w.get('since') == time.strftime('%Y-%m-%d', time.gmtime(NOW - 14 * DAY)), w)
+act = lambda n: (row(doc or {'rows': []}, n) or {}).get('activity') or {}
+expect('W1 edits inside the window counted per row', act('shipping').get('board_edits') == 2 and act('finished').get('board_edits') == 1, (act('shipping'), act('finished')))
+expect('W1 edit dates listed', act('shipping').get('dates') == sorted(time.strftime('%Y-%m-%d', time.gmtime(NOW - k * DAY)) for k in (5, 1)), act('shipping'))
+expect('W1 untouched row: zero', act('resting').get('board_edits') == 0, act('resting'))
+
+# W2. A last review in settings sets the window.
+edit_row(d, '  push_to_default_branch: true\n', '  push_to_default_branch: true\n  last_review: ' + time.strftime('%Y-%m-%d', time.gmtime(NOW - 2 * DAY - 3600)) + '\n', NOW - 1 * DAY + 60)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('W2 last review read', ((doc or {}).get('review') or {}).get('last_review') == time.strftime('%Y-%m-%d', time.gmtime(NOW - 2 * DAY - 3600)), (doc or {}).get('review'))
+expect('W2 only edits since the review count', act('shipping').get('board_edits') == 1 and act('finished').get('board_edits') == 1, (act('shipping'), act('finished')))
+shutil.rmtree(d)
+
+# W3. Cited PRs that merged inside the window count; older or unmerged ones don't.
+d = repo(BOARD, when=NOW - 40 * DAY)
+m = lambda k: time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(NOW - k * DAY))
+ghdir, gh = fake_gh("echo '[{\"number\":12,\"state\":\"MERGED\",\"mergedAt\":\"%s\"},{\"number\":14,\"state\":\"MERGED\",\"mergedAt\":\"%s\"}]'" % (m(2), m(30)))
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH=gh, CONTINUITY_AUDIT_WT='false')
+expect('W3 one cited PR merged in the window', act('shipping').get('prs_merged') == [12], act('shipping'))
+expect('W3 a row citing only an old PR: none', act('misfiled').get('prs_merged') == [12] and act('finished').get('prs_merged') == [], (act('misfiled'), act('finished')))
+shutil.rmtree(d); shutil.rmtree(ghdir)
+
+# W4. Sessions come from wt:status. An agent the board names as a row's owner is on that row;
+#     a worktree merely named like a row is a name match; other sessions are listed unmatched.
+d = repo(BOARD.replace('  shipping:\n    status: building\n', '  shipping:\n    status: building\n    owner: ship-1\n', 1))
+wtdir, wt = fake_gh(r"""printf 'repo\tpath\tname\tverdict\tstate\tuncommitted\tunpushed\tbranch\tlock_pid\tactivity\n'
+printf '/r\t/r/w/ship-1\tship-1\trunning\trunning\t0\t0\tship-1-pr\t\tworking\n'
+printf '/r\t/r/w/finished-2\tfinished-2\trunning\trunning\t0\t0\tfinished-2\t\tidle (replied)\n'
+printf '/r\t/r/w/random-x\trandom-x\tfinished\tidle\t0\t0\tx\t\t\n'""")
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT=wt)
+s = (doc or {}).get('sessions') or {}
+got = {i.get('name'): (i.get('row'), i.get('match'), i.get('verdict'), i.get('activity')) for i in s.get('items', [])}
+expect('W4 sessions read from wt:status', s.get('source') == 'wt' and len(got) == 3, s)
+expect('W4 owner match', got.get('ship-1') == ('shipping', 'owner', 'running', 'working'), got)
+expect('W4 name match', got.get('finished-2') == ('finished', 'name', 'running', 'idle (replied)'), got)
+expect('W4 unmatched session listed', got.get('random-x') == (None, None, 'finished', None), got)
+
+# W5. Without wt:status the audit says so and carries on.
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='/no/such/wt-status')
+expect('W5 no wt:status: unavailable, exit 0', rc == 0 and (doc or {}).get('sessions') == {'source': 'unavailable', 'items': []}, raw[:400])
+shutil.rmtree(d); shutil.rmtree(wtdir)
+
+# P1. settings.product_doc is reported with whether the file exists; unset is null.
+d = repo(BOARD.replace('  push_to_default_branch: true\n', '  push_to_default_branch: true\n  product_doc: docs/principles.md\n  review_url: "https://claude.ai/artifact/abc"\n', 1), files={'docs/principles.md': '# Bets\n'})
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('P1b review_url reported', (doc or {}).get('review_url') == 'https://claude.ai/artifact/abc', (doc or {}).get('review_url'))
+expect('P1 product doc found', (doc or {}).get('product_doc') == {'path': 'docs/principles.md', 'exists': True}, (doc or {}).get('product_doc'))
+os.remove(f'{d}/docs/principles.md')
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('P1 moved or deleted doc reported missing', (doc or {}).get('product_doc') == {'path': 'docs/principles.md', 'exists': False}, (doc or {}).get('product_doc'))
+shutil.rmtree(d)
+d = repo(BOARD)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('P1 unset: null', 'product_doc' in (doc or {}) and doc['product_doc'] is None, raw[:300])
+shutil.rmtree(d)
+
+# B1. A stale checkout: another session landed continuity on origin. The audit reads origin's
+#     board, as continuity-state does, and says so; a current checkout reads its own.
+setup = ns['setup']
+root, remote, clone, wt = setup()
+rc, doc, raw = audit(wt, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('B1 current checkout: board local', ((doc or {}).get('board') or {}).get('source') == 'local', raw[:300])
+write(f'{clone}/.continuity/feature-status.yml', ns['STATUS'].format(push='true').replace('features:\n', 'features:\n  peerrow:\n    status: building\n', 1))
+git(clone, 'add', '-A'); git(clone, 'commit', '-qm', 'peer board'); git(clone, 'push', '-q', 'origin', 'master')
+git(wt, 'fetch', '-q', 'origin')
+rc, doc, raw = audit(wt, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('B1 stale checkout: board from origin', ((doc or {}).get('board') or {}).get('source') == 'origin/master', raw[:300])
+expect('B1 origin rows read', row(doc or {'rows': []}, 'peerrow') is not None, [r['name'] for r in (doc or {'rows': []})['rows']])
+expect('B1 peer edit counted as activity', ((row(doc or {'rows': []}, 'peerrow') or {}).get('activity') or {}).get('board_edits') == 1, row(doc or {'rows': []}, 'peerrow'))
+expect('B1 checkout untouched', 'peerrow' not in open(f'{wt}/.continuity/feature-status.yml').read(), '')
+shutil.rmtree(root)
+
+# G1. Re-learned markers on a gotcha are counted with their dates, including on a folded gotcha's later lines.
+d = repo(BOARD.split('gotchas:')[0] + 'gotchas:\n'
+         '  - "Test agents drop the PATH prefix (re-learned 2026-10-12) (re-learned 2026-10-19)"\n'
+         '  - >\n    The docs site builds with Hugo 0.121 exactly;\n    newer versions break the theme (re-learned 2026-10-03)\n'
+         '  - "Never re-learned"\n')
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+ents = ((doc or {}).get('gotchas') or {}).get('entries') or []
+expect('G1 markers read per gotcha', [e.get('relearned') for e in ents] == [['2026-10-12', '2026-10-19'], ['2026-10-03'], []], ents)
+shutil.rmtree(d)
+
+# --- Review findings, 2026-10-19.
+
+# F1. A row name that looks like a token's tail stays whole and keeps its edits; it is not a
+#     secret. A real token in a step is still found and blanked.
+SK = 'sk-' + 'Q' * 24
+d = repo('features:\n  task-queue-retry-and-backoff:\n    status: building\n    next_steps:\n'
+         f'      - {{ step: "Rotate {SK} soon", done: false, gate: approval }}\n', when=NOW - 40 * DAY)
+edit_row(d, 'status: building', 'status: polishing', NOW - 2 * DAY)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+r = row(doc or {'rows': []}, 'task-queue-retry-and-backoff')
+expect('F1 row keeps its exact name', r is not None, [x['name'] for x in (doc or {'rows': []})['rows']])
+expect('F1 row keeps its edits', ((r or {}).get('activity') or {}).get('board_edits') == 1, (r or {}).get('activity'))
+sec = [(x['line'], x['kind']) for x in (doc or {}).get('secrets', [])]
+expect('F1 the row name is not a secret; the token is', sec == [(5, 'api-key')], sec)
+expect('F1 token never printed', SK not in raw and 'redacted' in raw, raw[:300])
+shutil.rmtree(d)
+
+# F4. The commit that creates the board counts as an edit of each row it creates,
+#     as a root commit and as a later one.
+d = repo(BOARD, when=NOW - 1 * DAY)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F4 board created in a root commit: rows edited', ((row(doc or {'rows': []}, 'shipping') or {}).get('activity') or {}).get('board_edits') == 1, raw[:300])
+shutil.rmtree(d)
+d = tempfile.mkdtemp()
+git(d, 'init', '-q', '-b', 'master'); write(f'{d}/README', 'x\n'); commit(d, 'readme', NOW - 3 * DAY)
+write(f'{d}/.continuity/feature-status.yml', BOARD); commit(d, 'board', NOW - 1 * DAY)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F4 board created after a first commit: rows edited', ((row(doc or {'rows': []}, 'shipping') or {}).get('activity') or {}).get('board_edits') == 1, raw[:300])
+shutil.rmtree(d)
+
+# F6. One edit counts once: a continuity-save landed copy and its source, or a sync and the
+#     peer commit it copied, are one edit when both are in history. A sync whose peer
+#     commit is not in history is the only record of that edit and counts.
+root, remote, clone, wt = ns['setup']()
+B6 = 'settings:\n  push_to_default_branch: true\nfeatures:\n  alpha:\n    status: building\n  gamma:\n    status: planned\n    next: one\n    summary: two\n  beta:\n    status: building\n'
+write(f'{wt}/.continuity/feature-status.yml', B6); ns['save'](wt)
+git(clone, 'pull', '-q', '--ff-only')
+p = f'{clone}/.continuity/feature-status.yml'; write(p, open(p).read().replace('  beta:\n    status: building', '  beta:\n    status: polishing'))
+git(clone, 'commit', '-qam', 'peer edits beta'); git(clone, 'push', '-q', 'origin', 'master')
+git(wt, 'fetch', '-q', 'origin')
+p = f'{wt}/.continuity/feature-status.yml'; write(p, open(p).read().replace('  alpha:\n    status: building', '  alpha:\n    status: polishing'))
+rc6, out6 = ns['save'](wt)
+eds = lambda doc: {n: ((row(doc or {'rows': []}, n) or {}).get('activity') or {}).get('board_edits') for n in ('alpha', 'beta')}
+rc, doc, raw = audit(wt, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F6 branch only: own edits and the synced peer edit count once', eds(doc) == {'alpha': 2, 'beta': 2}, (eds(doc), out6))
+# Merge once (boards equal: git follows one side), then both sides edit again, so the
+# next merge's board differs from both parents and git walks both.
+git(wt, 'merge', '-q', '--no-edit', 'origin/master')
+p =f'{wt}/.continuity/feature-status.yml'; write(p, open(p).read().replace('  alpha:\n    status: polishing', '  alpha:\n    status: parked'))
+git(wt, 'commit', '-qam', 'local alpha edit')
+git(clone, 'pull', '-q', '--ff-only')
+p = f'{clone}/.continuity/feature-status.yml'; write(p, open(p).read().replace('  beta:\n    status: polishing', '  beta:\n    status: parked'))
+git(clone, 'commit', '-qam', 'peer edits beta again'); git(clone, 'push', '-q', 'origin', 'master')
+git(wt, 'fetch', '-q', 'origin')
+git(wt, 'merge', '-q', '--no-edit', 'origin/master')
+rc, doc, raw = audit(wt, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F6 after merging the default branch: still once each', eds(doc) == {'alpha': 3, 'beta': 3}, eds(doc))
+shutil.rmtree(root)
+
+# F3. Each session says whether it is running now: wt:status state "running", nothing else.
+d = repo(BOARD)
+wtdir, wt = fake_gh(r"""printf 'repo\tpath\tname\tverdict\tstate\tuncommitted\tunpushed\tbranch\tlock_pid\tactivity\n'
+printf '/r\t/r/w/shipping-1\tshipping-1\trunning\trunning\t0\t0\tb\t\tworking\n'
+printf '/r\t/r/w/finished-2\tfinished-2\tsafe\tended\t0\t0\tb\t\tidle (replied)\n'
+printf '/r\t/r/w/resting-1\tresting-1\torphan\t\t0\t0\t\t\t\n'""")
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT=wt)
+got = {i.get('name'): i.get('running') for i in ((doc or {}).get('sessions') or {}).get('items', [])}
+expect('F3 running only when state is running', got == {'shipping-1': True, 'finished-2': False, 'resting-1': False}, got)
+shutil.rmtree(d); shutil.rmtree(wtdir)
+
+# F6b. After the branch merges into the default branch, its edit still counts once
+#      (git's default log would drop the source and the echo rule the copy).
+root, remote, clone, wt = ns['setup']()
+write(f'{wt}/.continuity/feature-status.yml', B6); ns['save'](wt)
+write(f'{wt}/app.js', 'v2\n'); git(wt, 'commit', '-qam', 'code')
+git(clone, 'pull', '-q', '--ff-only'); git(clone, 'merge', '-q', '--no-ff', '--no-edit', 'feature')
+rc, doc, raw = audit(clone, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F6b merged branch: edit counted once on the default branch', eds(doc) == {'alpha': 1, 'beta': 1}, eds(doc))
+shutil.rmtree(root)
+
+# F3b. An orphan worktree is never running, whatever its state says.
+d = repo(BOARD)
+wtdir, wt = fake_gh(r"""printf 'repo\tpath\tname\tverdict\tstate\tuncommitted\tunpushed\tbranch\tlock_pid\tactivity\n'
+printf '/r\t/r/w/shipping-1\tshipping-1\torphan\trunning\t0\t0\tb\t\tworking\n'""")
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT=wt)
+expect('F3b orphan not running', [i.get('running') for i in ((doc or {}).get('sessions') or {}).get('items', [])] == [False], raw[:300])
+shutil.rmtree(d); shutil.rmtree(wtdir)
+
+# F1b. Settings values and serves are blanked like other free text.
+d = repo('settings:\n  review_url: "https://x.test/?k=' + SK + '"\nfeatures:\n  a:\n    status: building\n    serves: "' + SK + '"\n')
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F1b token in settings or serves never printed', rc == 0 and SK not in raw, raw[:300])
 shutil.rmtree(d)
 
 print('\nFAILED:', fails if fails else 'none')

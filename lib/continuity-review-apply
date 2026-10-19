@@ -1,0 +1,114 @@
+#!/bin/bash
+# continuity-review-apply — write a confirmed review round onto the board.
+#
+#   continuity-review-apply <seed.json> <overrides.json> <round.json> <today> [--review-url <url>]
+#   continuity-review-apply --url-only <url>     record the page URL alone
+#
+# seed.json is the page's review/current, overrides.json its overrides as one
+# object keyed by row, round.json its round/current. Edits the working copy of
+# .continuity/feature-status.yml and nothing else; the caller saves it with
+# continuity-save. Applying the same round twice changes nothing more.
+#
+#   settings.last_review = <today>; settings.review_url when given
+#   full review: the areas list; per initiative, each area/size/aspiration the
+#     reviewer judged is written and listed in `inferred`
+#   your corrections (overrides) are written and leave `inferred`
+#   each starter in the round becomes an initiative (status exploring), named
+#     from its label; a name another row holds gets -2, -3…, a label with no
+#     letters becomes "starter". A row already made from that starter (same
+#     name pattern, same `next`) is reused, so applying twice adds nothing
+#
+# Sessions, handoffs and board changes (close, merge, park) are not written
+# here: those take judgment and a yes, and the review skill does them.
+# Prints {"added_rows": [...], "fields": n, "starters": {"<item key>": "<row>"}}
+# on stdout; starters names the row each starter item is on, new or reused.
+#
+# Exit codes: 0 ok · 1 the round is not confirmed, was already applied, or
+# belongs to another review · 3 not usable here
+set -u
+LIB="$(cd "$(dirname "$0")" && pwd)"
+. "$LIB/continuity-board.sh" || { echo "SKIP: lib/continuity-board.sh missing" >&2; exit 3; }
+command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-review-apply needs jq" >&2; exit 3; }
+if [ "${1:-}" = "--url-only" ] && [ -n "${2:-}" ]; then
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then cd "$(git rev-parse --show-toplevel)" || exit 3; fi
+  [ -f .continuity/feature-status.yml ] || { echo "SKIP: no .continuity/feature-status.yml here" >&2; exit 3; }
+  t=$(mktemp) || exit 3
+  if cb_set_setting review_url "$(jq -n --arg s "$2" '$s')" < .continuity/feature-status.yml > "$t"; then
+    cat "$t" > .continuity/feature-status.yml; rm -f "$t"; exit 0   # cat keeps the file's mode
+  fi
+  rm -f "$t"; echo "not recorded: could not edit the board's settings" >&2; exit 1
+fi
+[ $# -ge 4 ] || { echo "usage: continuity-review-apply <seed.json> <overrides.json> <round.json> <today> [--review-url <url>]" >&2; exit 3; }
+SEED=$1 OV=$2 ROUND=$3 TODAY=$4; shift 4
+URL=""
+[ "${1:-}" = "--review-url" ] && URL="${2:-}"
+
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then cd "$(git rev-parse --show-toplevel)" || exit 3; fi
+B=.continuity/feature-status.yml
+[ -f "$B" ] || { echo "SKIP: no $B here" >&2; exit 3; }
+
+jq -e '.confirmed_at' "$ROUND" >/dev/null 2>&1 || { echo "not applied: the round is not confirmed" >&2; exit 1; }
+# applied_at is set once the round's sessions start: applying it again would start them twice.
+jq -e '.applied_at' "$ROUND" >/dev/null 2>&1 && { echo "not applied: this round was already applied at $(jq -r .applied_at "$ROUND")" >&2; exit 1; }
+[ "$(jq -r .generated "$ROUND")" = "$(jq -r .generated "$SEED")" ] || { echo "not applied: the round belongs to another review" >&2; exit 1; }
+
+tmp=$(mktemp -d) || exit 3
+trap 'rm -rf "$tmp"' EXIT
+cp "$B" "$tmp/b"
+# A writer that refuses (a board shape it can't edit) stops the whole apply: the board is left as it was.
+edit() { "$@" < "$tmp/b" > "$tmp/b.new" && mv "$tmp/b.new" "$tmp/b" || { echo "not applied: could not edit the board ($1)" >&2; exit 1; }; }
+q() { jq -n --arg s "$1" '$s'; }   # a string as a double-quoted YAML scalar
+
+edit cb_set_setting last_review "$TODAY"
+[ -n "$URL" ] && edit cb_set_setting review_url "$(q "$URL")"
+
+if [ "$(jq -r .mode "$SEED")" = full ]; then
+  jq -r '"areas:", (.areas[] | "  - name: \(.name | tojson)", "    what: \(.what | tojson)", "    open_question: \(.open_question | tojson)")' "$SEED" > "$tmp/areas"
+  edit cb_set_areas "$tmp/areas"
+fi
+
+cb_names < "$tmp/b" > "$tmp/names"
+fields=0
+# One line per field to write: row<TAB>key<TAB>yaml value ("" removes the field).
+jq -r --slurpfile ov "$OV" --arg mode "$(jq -r .mode "$SEED")" '
+  .initiatives[] | . as $i | ($ov[0][.row] // {}) as $o
+  | [ ("area", "size", "aspiration") as $f
+      | if $o[$f] != null and $o[$f] != "" then {f: $f, v: $o[$f], inf: false}
+        elif ($i.judged | index($f)) and $i[$f] != null then {f: $f, v: $i[$f], inf: true}
+        else empty end ] as $w
+  | ($w | map(select($mode == "full" or .inf == false))) as $write
+  | ($w | map(select(.inf) | .f)) as $inferred
+  | ($write[] | [$i.row, .f, (if .f == "size" then .v else (.v | tojson) end)] | @tsv),
+    (if ($w | length) > 0 then [$i.row, "inferred", (if ($inferred | length) > 0 then "[" + ($inferred | join(", ")) + "]" else "" end)] | @tsv else empty end)
+' "$SEED" > "$tmp/fields"
+while IFS=$'\t' read -r r k v; do
+  grep -qxF "$r" "$tmp/names" || continue
+  edit cb_set_field "$r" "$k" "$v"; fields=$((fields + 1))
+done < "$tmp/fields"
+
+added=()
+: > "$tmp/starters"
+while IFS= read -r s; do
+  base=$(jq -r '.label | ascii_downcase | gsub("[^a-z0-9]+"; "-") | gsub("^-|-$"; "")' <<< "$s")
+  [ -n "$base" ] || base=starter
+  want="next: $(jq -c '.brief' <<< "$s")"
+  n=1 new=1
+  while :; do
+    name=$base; [ $n -gt 1 ] && name="$base-$n"
+    grep -qxF "$name" "$tmp/names" || break
+    if cb_row "$name" < "$tmp/b" | sed 's/^ *//' | grep -qxF -- "$want"; then new=0; break; fi   # made from this starter before
+    n=$((n + 1))
+  done
+  jq -r --arg row "$name" '[.key, $row] | @tsv' <<< "$s" >> "$tmp/starters"
+  [ $new = 1 ] || continue
+  jq -r --arg name "$name" '"\($name):",
+    "status: exploring", "area: \(.area | tojson)", "size: \(.size)", "aspiration: \(.aspiration | tojson)",
+    "inferred: [size, aspiration]", "next: \(.brief | tojson)", "next_steps: []"' <<< "$s" > "$tmp/row"
+  edit cb_add_row features "$tmp/row"; added+=("$name"); echo "$name" >> "$tmp/names"
+done < <(jq -c '.items[] | select(.key | startswith("s:"))' "$ROUND")
+
+if ! cmp -s "$tmp/b" "$B"; then cp "$tmp/b" "$B"; fi
+jq -n --argjson fields "$fields" --rawfile st "$tmp/starters" \
+  '{added_rows: $ARGS.positional, fields: $fields,
+    starters: ($st | split("\n") | map(select(length > 0) | split("\t") | {key: .[0], value: .[1]}) | from_entries)}' \
+  --args ${added[@]+"${added[@]}"}
