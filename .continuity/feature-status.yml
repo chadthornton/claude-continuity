@@ -7,7 +7,7 @@ features:
     status: building
     mandate: 2026-10-11
     owner: closure-pass-1
-    next: "Board review as a planning table: step 6 of 13, areas and sizes on the board. Owned by agent closure-pass-1"
+    next: "Board review as a planning table: step 7 of 13, audit facts for the review. Owned by agent closure-pass-1"
     summary: >
       Keep a board small and true, and let Chad direct it from a page. Since 2026-10-14 the page
       is a planning table: one table grouped by lasting areas (initiatives under them, sizes,
@@ -20,7 +20,7 @@ features:
       - { step: "lib/continuity-audit: JSON facts, the only reader of board storage", done: true }
       - { step: "Optional milestone rows with claims", done: true }
       - { step: "Record the planning-table design: principles 9 and 10, decisions pruned and rewritten, these steps", done: true }
-      - { step: "Optional areas on the board: an `areas:` list (name, what, open question) and `area`, `size`, `aspiration` on an initiative; continuity-board.sh reads them, the audit reports them, startup's summary shows them; boards without them unchanged. Failing scenario tests first" , done: false }
+      - { step: "Optional areas on the board: an `areas:` list (name, what, open question) and `area`, `size`, `aspiration` on an initiative; continuity-board.sh reads them, the audit reports them, startup's summary shows them; boards without them unchanged. Failing scenario tests first" , done: true }
       - { step: "Audit facts for the review: activity per initiative since the last review, sessions running now (wt:status where available), last review date. No model call. Scenario tests incl. a machine without wt:status", done: false }
       - { step: "Reviewer brief and output schema as plugin files: routine mode (audit plus changes since last review) and full mode (areas, sizes, aspirations). Hard chore rule. Schema test; one routine run on trip-planner, read-only, measuring tokens; two-reader check on areas", done: false }
       - { step: "The page in the plugin: area table, Live, wind-down, chores, checkout with lanes (live 1, back 3, quiet 3). Per-project publish, URL on the board; overrides and the confirmed round in the page store. Proof: write as a viewer and read back, then Chad clicks Add and Confirm once", done: false }
@@ -28,7 +28,7 @@ features:
       - { step: "One-line offers from /startup (no session waiting, or board past a size) and wrap-up (several initiatives changed). Skill scenario fixture", done: false }
       - { step: "Wrap-up marks a gotcha that got re-learned. Skill scenario fixture", done: false }
       - { step: "Trial on trip-planner through its own session: a real round with tokens measured; whether it adopts areas on its board is its call", done: false }
-    in_progress: "Step 6 (areas on the board) on branch closure-pass-1-step-5"
+    in_progress: "Step 7 (audit facts) on branch closure-pass-1-step-5"
 
   relay-and-spawn:
     status: polishing
