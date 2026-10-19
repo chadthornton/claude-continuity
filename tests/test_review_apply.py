@@ -198,5 +198,19 @@ r = subprocess.run([APPLY, '--url-only', 'https://claude.ai/artifact/xyz'], cwd=
 expect('F2e url-only refused write reported', r.returncode != 0 and open(f'{d}/.continuity/feature-status.yml').read() == odd, (r.returncode, r.stderr[:200]))
 shutil.rmtree(d)
 
+# N1. Notes the review read and that haven't changed since are listed for clearing; a note edited since,
+#     or written after the review, stays; a seed that read no notes clears none.
+d = repo(BOARD)
+seed_n = dict(SEED, notes_read={'discovery': 'Carrier first', 'quiet': 'Ask Sam', 'gone': 'old row'})
+ov_n = {'discovery': {'size': 'L', 'notes': 'Carrier first'}, 'quiet': {'keep': True, 'area': 'Lists', 'notes': 'Ask Sam, then park'},
+        'lists': {'notes': 'Written after the review'}}
+rc, summary, raw = apply(d, files(d, seed=seed_n, overrides=ov_n))
+expect('N1 unchanged note the review read is cleared, nothing else', rc == 0 and (summary or {}).get('clear_notes') == ['discovery'], raw[:600])
+rc, summary, raw = apply(d, files(d))
+expect('N1 seed without notes_read: nothing to clear', rc == 0 and (summary or {}).get('clear_notes') == [], raw[:600])
+rc, summary, raw = apply(d, files(d, seed=seed_n, overrides=ov_n, rnd=dict(ROUND, confirmed_at=None)))
+expect('N1 unconfirmed round: refused, nothing listed', rc == 1 and summary is None, raw[:300])
+shutil.rmtree(d)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)
