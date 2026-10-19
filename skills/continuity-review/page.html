@@ -1,0 +1,344 @@
+<title>Board Review</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: Live strip, then one table grouped by area (each opens with its open question), then wind-down and chores, and a checkout bar pinned to the bottom. Facts are plain; Claude's judgments carry a dotted "Claude" mark; your corrections carry "You". Data: review/current (seeded by Claude), overrides/<row> and round/current (written here). */
+:root {
+  --bg: #f2f4f6; --surface: #ffffff; --sunk: #e9edf1; --line: #d3dae1;
+  --ink: #16202b; --muted: #5a6877;
+  --accent: #2743c4; --accent-ink: #ffffff; --accent-soft: #e3e8fb;
+  --warn: #8a5300; --warn-soft: #fbefd6;
+  --ok: #1d6b47; --ok-soft: #dcf1e6;
+  --live: #7a2f8f; --live-soft: #f3e3f7;
+  --display: "Bricolage Grotesque", "Public Sans", system-ui, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #11161c; --surface: #19212a; --sunk: #222c37; --line: #313d4a;
+    --ink: #e7ecf1; --muted: #9aa8b6;
+    --accent: #8ea2ff; --accent-ink: #0d1430; --accent-soft: #232f5c;
+    --warn: #f0bf6a; --warn-soft: #3a2d12;
+    --ok: #7fd3a6; --ok-soft: #153325;
+    --live: #e2a6f2; --live-soft: #3a1f42;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #11161c; --surface: #19212a; --sunk: #222c37; --line: #313d4a;
+  --ink: #e7ecf1; --muted: #9aa8b6;
+  --accent: #8ea2ff; --accent-ink: #0d1430; --accent-soft: #232f5c;
+  --warn: #f0bf6a; --warn-soft: #3a2d12;
+  --ok: #7fd3a6; --ok-soft: #153325;
+  --live: #e2a6f2; --live-soft: #3a1f42;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; line-height: 1.45; }
+.wrap { padding-inline: 20px; padding-block: 16px 28px; display: flex; flex-direction: column; gap: 22px; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-size: 0.86em; color: var(--muted); }
+h1 { font-family: var(--display); font-size: 26px; line-height: 1.15; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--display); font-size: 19px; line-height: 1.2; margin: 0; }
+p { margin: 0; max-width: 92ch; }
+.sub { color: var(--muted); font-size: 12.5px; }
+.note { background: var(--warn-soft); color: var(--warn); padding: 7px 12px; border-radius: 6px; font-size: 12.5px; }
+.empty { color: var(--muted); padding: 18px; border: 1px dashed var(--line); border-radius: 8px; background: var(--surface); }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); white-space: nowrap; }
+.pill.live { background: var(--live-soft); color: var(--live); }
+.pill.back { background: var(--accent-soft); color: var(--accent); }
+.pill.quiet { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.claude { border-bottom: 1px dotted var(--muted); }
+.tag { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); border: 1px dotted var(--muted); border-radius: 3px; padding: 0 3px; margin-left: 4px; vertical-align: 1px; }
+.tag.you { border-style: solid; color: var(--accent); border-color: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 8px; }
+.livebox { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.lcard { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--live); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.lcard .who { font-family: var(--mono); font-weight: 500; }
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { width: 100%; min-width: 1060px; border-collapse: collapse; }
+table.narrow { min-width: 720px; }
+thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; text-align: left; font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+tr.area td { background: var(--sunk); padding: 12px; border-top: 2px solid var(--line); }
+.ahead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.aname { font-family: var(--display); font-size: 17px; font-weight: 600; }
+.aq { margin-top: 6px; font-size: 14px; }
+.aq b { color: var(--accent); font-weight: 600; }
+.name { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.name button { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; font-family: var(--mono); font-weight: 500; font-size: 13.5px; }
+.name button::before { content: "▸ "; color: var(--muted); }
+.name button[aria-expanded="true"]::before { content: "▾ "; }
+.what { color: var(--muted); font-size: 12.5px; margin-top: 2px; max-width: 56ch; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+select.size { border: 1px dotted var(--muted); background: var(--surface); border-radius: 4px; padding: 1px 4px; font-family: var(--display); font-weight: 700; }
+select.size.you { border: 1px solid var(--accent); color: var(--accent); }
+.pbar { display: inline-block; width: 44px; height: 8px; border-radius: 4px; background: var(--sunk); overflow: hidden; vertical-align: middle; }
+.pbar i { display: block; height: 100%; background: var(--ok); }
+.spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 20px; }
+.spark i { display: block; width: 4px; background: var(--accent); border-radius: 1px; }
+.spark i.z { background: var(--line); height: 1px; }
+.waitn { color: var(--warn); font-weight: 600; }
+tr.starter td { background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface)); }
+tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px; }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; padding-left: 18px; }
+.dgrid h4 { font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+.dgrid ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 3px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.field select, .field input { background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 5px 7px; color: var(--ink); width: 100%; box-sizing: border-box; }
+.btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-weight: 500; font-size: 13px; white-space: nowrap; }
+.btn.quiet { background: transparent; color: var(--accent); }
+.btn.big { font-size: 15px; padding: 7px 18px; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.inb { color: var(--ok); font-weight: 600; font-size: 13px; white-space: nowrap; }
+.acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.checkout { position: sticky; bottom: 0; z-index: 5; background: var(--ink); color: var(--bg); padding: 10px 20px calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; }
+.co-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+.lane { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.lane b { font-variant-numeric: tabular-nums; }
+.slot { width: 14px; height: 9px; border-radius: 2px; border: 1px solid color-mix(in srgb, var(--bg) 45%, transparent); }
+.slot.run { background: color-mix(in srgb, var(--bg) 45%, transparent); }
+.slot.add { background: var(--bg); border-color: var(--bg); }
+.slot.x { background: var(--warn); border-color: var(--warn); }
+.lane.over { color: var(--warn); }
+.co-row .spacer { flex: 1 1 0; }
+.co-row .btn { background: var(--bg); color: var(--ink); border-color: var(--bg); }
+.co-row .btn.quiet { background: transparent; color: var(--bg); border-color: color-mix(in srgb, var(--bg) 45%, transparent); }
+.items { display: flex; flex-wrap: wrap; gap: 6px; }
+.item { display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--bg) 35%, transparent); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 12.5px; }
+.item button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 6px; font-size: 14px; line-height: 1; }
+.review { margin: 0; padding-left: 20px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; max-width: 110ch; }
+.status { font-size: 12.5px; min-height: 1em; }
+</style>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:6px">
+    <h1 id="title">Board review</h1>
+    <p class="sub" id="meta"></p>
+    <p id="read" style="font-size:15px"></p>
+    <div class="legend"><span>Plain text is a fact from the board or git.</span><span><span class="claude">Dotted</span><span class="tag">Claude</span> is Claude's judgment; change it and it becomes yours<span class="tag you">You</span>.</span></div>
+    <div class="note" id="note" hidden></div>
+  </header>
+  <div id="app" class="wrap" style="padding:0"><div class="empty">Loading the review…</div></div>
+</div>
+<div class="checkout" id="co" hidden></div>
+
+<script>
+(function () {
+  var KIND = { decision: ["live", "Decision session"], think: ["live", "Think it through"], "continue": ["back", "Continue"], chores: ["quiet", "Chores"], board: ["", "Board change"] };
+  var LANE_LABEL = { live: "Needs you live", back: "Reports back", quiet: "Quiet" };
+  var SIZES = ["S", "M", "L", "XL"];
+  var S = { review: null, overrides: {}, round: null, open: new Set(), showReview: false, canWrite: true, loaded: false };
+  var db = null, chains = {};
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function plural(n, w, ws) { return n + " " + (n === 1 ? w : (ws || w + "s")); }
+  function note(msg) { var el = document.getElementById("note"); el.textContent = msg || ""; el.hidden = !msg; }
+  function short(d) { if (!d) return ""; var p = String(d).slice(0, 10).split("-"); return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+p[1] - 1] + " " + +p[2]; }
+  function tag(judged) { return judged ? '<span class="tag">Claude</span>' : ""; }
+
+  // Writes go one at a time per document; a refused write turns the page read-only.
+  function write(path, data) {
+    if (!db || !S.canWrite) return;
+    chains[path] = (chains[path] || Promise.resolve()).then(function () { return db.doc(path).set(data); })
+      .then(function () { note(""); })
+      .catch(function (e) {
+        if (e && e.code === "invalid_argument") { S.canWrite = false; note("You can read this review but not change it."); render(); }
+        else note("Could not save (" + ((e && e.code) || "error") + "). Your last change was not kept.");
+      });
+  }
+
+  // --- values with your corrections applied
+  function ov(row) { return S.overrides[row] || {}; }
+  function val(i, f) { var o = ov(i.row); return o[f] != null ? { v: o[f], who: "you" } : { v: i[f], who: (i.judged || []).indexOf(f) >= 0 ? "claude" : "fact" }; }
+  function suggestion(i) { var o = ov(i.row), a = (i.suggest || {}).action || "keep"; return a !== "keep" && !o.keep ? i.suggest : null; }
+  function idle(i) { return i.running_idle; }
+
+  // --- what can be sent
+  function proposal(i) {
+    if (i.running && !idle(i)) return null;
+    if (!i.proposal) return null;
+    return { key: "p:" + i.row, row: i.row, kind: i.proposal.kind, title: i.proposal.title, brief: i.proposal.brief, comes_back: i.proposal.comes_back };
+  }
+  function starters() { var o = []; (S.review.areas || []).forEach(function (a, ai) { (a.starters || []).forEach(function (s, si) { o.push({ key: "s:" + ai + ":" + si, kind: s.first_session, title: "Start: " + s.title, label: s.title, brief: s.brief, aspiration: s.aspiration, size: s.size, area: a.name }); }); }); return o; }
+  function chores() { return (S.review.chore_groups || []).map(function (g, i) { return { key: "c:" + i, kind: "chores", title: g.title, brief: g.items.map(function (x) { return x.title; }).join("; ") + ".", area: g.code_area, why: g.why_together, rows: Array.from(new Set(g.items.map(function (x) { return x.row; }))) }; }); }
+  function changes() { return S.review.initiatives.filter(suggestion).map(function (i) { var s = i.suggest; return { key: "b:" + i.row, kind: "board", row: i.row, title: s.action + (s.into ? " into " + s.into : ""), brief: s.reason }; }); }
+  function all() { var o = []; S.review.initiatives.forEach(function (i) { var p = proposal(i); if (p) o.push(p); }); return o.concat(starters(), chores(), changes()); }
+  function added() { return ((S.round && !S.round.confirmed_at && S.round.generated === S.review.generated) ? S.round.items : []) || []; }
+  function addCell(p) { return added().some(function (x) { return x.key === p.key; }) ? '<span class="inb">✓ In this round</span>' : (S.canWrite && db ? '<button type="button" class="btn quiet" data-add="' + esc(p.key) + '">Add</button>' : ""); }
+  function kindPill(p) { var k = KIND[p.kind] || ["", p.kind]; return '<span class="pill ' + k[0] + '">' + esc(k[1]) + "</span>"; }
+
+  // --- small renderers
+  function frac(t) { t = String(t || "").toLowerCase(); var m = [["all of it",1],["almost all",.95],["three quarter",.75],["two thirds",.67],["most",.8],["half",.5],["a third",.33],["quarter",.25],["fifth",.2],["tenth",.1],["not started",0],["none",0]];
+    for (var k = 0; k < m.length; k++) if (t.indexOf(m[k][0]) >= 0) return m[k][1]; return null; }
+  function bar(i) { var f = frac(i.progress); if (f == null) return '<span class="sub">—</span>';
+    return '<span class="pbar" title="' + esc(i.progress + (i.progress_basis ? ". " + i.progress_basis : "")) + '"><i style="width:' + Math.round(f * 100) + '%"></i></span>'; }
+  function spark(i) {
+    var since = Date.parse(S.review.since), end = Date.parse(String(S.review.generated).slice(0, 10)), days = Math.min(28, Math.max(1, Math.round((end - since) / 864e5) + 1));
+    var bins = []; for (var k = 0; k < days; k++) bins.push(0);
+    ((i.activity || {}).dates || []).forEach(function (d) { var k = Math.round((Date.parse(d) - since) / 864e5); if (k >= 0 && k < days) bins[k]++; });
+    var max = Math.max.apply(null, bins.concat([1]));
+    return '<span class="spark" title="' + ((i.activity || {}).board_edits || 0) + ' board edits since ' + esc(short(S.review.since)) + '">' + bins.map(function (v) { return v ? '<i style="height:' + Math.max(3, Math.round(20 * v / max)) + 'px"></i>' : '<i class="z"></i>'; }).join("") + "</span>";
+  }
+  function sizeCell(i) {
+    var s = val(i, "size");
+    if (!S.canWrite || !db) return '<span class="' + (s.who === "claude" ? "claude" : "") + '"><b>' + esc(s.v || "—") + "</b></span>" + (s.who === "claude" ? tag(true) : s.who === "you" ? '<span class="tag you">You</span>' : "");
+    return '<select class="size' + (s.who === "you" ? " you" : "") + '" id="size-' + esc(i.row) + '" data-ov="size" data-row="' + esc(i.row) + '" aria-label="Size of ' + esc(i.row) + '">' +
+      (s.v ? "" : '<option value="">—</option>') + SIZES.map(function (z) { return "<option" + (z === s.v ? " selected" : "") + ">" + z + "</option>"; }).join("") + "</select>" + (s.who === "claude" ? tag(true) : "");
+  }
+
+  function rowHTML(i) {
+    var p = proposal(i), open = S.open.has(i.row), sg = suggestion(i), asp = val(i, "aspiration"), area = val(i, "area");
+    var html = "<tr><td><div class=\"name\"><button type=\"button\" data-toggle=\"" + esc(i.row) + '" aria-expanded="' + open + '">' + esc(i.row) + "</button>" +
+        '<span class="pill">' + esc(i.status || i.section) + "</span>" +
+        (sg ? '<span class="pill warn">' + esc(sg.action) + '<span class="tag">Claude</span></span>' : ov(i.row).keep ? '<span class="pill">kept<span class="tag you">You</span></span>' : "") +
+        '</div><div class="what"><span class="claude">' + esc(i.line || "") + "</span></div></td>" +
+      "<td>" + sizeCell(i) + "</td>" +
+      "<td>" + bar(i) + "</td>" +
+      '<td class="num">' + spark(i) + '<div class="sub">' + ((i.activity || {}).board_edits || 0) + " edits · " + (((i.activity || {}).prs_merged || []).length) + " PRs</div></td>" +
+      "<td>" + (i.waiting ? '<span class="waitn">' + plural(i.waiting, "call") + "</span>" : '<span class="sub">none</span>') + "</td>" +
+      "<td>" + (i.running ? '<span class="mono">' + esc(i.running) + (idle(i) ? " (idle)" : "") + "</span>" : '<span class="sub">no one</span>') + "</td>" +
+      "<td>" + (p ? kindPill(p) + ' <span class="claude">' + esc(p.title) + "</span>" : i.running && !idle(i) ? '<span class="sub">Running</span>' : '<span class="sub">—</span>') + "</td>" +
+      "<td>" + (p ? addCell(p) : "") + "</td></tr>";
+    if (open) {
+      var areas = (S.review.areas || []).map(function (a) { return a.name; });
+      html += '<tr class="detail"><td colspan="8"><div class="dgrid">' +
+        "<div><h4>Aspiration" + (asp.who === "claude" ? tag(true) : asp.who === "you" ? '<span class="tag you">You</span>' : "") + "</h4>" +
+          (S.canWrite && db ? '<label class="field"><input id="asp-' + esc(i.row) + '" type="text" data-ov="aspiration" data-row="' + esc(i.row) + '" value="' + esc(asp.v || "") + '"></label>' : "<p>" + esc(asp.v || "—") + "</p>") +
+          (i.progress ? '<p class="sub" style="margin-top:6px">Done: ' + esc(i.progress) + ". " + esc(i.progress_basis || "") + "</p>" : "") + "</div>" +
+        "<div><h4>Area" + (area.who === "claude" ? tag(true) : area.who === "you" ? '<span class="tag you">You</span>' : "") + "</h4>" +
+          (S.canWrite && db ? '<label class="field"><select id="area-' + esc(i.row) + '" data-ov="area" data-row="' + esc(i.row) + '">' + (area.v ? "" : '<option value="">—</option>') +
+            areas.map(function (a) { return "<option" + (a === area.v ? " selected" : "") + ">" + esc(a) + "</option>"; }).join("") + "</select></label>" : "<p>" + esc(area.v || "—") + "</p>") + "</div>" +
+        ((i.gated || []).length ? "<div><h4>Waiting on you</h4><ul>" + i.gated.map(function (g) { return "<li>" + esc(g.step) + ' <span class="sub">· ' + esc(g.gate) + "</span></li>"; }).join("") + "</ul></div>" : "") +
+        "<div><h4>Recent" + tag(true) + "</h4>" + ((i.recent || []).length ? "<ul>" + i.recent.map(function (x) { return "<li>" + esc(short(x.when)) + " · " + esc(x.what) + ' <span class="mono">' + esc(x.evidence) + "</span></li>"; }).join("") + "</ul>" : '<p class="sub">Nothing to cite in the window.</p>') + "</div>" +
+        (p ? "<div><h4>If you add " + esc(p.title) + "</h4><p>" + esc(p.brief) + '</p><p class="sub" style="margin-top:4px">Comes back: ' + esc(p.comes_back) + "</p></div>" : "") +
+        "</div></td></tr>";
+    }
+    return html;
+  }
+
+  function render() {
+    var R = S.review, app = document.getElementById("app");
+    if (!R) {
+      app.innerHTML = '<div class="empty">' + (S.loaded ? "No review has been seeded yet. Claude fills this page when it runs a board review; then you choose what to send." : db === null && S.loaded ? "" : "Loading the review…") + "</div>";
+      document.getElementById("co").hidden = true; return;
+    }
+    var y = window.scrollY;
+    document.getElementById("title").textContent = (R.project || "Board") + " board review";
+    document.getElementById("meta").textContent = (R.mode === "full" ? "Full review" : "Routine review") + " · since " + short(R.since) + " · seeded " + short(R.generated) + (R.board_source && R.board_source !== "local" ? " · board read from " + R.board_source : "");
+    document.getElementById("read").textContent = R.read || "";
+    var live = R.initiatives.filter(function (i) { return i.running; });
+    var html = "<section><h2>Live now</h2>" + (live.length ? '<div class="livebox">' + live.map(function (i) {
+      return '<div class="lcard"><span class="who">' + esc(i.running) + (idle(i) ? " (idle)" : "") + "</span><span><b>" + esc(i.row) + '</b></span><span class="sub claude">' + esc(i.line || "") + "</span>" + (i.waiting ? '<span class="waitn">Waiting on you: ' + plural(i.waiting, "call") + "</span>" : "") + "</div>";
+    }).join("") + "</div>" : '<p class="sub">Nothing is running.</p>') + "</section>";
+
+    var st = starters(), placed = new Set();
+    var body = "";
+    (R.areas || []).forEach(function (a) {
+      var rows = R.initiatives.filter(function (i) { return val(i, "area").v === a.name; }).sort(function (x, z) { return ((z.activity || {}).board_edits || 0) - ((x.activity || {}).board_edits || 0); });
+      rows.forEach(function (i) { placed.add(i.row); });
+      body += '<tr class="area"><td colspan="8"><div class="ahead"><span class="aname">' + esc(a.name) + '</span><span class="sub">' + plural(rows.length, "initiative") + " · " + esc(a.what || "") + "</span></div>" +
+        (a.open_question ? '<p class="aq"><b>Open question:</b> <span class="claude">' + esc(a.open_question) + "</span>" + tag(true) + "</p>" : "") + "</td></tr>" + rows.map(rowHTML).join("");
+      st.filter(function (s) { return s.area === a.name; }).forEach(function (s) {
+        body += '<tr class="starter"><td><div class="name"><b>' + esc(s.label) + '</b><span class="pill back">not started<span class="tag">Claude</span></span></div><div class="what">' + esc(s.aspiration) + "</div></td>" +
+          '<td><b class="claude">' + esc(s.size) + '</b></td><td class="sub">—</td><td class="sub">—</td><td class="sub">—</td><td class="sub">no one</td><td>' + kindPill(s) + ' <span class="claude">' + esc(s.brief) + "</span></td><td>" + addCell(s) + "</td></tr>";
+      });
+    });
+    var loose = R.initiatives.filter(function (i) { return !placed.has(i.row); });
+    if (loose.length) body += '<tr class="area"><td colspan="8"><span class="aname">No area yet</span> <span class="sub">Pick an area in the opened row.</span></td></tr>' + loose.map(rowHTML).join("");
+    html += '<section><h2>Areas and initiatives</h2><div class="scroll"><table><thead><tr><th>Initiative</th><th>Size</th><th>Done</th><th>Activity</th><th>Waiting on you</th><th>Who\'s on it</th><th>Next session</th><th></th></tr></thead><tbody>' + body + "</tbody></table></div></section>";
+
+    var ch = changes(), kept = R.initiatives.filter(function (i) { return ov(i.row).keep; });
+    html += '<section><h2>Winding down <span class="tag">Claude suggests</span></h2>' + (ch.length || kept.length ? '<div class="scroll"><table class="narrow"><tbody>' +
+      ch.map(function (p) { return "<tr><td><b>" + esc(p.title) + '</b> <span class="mono">' + esc(p.row) + '</span><div class="what">' + esc(p.brief) + '</div></td><td><div class="acts">' + addCell(p) + (S.canWrite && db ? '<button type="button" class="btn quiet" data-keep="' + esc(p.row) + '">Keep it</button>' : "") + "</div></td></tr>"; }).join("") +
+      kept.map(function (i) { return '<tr><td class="sub">You kept <span class="mono">' + esc(i.row) + "</span></td><td>" + (S.canWrite && db ? '<button type="button" class="btn quiet" data-unkeep="' + esc(i.row) + '">Undo</button>' : "") + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="sub">Nothing to wind down.</p>') + "</section>";
+    html += '<section><h2>Chores <span class="tag">Claude suggests</span></h2><p class="sub">Behind-the-scenes work grouped by the code it touches: no decision from you, nothing a user would notice.</p>' + (chores().length ? '<div class="scroll"><table class="narrow"><tbody>' +
+      chores().map(function (c) { return "<tr><td><b>" + esc(c.title) + '</b><div class="what">' + esc(c.brief) + '</div><div class="what">Touches ' + esc(c.area) + " · " + esc(c.rows.join(", ")) + "</div></td><td>" + addCell(c) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="sub">No chores this round.</p>') + "</section>";
+    app.innerHTML = html;
+    checkout();
+    window.scrollTo(0, y);
+  }
+
+  function sentence(p) {
+    if (p.kind === "board") return "This session changes the board: " + p.row + ", " + p.title + ". It lists what that removes and waits for your yes.";
+    if (p.kind === "chores") return "A new pane does chores in " + p.area + ": " + p.brief;
+    if (p.key.charAt(0) === "s") return "A new pane opens to start “" + p.label + "” with you in " + p.area + ": " + p.brief;
+    if (p.kind === "decision") return "A new pane opens to settle “" + p.row + "” with you: " + p.brief;
+    if (p.kind === "think") return "A new pane opens to think through “" + p.row + "” with you: " + p.brief;
+    return "A new pane continues “" + p.row + "”: " + p.brief;
+  }
+  function lane(p) { return (KIND[p.kind] || [""])[0]; }
+
+  function checkout() {
+    var R = S.review, co = document.getElementById("co"), lanes = R.lanes || { live: 1, back: 3, quiet: 3 };
+    var by = { live: { run: 0, add: 0 }, back: { run: 0, add: 0 }, quiet: { run: 0, add: 0 } };
+    by.back.run = R.initiatives.filter(function (i) { return i.running; }).length;
+    var sel = added(), panes = 0, edits = 0;
+    sel.forEach(function (p) { if (p.kind === "board") edits++; else { by[lane(p)].add++; panes++; } });
+    var over = false;
+    var meters = ["live", "back", "quiet"].map(function (k) {
+      var b = by[k], used = b.run + b.add, cap = lanes[k], s = "";
+      if (used > cap) over = true;
+      for (var n = 0; n < Math.max(cap, used); n++) s += '<span class="slot ' + (n < b.run ? "run" : n < used ? (n >= cap ? "x" : "add") : "") + '"></span>';
+      return '<span class="lane' + (used > cap ? " over" : "") + '">' + LANE_LABEL[k] + " " + s + " <b>" + used + "/" + cap + "</b></span>";
+    }).join("");
+    var confirmed = S.round && S.round.confirmed_at && S.round.generated === R.generated;
+    var summary = [panes ? plural(panes, "new pane") : "", edits ? plural(edits, "board change") : ""].filter(Boolean).join(" · ");
+    var html = '<div class="co-row">' + meters + '<span style="opacity:.7;font-size:12.5px">' + by.back.run + ' running already</span></div><div class="co-row"><div class="items">' +
+      (confirmed ? '<span>Confirmed ' + esc(short(S.round.confirmed_at)) + ": " + plural(S.round.items.length, "item") + '. Tell Claude “go” to send them.</span>'
+        : sel.map(function (p) { return '<span class="item">' + esc(p.kind === "board" ? p.row + ": " + p.title : p.title) + (S.canWrite ? '<button type="button" aria-label="Remove" data-remove="' + esc(p.key) + '">×</button>' : "") + "</span>"; }).join("") || '<span style="opacity:.7">This round is empty. Add anything from the page.</span>') +
+      '</div><span class="spacer"></span>' + (sel.length || confirmed ? '<button type="button" class="btn quiet" data-showreview="1">' + (S.showReview ? "Hide" : "Review") + "</button>" : "") +
+      (confirmed ? (S.canWrite ? '<button type="button" class="btn quiet" data-reopen="1">Change this round</button>' : "")
+        : (S.canWrite && db ? '<button type="button" class="btn big" data-confirm="1"' + (sel.length ? "" : " disabled") + ">Confirm" + (summary ? " · " + esc(summary) : "") + "</button>" : "")) + "</div>";
+    var shown = confirmed ? S.round.items : sel;
+    if (S.showReview && shown.length) html += '<ol class="review">' + shown.map(function (p) { return "<li>" + esc(sentence(p)) + "</li>"; }).join("") + "</ol>" +
+      (over ? '<p style="color:var(--warn);font-size:13px">Over the limits you set: these would compete for you at once.</p>' : "") +
+      '<p style="opacity:.7;font-size:13px">Everything you leave out stays on the page for the next review.</p>';
+    co.innerHTML = html; co.hidden = false;
+  }
+
+  function saveRound(items, confirmedAt) {
+    S.round = { generated: S.review.generated, items: items, confirmed_at: confirmedAt || null, at: new Date().toISOString() };
+    write("round/current", S.round); render();
+  }
+  function saveOverride(row, patch) {
+    var next = Object.assign({}, S.overrides[row] || {}, patch, { at: new Date().toISOString() });
+    Object.keys(next).forEach(function (k) { if (next[k] === "" || next[k] === null) delete next[k]; });
+    S.overrides[row] = next; write("overrides/" + row, next); render();
+  }
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b || !S.review) return;
+    var d = b.dataset;
+    if (d.toggle) { if (S.open.has(d.toggle)) S.open.delete(d.toggle); else S.open.add(d.toggle); render(); return; }
+    if (d.showreview) { S.showReview = !S.showReview; render(); return; }
+    if (d.add) { var p = all().filter(function (x) { return x.key === d.add; })[0]; if (p) saveRound(added().concat([p])); return; }
+    if (d.remove) { saveRound(added().filter(function (x) { return x.key !== d.remove; })); return; }
+    if (d.confirm) { saveRound(added(), new Date().toISOString()); S.showReview = true; render(); return; }
+    if (d.reopen) { saveRound(S.round.items, null); return; }
+    if (d.keep) { saveOverride(d.keep, { keep: true }); return; }
+    if (d.unkeep) { saveOverride(d.unkeep, { keep: null }); return; }
+  });
+  document.addEventListener("change", function (e) {
+    var t = e.target, d = t.dataset || {};
+    if (d.ov && d.row) { var patch = {}; patch[d.ov] = t.value.trim(); saveOverride(d.row, patch); }
+  });
+
+  render();
+  var use = window.claude && window.claude.use;
+  if (!use) { S.loaded = true; note("This view can't reach the review's data. Open it on claude.ai, signed in."); render(); return; }
+  window.claude.use("user").then(function (u) {
+    if (u && u.can) Promise.resolve(u.can("data.write")).then(function (ok) { if (ok === false) { S.canWrite = false; render(); } });
+  });
+  window.claude.use("db").then(function (d) {
+    if (!d) { S.loaded = true; note("This view can't reach the review's data. Open it on claude.ai, signed in."); render(); return; }
+    db = d;
+    function fail(e) { note("Lost the connection to the review's data (" + ((e && e.code) || "error") + ")."); }
+    db.doc("review/current").onSnapshot(function (s) { S.review = s.exists ? s.data() : null; S.loaded = true; render(); }, fail);
+    db.collection("overrides").limit(500).onSnapshot(function (s) { if (s.metadata && s.metadata.hasPendingWrites) return; var o = {}; s.docs.forEach(function (x) { o[x.id] = x.data(); }); S.overrides = o; render(); }, fail);
+    db.doc("round/current").onSnapshot(function (s) { if (s.metadata && s.metadata.hasPendingWrites) return; S.round = s.exists ? s.data() : null; render(); }, fail);
+  });
+})();
+</script>

@@ -1,0 +1,60 @@
+#!/bin/bash
+# continuity-review-seed — the one document the review page reads.
+#
+#   continuity-review-seed <review.json> <audit.json> <project name>
+#
+# Merges the audit's facts with the reviewer's judgments, per initiative, and
+# prints one JSON document for the page's store (review/current). The review
+# must pass continuity-review-check against the same audit, or nothing is
+# printed and the problems go to stderr (exit 1).
+#
+# Per initiative, `judged` names every field that is Claude's judgment, so the
+# page can mark it: an area, size or aspiration the reader confirmed on the
+# board (the board holds it and `inferred` does not list it) is a fact; one the
+# board lacks, or lists as inferred, is the reviewer's. line, recent, progress,
+# proposal and suggest are always judgments.
+#
+# Exit codes: 0 ok · 1 the review fails the checker · 3 not usable here
+set -u
+LIB="$(cd "$(dirname "$0")" && pwd)"
+command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-review-seed needs jq" >&2; exit 3; }
+[ $# -eq 3 ] && [ -r "$1" ] && [ -r "$2" ] || { echo "usage: continuity-review-seed <review.json> <audit.json> <project name>" >&2; exit 3; }
+
+if ! problems=$("$LIB/continuity-review-check" "$1" "$2"); then
+  printf 'not seeded: the review fails continuity-review-check\n%s\n' "$problems" >&2
+  exit 1
+fi
+
+jq -n --slurpfile r "$1" --slurpfile a "$2" --arg project "$3" '
+$r[0] as $rv | $a[0] as $au
+| ($rv.initiatives | map({key: .row, value: .}) | from_entries) as $byrow
+| ($au.sessions.items // []) as $sess
+| [ $au.rows[] | . as $row | ($byrow[.name] // {}) as $j
+    | ([$sess[] | select(.row == $row.name)] | .[0]) as $s
+    | reduce ("area", "size", "aspiration") as $f ({v: {}, judged: []};
+        if ($row[$f] != null) and (($row.inferred // []) | index($f) | not)
+        then .v[$f] = $row[$f]
+        elif $j[$f] != null then .v[$f] = $j[$f] | .judged += [$f]
+        elif $row[$f] != null then .v[$f] = $row[$f] | .judged += [$f]
+        else .v[$f] = null end) as $m
+    | {row: .name, section, status, open, done, gated,
+       waiting: (.gated | length), activity, flags,
+       running: ($s.name // null), running_idle: (($s.activity // "") | startswith("idle")),
+       area: $m.v.area, size: $m.v.size, aspiration: $m.v.aspiration,
+       progress: ($j.progress // null), progress_basis: ($j.progress_basis // null),
+       line: ($j.line // null), recent: ($j.recent // []), proposal: ($j.proposal // null),
+       suggest: ($j.suggest // null),
+       judged: ($m.judged + ["line", "recent", "progress", "proposal", "suggest"])}
+  ] as $inits
+| (if $rv.mode == "full" then [$rv.areas[] | {name, what, open_question, starters: (.starters // [])}]
+   else [($au.areas // [])[] | {name, what, open_question, starters: []}] end) as $areas
+| {
+    project: $project, mode: $rv.mode, since: $rv.since, read: $rv.read,
+    generated: (now | strftime("%Y-%m-%dT%H:%MZ")),
+    board_source: $au.board.source,
+    lanes: {live: 1, back: 3, quiet: 3},
+    areas: [$areas[] | . as $ar | . + {initiatives: ([$inits[] | select(.area == $ar.name)] | length)}],
+    initiatives: $inits,
+    chore_groups: ($rv.chore_groups // []),
+    sessions: $sess
+  }' "$1"

@@ -11,6 +11,8 @@ Claude Code plugin for lightweight cross-session continuity. Maintains feature s
 - `lib/continuity-audit` — JSON facts about a board for the board review (row counts and flags, gated steps, milestone claims, areas and sizes, PR states, decisions sizes, gotcha ages, secret-looking strings, stray files). Read-only; needs jq. The review reads this, never the board files.
 - `lib/continuity-review-pack` — everything a reviewing Claude reads in one file (audit, moved initiatives in full with their open decisions, quiet ones as a line, gotchas, code commits and merged PRs in the window; `--full` adds the product document and every initiative); no model call
 - `lib/continuity-review-check` — is a reviewer's JSON well formed (fields, sizes, proposal kinds, the chore rule; with the audit, real rows and no gated step as a chore)
+- `lib/continuity-review-seed` — merges the audit and a checked review into the one document the page reads (`review/current`); `judged` names every field that is Claude's
+- `skills/continuity-review/page.html` — the review page: Live, areas and initiatives, wind-down, chores, a checkout bar with capacity lanes; your corrections go to `overrides/<row>`, the round to `round/current`
 - `skills/continuity-review/reviewer.md` — the brief a reviewing Claude follows (routine and full modes) and the JSON it writes; reads the product document only through `settings.product_doc`
 - `hooks/session-start.sh` — init hint; flags continuity commits stranded on local branches
 - `hooks/session-end.sh` — writes `.continuity/last-activity.txt` on session exit; clears the session's context-meter files
