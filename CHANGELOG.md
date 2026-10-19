@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- **Review page: two-column initiatives table** — the initiative on the left; size, done, activity, waiting on you, who's on it and next session (with Add) as labelled mini rows on the right. Why: eight columns forced a 1060px table and sideways scrolling; two columns fit a laptop and read top to bottom.
+
 ## [0.16.0] - 2026-10-19
 
 ### Added
