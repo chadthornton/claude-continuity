@@ -89,7 +89,7 @@ features:
 last_session:
   date: 2026-10-19
   feature: closure-pass
-  summary: "Released 0.17.1 (page notes clear after steering one review; go no longer deletes unread notes; two review rounds). Before that: redesigned the review page from Chad's first look at trip-planner's (two columns, mini rows, notes, Next step with Close/Park/Merge, type pass), passed page notes to the reviewer, capped line/points/read; released 0.17.0."
+  summary: "Released 0.17.2 (Live refreshes after go, 'as of' label); started review-trial-1 in trip-planner on 0.17.1, numbers to .context/trial-0.17.1.md. Before: 0.17.1 (page notes clear after steering one review; go no longer deletes unread notes; two review rounds). Before that: redesigned the review page from Chad's first look at trip-planner's (two columns, mini rows, notes, Next step with Close/Park/Merge, type pass), passed page notes to the reviewer, capped line/points/read; released 0.17.0."
   blind_spots:
     - "trip-planner's review page (https://claude.ai/artifact/G5PFFv4HWhZzkEgRdzZhWY) was republished by hand from this repo's page.html with its <title> set; its review/current is still 0.16-era text (long lines, 'Chad'), which the page splits and folds until the next review."
     - "Chad asked (2026-10-19) that new non-critical bugs found mid-task go on review-followups, not get fixed in place."
