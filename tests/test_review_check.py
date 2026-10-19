@@ -93,6 +93,11 @@ bad('C3 starter size XL', lambda r: r['areas'][0]['starters'][0].update(size='XL
 # C4. The chore rule: nothing needing approval, nothing destructive, nothing gated on the board.
 bad('C4 chore naming ship it', lambda r: r['chore_groups'][0]['items'][0].update(step='Wait for ship it, then cap paste size'), 'chore')
 bad('C4 chore deleting live data', lambda r: r['chore_groups'][0]['items'][0].update(step='Delete old backups on the server'), 'chore')
+bad('C4 chore dropping a database table', lambda r: r['chore_groups'][0]['items'][0].update(step='Drop the old places table'), 'chore')
+good = copy.deepcopy(GOOD)
+good['chore_groups'][0]['items'][0].update(title='Remove dead code paths', step='Delete the unreachable branches in trip.js and drop the unused helper')
+rc, out = check(good, AUDIT)
+expect('C4 deleting dead code is still a chore', rc == 0, out)
 bad('C4 chore that is a gated step', lambda r: r['chore_groups'][0]['items'][0].update(step='Ship the blurb change'), 'gated', AUDIT)
 
 # C5. Against the audit: a row the board doesn't have is named.

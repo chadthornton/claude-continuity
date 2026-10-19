@@ -28,11 +28,16 @@ All commands run from the project's root. `<plugin>` is the continuity plugin's
 directory.
 
 1. The audit JSON. Its facts (counts, gates, activity, sessions, PR states) are
-   true; build on them, don't re-derive them.
+   true for the checkout it ran in. When `continuity-state` says the board was
+   read from origin because the checkout is behind, the board it prints is
+   newer: prefer it for step counts and say so.
 2. `<plugin>/skills/startup/continuity-state` — the board, summarised when it is
    large. Never read `.continuity/feature-status.yml` itself.
 3. `git log --since=<review.since> --oneline` and the merged pull requests in the
-   same window, to see what actually landed.
+   same window, to see what actually landed. The audit ties a pull request to a
+   row only when the row cites its number; tie the rest yourself from titles and
+   the decisions files, and cite each one in `recent`. A row with nothing to cite
+   gets an empty `recent`.
 4. For each initiative with activity in the window or a running session:
    `<plugin>/skills/startup/continuity-state row <name>`, and the Open section of
    its decisions file (`continuity-state show decisions/<name>.md`).
@@ -86,18 +91,22 @@ what it reports until it prints OK.
 - **Proposals.** At most one per initiative. `decision` settles calls that wait
   on the reader; `think` works out an open design question with them; `continue`
   carries on a settled next step. No proposal for an initiative an agent is
-  already working on. Product decisions are never answered here; propose the
+  already working on, even an idle one: if it is waiting on the reader, say that
+  in `line`. Product decisions are never answered here; propose the
   session that answers them.
-- **Suggestions.** An area never closes or merges; it can go quiet. Closing or
+- **Suggestions.** `keep` includes staying parked; say why in the reason. An
+  area never closes or merges; it can go quiet. Closing or
   merging an initiative says what its open steps become.
 - **Chores** pass all of: no decision from the reader is pending or likely;
   nothing a user would notice; nothing deleted on a live server or database; no
-  approval named anywhere in its step or handoff. If you are unsure, it is not a
-  chore. Group chores by the part of the code they touch, so one agent can do a
+  approval named anywhere in its step or handoff; nothing a project gotcha
+  warns about. Deleting code is fine; deleting data is not. If you are unsure,
+  it is not a chore. Group chores by the part of the code they touch, so one agent can do a
   group without colliding with another.
 - **What the reader confirmed stays.** In full mode, a row's `area`, `size` or
-  `aspiration` that is not listed in its `inferred` was confirmed by the reader:
-  write the board's value back unchanged.
+  `aspiration` that the board holds and that is not listed in its `inferred` was
+  confirmed by the reader: write the board's value back unchanged. A field the
+  board does not hold is yours to infer.
 - **Areas come from the product, not the board.** In full mode, derive the
   areas from the product document and what the product does, then place the
   rows in them. An area with no initiative is a finding, not an error.
