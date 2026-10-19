@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-10-19
+
 ### Changed
 - **Page notes clear once they've steered a review** — the seed records the notes the review read (`notes_read`, from `continuity-review-seed --notes`); on "go", once the round is marked sent, a note still reading the same is removed and one edited or written since stays for the next review. Why: a note should steer one review, not every later one.
 
