@@ -2,15 +2,18 @@
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-19
+
+### Added
+- **Review page: notes per initiative** — a box under each initiative's mini rows; saved on blur into `overrides/<row>` as `notes` (apply ignores it), and a draft survives a re-render. Why: you take notes while reading the review, beside the row they're about.
+- **Your notes reach the reviewer** — `continuity-review-pack --notes <overrides.json>` prints a "Your notes from the review page" section; the skill reads the page's overrides before building the pack, and the brief has the reviewer act on each note in that row's line, proposal and suggestion. Why: a note asking "carrier first?" should change what the next review proposes.
+
 ### Changed
 - **Review page: two-column initiatives table** — the initiative on the left; size, done, activity, waiting on you, who's on it and next session (with Add) as labelled mini rows on the right. Why: eight columns forced a 1060px table and sideways scrolling; two columns fit a laptop and read top to bottom. Mini rows with nothing to say (no activity, nobody waiting, no one on it, no next session) are left out, so a quiet initiative is two lines.
-- **Review page: notes per initiative** — a box under each initiative's mini rows; saved on blur into `overrides/<row>` as `notes` (apply ignores it), and a draft survives a re-render. Why: you take notes while reading the review, beside the row they're about.
 - **Review page: type and spacing pass** — initiative names in the body face at 15px, taller mini rows with faint solid dividers, roomier cells; Claude's mark is a faint offset dotted underline, and the line under each initiative (always Claude's) no longer carries it. Why: every summary line was underlined, which read as noise.
 - **Review: short lines, bullets for the rest** — an initiative's `line` is one sentence of at most 160 characters and new `points` (at most three, 160 each) carry the facts and calls; `read` is at most 480; the checker enforces all three, and the brief has the reviewer write to the reader as "you" and leave record forensics out. The page shows the line then bullets, folds bullets past three and a read past three sentences, and splits an older review's long line into a lead and bullets. Why: trip-planner's lines averaged 319 characters (one 913), unbroken, naming the reader in the third person.
 - **Review page: board changes in the row** — an initiative Claude suggests closing, parking or merging (and with no session proposed) shows it as its Next session, with a button named by the change (Close, Park, Merge) and Keep it; Winding down uses the same verbs, and the separate close/park/merge pill beside the status is gone for those rows. Why: "close" beside "polishing" read as a second status, and "Add" didn't say what agreeing does.
 - **Review page: "Next step" row laid out** — renamed from Next session (it now holds board changes too); the kind pill sits above what the step does, the buttons top-right, and mini-row labels line up with the first line of their value. Why: the pill, text and buttons wrapped differently on every row.
-- **Your notes reach the reviewer** — `continuity-review-pack --notes <overrides.json>` prints a "Your notes from the review page" section; the skill reads the page's overrides before building the pack, and the brief has the reviewer act on each note in that row's line, proposal and suggestion. Why: a note asking "carrier first?" should change what the next review proposes.
-
 
 ## [0.16.0] - 2026-10-19
 
