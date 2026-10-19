@@ -39,8 +39,8 @@ features:
     next: "Non-critical bugs logged during closure-pass; pick up after the trip-planner trial"
     next_steps:
       - { step: "continuity-save: `push_to_default_branch` in flow style (`settings: { push_to_default_branch: true }`, which its own hint suggests) is missed by its grep (`^[[:space:]]*push_to_default_branch:`); match it anywhere on the line, test with a flow-style board", done: false }
-      - { step: "continuity-review SKILL.md names continuity-state and continuity-save bare; they live in skills/startup/ and skills/wrap-up/, not lib/ or PATH (trial review-trial-1 had to check staleness by hand). Give their paths from <base>", done: false }
-      - { step: "Routine pack is 88% of the board on trip-planner (105 KB of 120 KB): moved rows go in full; trim them (e.g. last N done steps, handoff head) and measure", done: false }
+      - { step: "continuity-review SKILL.md gives continuity-state and continuity-save paths (v0.17.3)", done: true }
+      - { step: "Routine pack was 88% of trip-planner's board: the review's own round commit counted as activity on every row. Audit skips it (v0.17.3): 105 KB -> 74 KB. Left: audit 24 KB + gotchas 11 KB fixed; capping step text would break chores' exact step match", done: true }
       - { step: "continuity-review-pack: take --audit <path> so it doesn't re-run the audit SKILL step 2 already ran (13 s on trip-planner)", done: false }
       - { step: "Page notes clear once a review read them and its round is sent (Chad 2026-10-19); also fixed go deleting unread notes (v0.17.1, eed5e98)", done: true }
       - { step: "Review page: starters (areas not yet started) get no notes box; their key s:<area>:<n> shifts between reviews, so a note would attach to the wrong starter", done: false }
