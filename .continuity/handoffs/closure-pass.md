@@ -1,9 +1,9 @@
 <handoff>
-<task>closure-pass: build the board review as a planning table. Steps 1-8 are done (6 = areas 974aa1a, 7 = audit facts a6fe49c, 8 = reviewer brief cc82efa and fixes, plus the review pack and the one-call split), 9 = the page d0f123b, proven by Chad on scratch https://claude.ai/artifact/NNtwC7xZfgLdxw6EKZcqen. Step 10 (/continuity-review) done. Next is step 11, the one-line offers. One commit per step, on branch closure-pass-1-step-5 cut from main.</task>
+<task>closure-pass: build the board review as a planning table. Steps 1-8 are done (6 = areas 974aa1a, 7 = audit facts a6fe49c, 8 = reviewer brief cc82efa and fixes, plus the review pack and the one-call split), 9 = the page d0f123b, proven by Chad on scratch https://claude.ai/artifact/NNtwC7xZfgLdxw6EKZcqen. Steps 10 (/continuity-review, 865b003) and 11 (offers) done. Next is step 12, re-learned gotchas; then the trip-planner trial, a code review of the branch and a release. One commit per step, on branch closure-pass-1-step-5 cut from main.</task>
 <status>Released in 0.15.0: the large-board summary, lib/continuity-audit, milestone claims. Recorded, not released: principles 9 and 10 in docs/principles.md (on the branch), the rewritten decisions file and steps. The design came from seven prototypes on trip-planner's real board, committed to branch prototype/board-review-page with docs/board-review/prototype/NOTES.md; the last page is https://claude.ai/artifact/7dVqVsrwDDweUMgHxHM3q8 (data inlined, 2026-10-14).</status>
 <first-action>
 1. Read docs/principles.md (9, 10), .continuity/decisions/closure-pass.md and docs/board-review/prototype/NOTES.md on the prototype branch.
-2. Post a short plan for step 11 and get Chad's go-ahead.
+2. Post a short plan for step 12 and get Chad's go-ahead.
 </first-action>
 <stops>
 - Every step needs a short plan and Chad's go-ahead before code. He is a product designer and does not read code: show test output, not diffs.
