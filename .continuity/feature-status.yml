@@ -7,7 +7,7 @@ settings:
 features:
   closure-pass:
     status: building
-    next: "Trip-planner trial: briefed trip-planner-27 on 2026-10-19; collect its numbers (board bytes, tokens)"
+    next: "Adopt the review on this board: /continuity-review full here, then close what it finds finished (this row included)"
     summary: >
       Keep a board small and true, and let Chad direct it from a page. Since 2026-10-14 the page
       is a planning table: one table grouped by lasting areas (initiatives under them, sizes,
@@ -32,6 +32,9 @@ features:
       - { step: "Release 0.16.0: CHANGELOG, bump .claude-plugin/{plugin,marketplace}.json, update the installed plugin (69db0cd, v0.16.0)", gate: approval, done: true }
       - { step: "0.17.0: page redesign from Chad's first look (two columns, notes to the reviewer, line/points limits, board changes as Next step) (v0.17.0)", done: true }
       - { step: "Trial on trip-planner through its own session: routine review on 0.17.1, one call 48k in + 14k out, 132 s, no retry, longest line 127 chars (review-trial-1, 2026-10-19). A round sent from it is still to come", done: true }
+      - { step: "Run /continuity-review in full mode on this repo: areas from docs/principles.md, sizes and aspirations on every row, its own page (review_url). Expect close suggestions for closure-pass, worktree-hygiene, away-back", done: false }
+      - { step: "First real go on 0.17.x (trip-planner, when Chad sends a round): check notes the review read are cleared and unread ones kept, Live shows the round's agents with 'as of', and the round commit isn't counted as activity by the next audit", gate: approval, done: false }
+      - { step: "Rename 'workstream' across plugin text (deferred until after the trip-planner trial, which ran 2026-10-19)", gate: "decision: rename workstream to initiative everywhere, or keep it for areas' history?", done: false }
     in_progress: null
 
   review-followups:
@@ -92,10 +95,12 @@ features:
 
 last_session:
   date: 2026-10-19
-  feature: review-followups
-  summary: "Fixed cc_landed_sources 500-commit window (false CONTINUITY NOT LANDED on trip-planner); PR #1 open, unmerged. Before: released 0.17.2/0.17.3, review-trial-1 numbers in .context/trial-0.17.1.md."
+  feature: closure-pass
+  summary: "Released 0.17.0-0.17.3: review page redesign, notes to the reviewer and cleared after one review, Live refresh after go, the review's own round no longer counted as activity. Trip-planner trial on 0.17.1: 62k tokens, 132 s, no retry."
   blind_spots:
-    - "trip-planner's review page (https://claude.ai/artifact/G5PFFv4HWhZzkEgRdzZhWY) was republished by hand from this repo's page.html with its <title> set; its review/current is still 0.16-era text (long lines, 'Chad'), which the page splits and folds until the next review."
+    - "This repo's own board has never been reviewed: no areas, sizes, last_review or review_url. The next step is a full /continuity-review here."
+    - "trip-planner's page (https://claude.ai/artifact/G5PFFv4HWhZzkEgRdzZhWY) is republished by hand from skills/continuity-review/page.html with its <title> set to 'trip-planner Board Review'; a review run only refreshes review/current, never the HTML."
+    - "continuity-save fast-forwards local main itself; never chain a `git reset --keep origin/main` after it with `;` (it ran after a failed chain on 2026-10-19 and moved main past two unpushed commits; recovered from the reflog)."
     - "Chad asked (2026-10-19) that new non-critical bugs found mid-task go on review-followups, not get fixed in place."
 gotchas:
   - "Skill edits are scenario-tested: fixtures in tests/skill-scenarios/, baseline run on a snapshot of the old SKILL.md first (RED), then the edited one. Tell test agents to prefix EVERY command with the fixture PATH — they drop it and find the real ~/.local/bin/agent-spawn."
