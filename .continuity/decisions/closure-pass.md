@@ -18,6 +18,8 @@ Principles: `docs/principles.md` (9 and 10 govern the review). Prototype and not
 - The audit script is the only reader of board storage, and a script never makes a judgment — so storage can change behind it, and every judgment is a reviewer's, marked.
 - The board stores claims, gates and the optional area fields, no `serves`/`for` links, and every new field is optional — no mistake came from a missing link, and this repo's four-row board has no areas.
 
+- A round is marked sent (`applied_at`) after the save and before any agent starts; apply and the skill refuse a sent round (2026-10-19) — a missed spawn shows in wt:status and can be re-run by hand, a second "go" would start every agent twice.
+
 ## Ruled out
 
 - Rule-only recommendations: fired on 0 of 14 trip-planner rows.

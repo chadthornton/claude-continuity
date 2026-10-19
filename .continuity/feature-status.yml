@@ -7,9 +7,7 @@ settings:
 features:
   closure-pass:
     status: building
-    mandate: 2026-10-19
-    owner: closure-pass-2
-    next: "Fix the 10 pre-merge review findings, merge, release 0.16.0 on ship it, then the trip-planner trial. Owned by agent closure-pass-1"
+    next: "Release 0.16.0 on Chad's ship it, then the trip-planner trial"
     summary: >
       Keep a board small and true, and let Chad direct it from a page. Since 2026-10-14 the page
       is a planning table: one table grouped by lasting areas (initiatives under them, sizes,
@@ -29,11 +27,20 @@ features:
       - { step: "/continuity-review: build the pack; routine reviewer as one tool-free call (claude -p --tools \"\" --setting-sources \"\" --strict-mcp-config; one retry with the checker's complaints), full reviewer as an agent; seed; on 'go' read the round, write a brief per pick by kind, set owner, continuity-save, agent-spawn within lanes, message running agents, board changes listed and confirmed last. Removes /continuity-prune (every project using the plugin). Skill scenario fixture, RED first", done: true }
       - { step: "One-line offers from /startup (no session waiting, or board past a size) and wrap-up (several initiatives changed). Skill scenario fixture", done: true }
       - { step: "Wrap-up marks a gotcha that got re-learned. Skill scenario fixture", done: true }
-      - { step: "Fix the 10 code-review findings on closure-pass-1-step-5 test first (list in handoffs/closure-pass.md), or dismiss each with a reason", done: false }
-      - { step: "Merge closure-pass-1-step-5 into main with the review line in the message", done: false }
+      - { step: "Fix the 10 code-review findings on closure-pass-1-step-5 test first (list in handoffs/closure-pass.md), or dismiss each with a reason", done: true }
+      - { step: "Merge closure-pass-1-step-5 into main with the review line in the message (b589373: 9+8 fixed, 3 dismissed over two rounds)", done: true }
       - { step: "Release 0.16.0: CHANGELOG, bump .claude-plugin/{plugin,marketplace}.json, update the installed plugin", gate: approval, done: false }
       - { step: "Trial on trip-planner through its own session: a real round with tokens measured; whether it adopts areas on its board is its call", done: false }
-    in_progress: "Steps 14–15 per handoffs/closure-pass.md"
+    in_progress: null
+
+  review-followups:
+    status: planned
+    next: "Non-critical bugs logged during closure-pass; pick up after the trip-planner trial"
+    next_steps:
+      - { step: "continuity-save: `push_to_default_branch` in flow style (`settings: { push_to_default_branch: true }`, which its own hint suggests) is missed by its grep (`^[[:space:]]*push_to_default_branch:`); match it anywhere on the line, test with a flow-style board", done: false }
+      - { step: "continuity-review-pack: take --audit <path> so it doesn't re-run the audit SKILL step 2 already ran (13 s on trip-planner)", done: false }
+      - { step: "continuity-review-apply: a starter named <row>-2 matches the audit's <row>-N worktree name guess; pick a suffix the guess can't match", done: false }
+    in_progress: null
 
   relay-and-spawn:
     status: polishing
@@ -79,11 +86,11 @@ features:
 last_session:
   date: 2026-10-19
   feature: closure-pass
-  summary: "Board review rebuilt as a planning table and built end to end (steps 5-13 of the new plan): areas on the board, audit facts, reviewer brief, pack, one-call routine review, page, /continuity-review, offers, re-learned gotchas; code review found 10 issues, unfixed"
+  summary: "Fixed review findings 1-9 test first, dismissed 10; a second review round on the fixes (2 Criticals fixed) found 10 more: 8 fixed, 2 dismissed; merged to main as b589373. Not released."
   blind_spots:
-    - "The branch closure-pass-1-step-5 holds all the code and is pushed; nothing is merged or released, and the installed plugin is still 0.15.0."
-    - "The scratch review page (https://claude.ai/artifact/NNtwC7xZfgLdxw6EKZcqen) holds trip-planner data and a confirmed test round; it is not trip-planner's real page."
-    - "Skill scenario agents find the plugin's scripts on their own, so a run without the skill is not a clean baseline."
+    - "The installed plugin is still 0.15.0: /continuity-review exists only on main until the 0.16.0 release (gotcha below has the commands)."
+    - "Chad asked (2026-10-19) that new non-critical bugs found mid-task go on review-followups, not get fixed in place."
+    - "The scratch review page (https://claude.ai/artifact/NNtwC7xZfgLdxw6EKZcqen) holds trip-planner test data; trip-planner's real page gets published by its own first /continuity-review."
 gotchas:
   - "Skill edits are scenario-tested: fixtures in tests/skill-scenarios/, baseline run on a snapshot of the old SKILL.md first (RED), then the edited one. Tell test agents to prefix EVERY command with the fixture PATH — they drop it and find the real ~/.local/bin/agent-spawn."
   - "The installed plugin runs from a versioned cache: bump version in .claude-plugin/{plugin,marketplace}.json, then `claude plugin marketplace update claude-continuity-local && claude plugin update claude-continuity@claude-continuity-local`."
