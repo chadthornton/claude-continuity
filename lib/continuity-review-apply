@@ -20,11 +20,15 @@
 #
 # Sessions, handoffs and board changes (close, merge, park) are not written
 # here: those take judgment and a yes, and the review skill does them.
-# Prints {"added_rows": [...], "fields": n, "starters": {"<item key>": "<row>"}}
-# on stdout; starters names the row each starter item is on, new or reused.
+# Prints {"added_rows": [...], "fields": n, "starters": {"<item key>": "<row>"},
+# "overrides_next": {"<row>": null | {...}}} on stdout; starters names the row
+# each starter item is on, new or reused; overrides_next what each of the page's
+# override documents becomes once the round is sent (null: delete it): applied
+# corrections and keeps go, and so does a note this review read, unchanged.
 #
 # Exit codes: 0 ok · 1 the round is not confirmed, was already applied, or
-# belongs to another review · 3 not usable here
+# belongs to another review, or the seed or overrides can't be read (the board
+# is left as it was) · 3 not usable here
 set -u
 LIB="$(cd "$(dirname "$0")" && pwd)"
 . "$LIB/continuity-board.sh" || { echo "SKIP: lib/continuity-board.sh missing" >&2; exit 3; }
@@ -52,6 +56,25 @@ jq -e '.confirmed_at' "$ROUND" >/dev/null 2>&1 || { echo "not applied: the round
 jq -e '.applied_at' "$ROUND" >/dev/null 2>&1 && { echo "not applied: this round was already applied at $(jq -r .applied_at "$ROUND")" >&2; exit 1; }
 [ "$(jq -r .generated "$ROUND")" = "$(jq -r .generated "$SEED")" ] || { echo "not applied: the round belongs to another review" >&2; exit 1; }
 
+# What each override document becomes once the round is sent, worked out before the board is touched so a
+# failure here leaves it as it was. The corrections are on the board now and a "keep" answered this review's
+# suggestion, so both go. A note this review read (the seed's notes_read) that still reads the same has done
+# its job; one edited or written since hasn't reached a review and stays, with its timestamp. null deletes
+# the document (nothing left but a timestamp counts as empty); one that wouldn't change is left out, and so is
+# an entry that isn't a document.
+# A correction only goes when apply writes it: on a row both the review and the board have.
+onboard=$(cb_names < "$B" | jq -R . | jq -sc .)
+next=$(jq -c --slurpfile o "$OV" --argjson onboard "$onboard" '(.notes_read // {}) as $read
+  | ([.initiatives[].row] - ([.initiatives[].row] - $onboard)) as $written
+  | [($o[0] // {}) | to_entries[]
+  | select(.value | type == "object") | .key as $k | .value as $v
+  | ($v | (if $written | index($k) then del(.area, .size, .aspiration) else . end) | del(.keep)
+        | if .notes != null and .notes == $read[$k] then del(.notes) else . end) as $n
+  | ($n | del(.at) == {}) as $empty
+  | select($n != $v or $empty)
+  | {key: $k, value: (if $empty then null else $n end)}] | from_entries' "$SEED") \
+  || { echo "not applied: could not read the seed or the overrides" >&2; exit 1; }
+
 tmp=$(mktemp -d) || exit 3
 trap 'rm -rf "$tmp"' EXIT
 cp "$B" "$tmp/b"
@@ -71,7 +94,7 @@ cb_names < "$tmp/b" > "$tmp/names"
 fields=0
 # One line per field to write: row<TAB>key<TAB>yaml value ("" removes the field).
 jq -r --slurpfile ov "$OV" --arg mode "$(jq -r .mode "$SEED")" '
-  .initiatives[] | . as $i | ($ov[0][.row] // {}) as $o
+  .initiatives[] | . as $i | ($ov[0][.row] // {} | if type == "object" then . else {} end) as $o
   | [ ("area", "size", "aspiration") as $f
       | if $o[$f] != null and $o[$f] != "" then {f: $f, v: $o[$f], inf: false}
         elif ($i.judged | index($f)) and $i[$f] != null then {f: $f, v: $i[$f], inf: true}
@@ -80,7 +103,7 @@ jq -r --slurpfile ov "$OV" --arg mode "$(jq -r .mode "$SEED")" '
   | ($w | map(select(.inf) | .f)) as $inferred
   | ($write[] | [$i.row, .f, (if .f == "size" then .v else (.v | tojson) end)] | @tsv),
     (if ($w | length) > 0 then [$i.row, "inferred", (if ($inferred | length) > 0 then "[" + ($inferred | join(", ")) + "]" else "" end)] | @tsv else empty end)
-' "$SEED" > "$tmp/fields"
+' "$SEED" > "$tmp/fields" || { echo "not applied: could not read the review's initiatives" >&2; exit 1; }
 while IFS=$'\t' read -r r k v; do
   grep -qxF "$r" "$tmp/names" || continue
   edit cb_set_field "$r" "$k" "$v"; fields=$((fields + 1))
@@ -108,7 +131,8 @@ while IFS= read -r s; do
 done < <(jq -c '.items[] | select(.key | startswith("s:"))' "$ROUND")
 
 if ! cmp -s "$tmp/b" "$B"; then cp "$tmp/b" "$B"; fi
-jq -n --argjson fields "$fields" --rawfile st "$tmp/starters" \
+jq -n --argjson fields "$fields" --rawfile st "$tmp/starters" --argjson next "$next" \
   '{added_rows: $ARGS.positional, fields: $fields,
-    starters: ($st | split("\n") | map(select(length > 0) | split("\t") | {key: .[0], value: .[1]}) | from_entries)}' \
+    starters: ($st | split("\n") | map(select(length > 0) | split("\t") | {key: .[0], value: .[1]}) | from_entries),
+    overrides_next: $next}' \
   --args ${added[@]+"${added[@]}"}

@@ -32,8 +32,10 @@ Work files go in a fresh directory under your scratchpad (`$W` below).
      `--full` and the same `--notes`), reach past the pack only where the brief allows, write
      `$W/review.json`, and run `continuity-review-check` with the audit until
      it prints OK.
-6. `<lib>/continuity-review-seed $W/review.json $W/audit.json <project> > $W/seed.json`,
-   where `<project>` is the repository's directory name.
+6. `<lib>/continuity-review-seed $W/review.json $W/audit.json <project> [--notes $W/overrides.json] > $W/seed.json`,
+   where `<project>` is the repository's directory name. Pass `--notes` when
+   step 4 read the overrides: the seed records the notes this review read, so
+   "go" clears those and keeps any written since.
 
 ## 2. The page
 
@@ -62,7 +64,8 @@ changes. Treat the answer as a confirmed round.
 
 1. Read `round/current` and the `overrides` collection with `read_db` into
    `$W/round.json` and `$W/overrides.json` (overrides as one object keyed by
-   row). If the round is not confirmed, or its `generated` differs from the
+   row, each document's data alone), and each override's `version` into
+   `$W/versions.json` (keyed by row) for step 6. If the round is not confirmed, or its `generated` differs from the
    seed's, say so and stop. If it carries `applied_at`, it was already sent:
    say when, and stop; a second go would start its sessions twice. Re-run the audit into `$W/audit-go.json` for what
    is running now; where it can't see sessions (`sessions.source` is
@@ -71,7 +74,8 @@ changes. Treat the answer as a confirmed round.
    `<lib>/continuity-review-apply $W/seed.json $W/overrides.json $W/round.json <today> --review-url <url>`.
    It writes your corrections, a full review's areas and sizes, the last-review
    date and any starters as new initiatives; it prints the rows it added and,
-   under `starters`, the row each starter item is on (a taken name gets `-2`).
+   under `starters`, the row each starter item is on (a taken name gets `-2`),
+   and under `overrides_next` what each override document becomes (step 6).
 3. **Board changes** (round items with `kind: board`). For each, show what it
    removes: the open steps (`continuity-state row <name>`), whether a handoff
    and a decisions file exist, and where a merge sends the open steps. Ask once
@@ -126,7 +130,16 @@ changes. Treat the answer as a confirmed round.
    into the report). A chore agent gets `--prompt` with its brief instead.
    If a spawn fails, report it and run that same `agent-spawn` again once the
    cause is fixed; another "go" won't, since the round is already marked sent.
-6. Delete the override documents the apply step wrote to the board.
+6. **Overrides**, only once the round is marked sent: do what apply's
+   `overrides_next` says, in one `write_db` `batch`: `null` is a `delete`, an
+   object a `set` of exactly that object, and every entry's `if_version` is
+   the row's version from `$W/versions.json`, the read apply worked from (not
+   a fresh read, which would let a note written since be overwritten). Corrections and keeps go (they're on the board now) and so do
+   notes this review read; a note no review read stays, so never delete an
+   override document `overrides_next` doesn't name as `null`. If the batch is
+   refused because a document changed since step 1, the user is writing on the
+   page: drop the document it names (it stays as they left it) and send the
+   rest, repeating until the batch goes through or nothing is left.
 7. Report one line per item: what started where, what got a message, what was
    held, what changed on the board. End with `Check on them: agent-spawn status`
    when anything started.

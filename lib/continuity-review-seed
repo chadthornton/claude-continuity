@@ -1,7 +1,7 @@
 #!/bin/bash
 # continuity-review-seed — the one document the review page reads.
 #
-#   continuity-review-seed <review.json> <audit.json> <project name>
+#   continuity-review-seed <review.json> <audit.json> <project name> [--notes <overrides.json>]
 #
 # Merges the audit's facts with the reviewer's judgments, per initiative, and
 # prints one JSON document for the page's store (review/current). The review
@@ -14,18 +14,27 @@
 # board lacks, or lists as inferred, is the reviewer's. line, points, recent,
 # progress, proposal and suggest are always judgments.
 #
+# --notes takes the page's overrides as the review read them (one object keyed
+# by row) and records each row's note under notes_read, so that on "go" the
+# notes this review read can be cleared and any written since kept.
+#
 # Exit codes: 0 ok · 1 the review fails the checker · 3 not usable here
 set -u
 LIB="$(cd "$(dirname "$0")" && pwd)"
 command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-review-seed needs jq" >&2; exit 3; }
-[ $# -eq 3 ] && [ -r "$1" ] && [ -r "$2" ] || { echo "usage: continuity-review-seed <review.json> <audit.json> <project name>" >&2; exit 3; }
+NOTES=/dev/null
+[ $# -eq 5 ] && [ "$4" = "--notes" ] && NOTES=$5 && set -- "$1" "$2" "$3"
+[ $# -eq 3 ] && [ -r "$1" ] && [ -r "$2" ] && [ -r "$NOTES" ] || { echo "usage: continuity-review-seed <review.json> <audit.json> <project name> [--notes <overrides.json>]" >&2; exit 3; }
+if [ "$NOTES" != /dev/null ] && ! jq -e . "$NOTES" >/dev/null 2>&1; then
+  echo "notes not recorded: $NOTES is not JSON; seeding without them" >&2; NOTES=/dev/null
+fi
 
 if ! problems=$("$LIB/continuity-review-check" "$1" "$2"); then
   printf 'not seeded: the review fails continuity-review-check\n%s\n' "$problems" >&2
   exit 1
 fi
 
-jq -n --slurpfile r "$1" --slurpfile a "$2" --arg project "$3" '
+jq -n --slurpfile r "$1" --slurpfile a "$2" --slurpfile n "$NOTES" --arg project "$3" '
 $r[0] as $rv | $a[0] as $au
 | ($rv.initiatives | map({key: .row, value: .}) | from_entries) as $byrow
 | ($au.sessions.items // []) as $sess
@@ -56,5 +65,6 @@ $r[0] as $rv | $a[0] as $au
     areas: [$areas[] | . as $ar | . + {initiatives: ([$inits[] | select(.area == $ar.name)] | length)}],
     initiatives: $inits,
     chore_groups: ($rv.chore_groups // []),
-    sessions: $sess
+    sessions: $sess,
+    notes_read: (($n[0] // {}) | if type == "object" then with_entries(select((.value | type) == "object" and ((.value.notes // null) | type) == "string" and (.value.notes | length) > 0) | .value = .value.notes) else {} end)
   }' "$1"

@@ -198,5 +198,51 @@ r = subprocess.run([APPLY, '--url-only', 'https://claude.ai/artifact/xyz'], cwd=
 expect('F2e url-only refused write reported', r.returncode != 0 and open(f'{d}/.continuity/feature-status.yml').read() == odd, (r.returncode, r.stderr[:200]))
 shutil.rmtree(d)
 
+# N1. What each override document becomes once the round is sent: applied corrections and a "keep" go (the
+#     board holds them now; keep answered this review's suggestion), a note this review read and that is
+#     unchanged goes, a note edited or written since stays; a document left empty is deleted (null); one
+#     that would not change is not listed.
+d = repo(BOARD)
+seed_n = dict(SEED, notes_read={'discovery': 'Carrier first', 'quiet': 'Ask Sam', 'gone': 'old row'})
+ov_n = {'discovery': {'size': 'L', 'notes': 'Carrier first', 'at': 'x'},
+        'quiet': {'keep': True, 'area': 'Lists', 'notes': 'Ask Sam, then park', 'at': 'x'},
+        'lists': {'notes': 'Written after the review', 'at': 'x'}}
+rc, summary, raw = apply(d, files(d, seed=seed_n, overrides=ov_n))
+expect('N1 read note and corrections go; edited note stays; untouched doc unlisted',
+       rc == 0 and (summary or {}).get('overrides_next') == {'discovery': None, 'quiet': {'notes': 'Ask Sam, then park', 'at': 'x'}}, raw[:700])
+rc, summary, raw = apply(d, files(d))
+expect('N1 seed without notes_read: corrections still cleared, every doc emptied',
+       rc == 0 and (summary or {}).get('overrides_next') == {'discovery': None, 'quiet': None}, raw[:600])
+rc, summary, raw = apply(d, files(d, seed=SEED, overrides={'lists': {'notes': 'Not yet read', 'at': 'x'}}))
+expect('N1 a note no review read: nothing changes', rc == 0 and (summary or {}).get('overrides_next') == {}, raw[:600])
+rc, summary, raw = apply(d, files(d, seed=seed_n, overrides=ov_n, rnd=dict(ROUND, confirmed_at=None)))
+expect('N1 unconfirmed round: refused, nothing listed', rc == 1 and summary is None, raw[:300])
+shutil.rmtree(d)
+
+# N2. A document holding only its timestamp is deleted; a kept note keeps its timestamp; an entry that isn't a
+#     document is left alone and doesn't stop the apply.
+d = repo(BOARD)
+rc, summary, raw = apply(d, files(d, seed=dict(SEED, notes_read={}), overrides={'discovery': {'at': 'x'}, 'quiet': {'size': 'S', 'notes': 'Unread', 'at': 't1'}, 'pages': 'not a doc'}))
+nx = (summary or {}).get('overrides_next')
+expect('N2 timestamp-only document deleted', rc == 0 and nx is not None and 'discovery' in nx and nx['discovery'] is None, raw[:600])
+expect('N2 kept note keeps its timestamp', (nx or {}).get('quiet') == {'notes': 'Unread', 'at': 't1'}, raw[:600])
+expect('N2 a non-document entry is left out', 'pages' not in (nx or {'pages': 1}), raw[:600])
+shutil.rmtree(d)
+
+# N3. A correction on a row apply couldn't write (not on the board) stays on the page.
+d = repo(BOARD)
+seed3 = json.loads(json.dumps(SEED)); seed3['initiatives'].append(dict(seed3['initiatives'][0], row='renamed-away'))
+rc, summary, raw = apply(d, files(d, seed=seed3, overrides={'renamed-away': {'size': 'S', 'at': 'x'}, 'discovery': {'size': 'L', 'at': 'x'}}))
+nx = (summary or {}).get('overrides_next') or {}
+expect('N3 correction on a row not on the board kept', rc == 0 and 'renamed-away' not in nx and nx.get('discovery', 1) is None, raw[:600])
+shutil.rmtree(d)
+
+# N4. A seed apply can't read fails before the board changes, and clears nothing.
+d = repo(BOARD)
+before = open(f'{d}/.continuity/feature-status.yml').read()
+rc, summary, raw = apply(d, files(d, seed=dict(SEED, initiatives='broken'), overrides={'discovery': {'size': 'L'}}))
+expect('N4 unreadable seed: refused, board untouched', rc == 1 and summary is None and open(f'{d}/.continuity/feature-status.yml').read() == before, raw[:400])
+shutil.rmtree(d)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

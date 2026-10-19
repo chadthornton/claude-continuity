@@ -13,11 +13,14 @@ def expect(name, ok, detail=''):
         print('   ', str(detail)[:700])
 
 
-def seed(review, audit, project='demo'):
+def seed(review, audit, project='demo', notes=None):
     d = tempfile.mkdtemp()
     rp, ap = os.path.join(d, 'review.json'), os.path.join(d, 'audit.json')
     json.dump(review, open(rp, 'w')); json.dump(audit, open(ap, 'w'))
-    r = subprocess.run([SEED, rp, ap, project], capture_output=True, text=True)
+    extra = []
+    if notes is not None:
+        np_ = os.path.join(d, 'overrides.json'); json.dump(notes, open(np_, 'w')); extra = ['--notes', np_]
+    r = subprocess.run([SEED, rp, ap, project] + extra, capture_output=True, text=True)
     try:
         return r.returncode, json.loads(r.stdout), r.stdout + r.stderr
     except ValueError:
@@ -110,6 +113,20 @@ ended['sessions']['items'] = [
 rc, doc7, raw = seed(REVIEW, ended)
 run = {i['row']: i.get('running') for i in (doc7 or {}).get('initiatives', [])}
 expect('F3 seed: only a running session marks its row', rc == 0 and run == {'lists': 'lists-4', 'quiet': None}, run)
+
+# D8. The seed records exactly the notes the review read, so "go" can clear those and keep newer ones.
+rc, doc8, raw8 = seed(REVIEW, AUDIT, notes={'lists': {'notes': 'Carrier first', 'size': 'L'}, 'quiet': {'size': 'S'}, 'gone': {'notes': 'old row'}})
+expect('D8 notes read, keyed by row, only rows with a note', rc == 0 and (doc8 or {}).get('notes_read') == {'lists': 'Carrier first', 'gone': 'old row'}, raw8[:600])
+expect('D8 without --notes: none read', (doc or {}).get('notes_read') == {}, (doc or {}).get('notes_read'))
+
+d9 = tempfile.mkdtemp(); bad = os.path.join(d9, 'bad.json'); open(bad, 'w').write('{not json')
+rp, ap = os.path.join(d9, 'r.json'), os.path.join(d9, 'a.json'); json.dump(REVIEW, open(rp, 'w')); json.dump(AUDIT, open(ap, 'w'))
+r9 = subprocess.run([SEED, rp, ap, 'demo', '--notes', bad], capture_output=True, text=True)
+expect('D8 malformed notes file: still seeds, no notes read, says so', r9.returncode == 0 and json.loads(r9.stdout or '{}').get('notes_read') == {} and 'notes' in r9.stderr, r9.stdout[:200] + r9.stderr)
+
+# D9. An entry that isn't a document is skipped, not fatal.
+rc, doc9, raw9 = seed(REVIEW, AUDIT, notes={'x': 'str', 'lists': {'notes': 'n'}})
+expect('D9 non-object entry skipped', rc == 0 and (doc9 or {}).get('notes_read') == {'lists': 'n'}, raw9[:400])
 
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)
