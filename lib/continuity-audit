@@ -43,8 +43,9 @@
 #                     line edited, null without history
 #   sessions          source (wt | unavailable), items[{name, branch, verdict,
 #                     state, activity, running, row, match}] — from wt:status --tsv;
-#                     running is true only when its state is "running" (an ended,
-#                     safe or orphan worktree is listed, not running);
+#                     running is true only when its state is "running" and it is
+#                     not an orphan (an ended, safe or orphan worktree is listed,
+#                     not running);
 #                     match is "owner" (the row names it as owner), "name"
 #                     (worktree named <row> or <row>-N: a guess) or null
 #   prs               source, items[{number, state, rows[]}]
@@ -86,7 +87,6 @@ slack-token	${BND}xox[baprs]-[A-Za-z0-9-]{10,}
 "'private-key	-----BEGIN [A-Z ]*PRIVATE KEY-----
 assigned-secret	([Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Pp][Aa][Ss][Ss][Ww]([Oo][Rr])?[Dd])["'"'"']?[ ]*[:=][ ]*["'"'"']?[A-Za-z0-9/+_-]{16,}'
 
-# Board text the audit repeats (steps, claims, gotchas) has the same patterns blanked.
 # Board source: origin/<default> when other sessions landed continuity this
 # checkout lacks — the same rule as continuity-state. No fetch here; the caller's
 # continuity-state call fetched. Everything below reads $tmp/board.yml and REV.
@@ -98,8 +98,9 @@ fi
 REV="${SRC:-HEAD}"
 if [ -n "$SRC" ]; then git show "$SRC:$B" > "$tmp/board.yml" 2>/dev/null || cp "$B" "$tmp/board.yml"; else cp "$B" "$tmp/board.yml"; fi
 
-# Free text (steps, gates, claims, gotchas, area text, aspirations) is blanked in
-# the jq below; names never are, since every reader matches rows by name.
+# The same patterns are blanked in every value the audit repeats (the jq `red`
+# def): steps, gates, claims, gotchas, area text, aspirations, settings, serves.
+# Row and area names never are, since every reader matches rows by name.
 cb_facts < "$tmp/board.yml" > "$tmp/facts"
 
 # PR states: one listing, only when the board cites a PR.
@@ -124,8 +125,10 @@ since=$(jq -nr --arg d "$last_review" --arg now "$now" \
 # one edit counts once.
 : > "$tmp/edits"
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
-  cc_echoes "$REV" > "$tmp/echoes"
-  git log --no-merges --format='%H %ct' "$REV" -- "$B" 2>/dev/null | while read -r c ct; do
+  cc_echoes "$REV" "$since" > "$tmp/echoes"
+  # --full-history: git's default would drop a merged branch's source commit
+  # (its merge is TREESAME), leaving only the landed copy, which is an echo.
+  git log --no-merges --full-history --format='%H %ct' "$REV" -- "$B" 2>/dev/null | while read -r c ct; do
     [ "$ct" -ge "$since" ] || continue
     grep -qxF "$c" "$tmp/echoes" && continue
     git show "$c:$B" 2>/dev/null | cb_blocks > "$tmp/b.new"
@@ -227,8 +230,8 @@ recs($facts) as $f
 | (($f | map(select(.[0] == "gotchalines")) | .[0][1] // "0") | tonumber) as $glines
 | {
     review: {last_review: ($last_review | nn), since: ($since | strftime("%Y-%m-%d")), since_epoch: $since},
-    review_url: ($review_url | nn),
-    product_doc: (if $product_doc == "" then null else {path: $product_doc, exists: $product_doc_exists} end),
+    review_url: ($review_url | red | nn),
+    product_doc: (if $product_doc == "" then null else {path: ($product_doc | red), exists: $product_doc_exists} end),
     board: {path: $path, source: $board_src, bytes: ($bytes | tonumber), lines: ($lines | tonumber)},
     decisions: [recs($decisions)[] | {path: .[0], bytes: (.[1] | tonumber), lines: (.[2] | tonumber), over_budget: ((.[2] | tonumber) > 30)}],
     gotchas: {
@@ -257,7 +260,7 @@ recs($facts) as $f
       | ($x[3] // "" | nn) as $area | ($x[4] // "" | nn) as $size
       | [$claims[] | select(.[1] == $r[1] and .[2] == $r[2]) | {text: (.[4] | red), status: .[3], evidence: (.[5] // "" | red | nn), waits_on: (.[6] // "" | red | nn)}] as $rc
       | {
-          name: $r[2], section: $r[1], status: ($r[3] | nn), kind: ($r[4] | nn), serves: ($r[5] | nn),
+          name: $r[2], section: $r[1], status: ($r[3] | red | nn), kind: ($r[4] | red | nn), serves: ($r[5] | red | nn),
           open: (if $ok then ($r[6] | tonumber) else null end),
           done: (if $ok then ($r[7] | tonumber) else null end),
           steps_readable: $ok,
@@ -287,7 +290,7 @@ recs($facts) as $f
         | ([$rowx[] | select(.[7] == $s[2])] | .[0]) as $own
         | ([$rowx[] | select(.[2] as $n | $s[2] == $n or ($s[2] | test("^" + ($n | gsub("[^A-Za-z0-9_-]"; ".")) + "-[0-9]+$")))] | .[0]) as $nm
         | {name: .[2], branch: (.[7] // "" | nn), verdict: (.[3] // "" | nn), state: (.[4] // "" | nn), activity: (.[9] // "" | nn),
-           running: ((.[4] // "") == "running"),
+           running: ((.[4] // "") == "running" and (.[3] // "") != "orphan"),
            row: (if $own then $own[2] elif $nm then $nm[2] else null end),
            match: (if $own then "owner" elif $nm then "name" else null end)}
       ]

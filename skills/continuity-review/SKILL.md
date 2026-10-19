@@ -121,6 +121,8 @@ changes. Treat the answer as a confirmed round.
    second go can start these again, and only then start each agent as wrap-up's relay steps 4 and 5 do (`agent-spawn {name}
    --prompt "/startup"`, judged by its exit status, its `Open it:` line copied
    into the report). A chore agent gets `--prompt` with its brief instead.
+   If a spawn fails, report it and run that same `agent-spawn` again once the
+   cause is fixed; another "go" won't, since the round is already marked sent.
 6. Delete the override documents the apply step wrote to the board.
 7. Report one line per item: what started where, what got a message, what was
    held, what changed on the board. End with `Check on them: agent-spawn status`

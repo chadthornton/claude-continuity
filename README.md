@@ -42,7 +42,7 @@ There's no shortage of context-management approaches: CLAUDE.md, AGENTS.md, memo
 | `/away` | Leaving mid-task | Sends this session's task to a Claude Code cloud session so it keeps going with the lid closed |
 | `/back` | Returning | Stops the cloud session at a clean point and fast-forwards its commits into this worktree |
 | `/continuity-review` | When choosing where effort goes next | Reviews the board on a page grouped by area: what moved, what's live, what could start. You add sessions to a round within capacity limits, confirm, and say "go" |
-| `/continuity-prune` | Retired | Points to `/continuity-review`, which now proposes what to close, merge or park; removed next release |
+| `/continuity-prune` | When a decisions file passes ~30 lines | Proposes what to trim from decisions files; the board itself (close, merge, park) is `/continuity-review`'s |
 | `/continuity-init` | New project | Scaffolds `.continuity/` |
 | `/continuity-recover` | After a crash | Reconstructs state from the session transcript |
 

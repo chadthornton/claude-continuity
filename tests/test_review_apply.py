@@ -180,8 +180,8 @@ shutil.rmtree(d)
 #     A label with no letters to make a name from becomes "starter".
 taken = BOARD.replace('  quiet:\n', '  morning-of-chooser:\n    status: polishing\n    next_steps: []\n  quiet:\n', 1)
 d = repo(taken)
-odd = dict(ROUND, items=ROUND['items'] + [{'key': 's:1:0', 'kind': 'think', 'label': '日本語', 'area': 'Lists', 'size': 'S', 'aspiration': 'A.', 'brief': 'B.'}])
-f = files(d, rnd=odd)
+odd_round = dict(ROUND, items=ROUND['items'] + [{'key': 's:1:0', 'kind': 'think', 'label': '日本語', 'area': 'Lists', 'size': 'S', 'aspiration': 'A.', 'brief': 'B.'}])
+f = files(d, rnd=odd_round)
 rc, summary, raw = apply(d, f)
 rc2, doc, raw2 = audit(d)
 names = [r['name'] for r in (doc or {'rows': []})['rows']]
@@ -190,6 +190,12 @@ expect('F8 summary maps each starter key to its row', (summary or {}).get('start
 before = open(f'{d}/.continuity/feature-status.yml').read()
 rc, summary, raw = apply(d, f)
 expect('F8 applied again: nothing added, same map', rc == 0 and open(f'{d}/.continuity/feature-status.yml').read() == before and (summary or {}).get('added_rows') == [] and (summary or {}).get('starters') == {'s:0:0': 'morning-of-chooser-2', 's:1:0': 'starter'}, (summary, raw[:300]))
+shutil.rmtree(d)
+
+# F2e. --url-only on a board the writer refuses: exit non-zero, board untouched.
+d = repo(odd)
+r = subprocess.run([APPLY, '--url-only', 'https://claude.ai/artifact/xyz'], cwd=d, env=ENV, capture_output=True, text=True)
+expect('F2e url-only refused write reported', r.returncode != 0 and open(f'{d}/.continuity/feature-status.yml').read() == odd, (r.returncode, r.stderr[:200]))
 shutil.rmtree(d)
 
 print('\nFAILED:', fails if fails else 'none')

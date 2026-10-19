@@ -77,7 +77,7 @@ jq -c 'del(.gotchas.entries)' "$tmp/audit.json"   # the gotchas are printed in f
 echo
 
 moved=$(jq -r '
-  ([.sessions.items[]? | select(.running // (.state == "running")) | .row // empty]) as $live
+  ([.sessions.items[]? | select(.running) | .row // empty]) as $live
   | .rows[] | select(.activity.board_edits > 0 or (.activity.prs_merged | length) > 0 or (.name as $n | $live | index($n)))
   | .name' "$tmp/audit.json")
 

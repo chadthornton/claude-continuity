@@ -33,9 +33,10 @@ if [ "${1:-}" = "--url-only" ] && [ -n "${2:-}" ]; then
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then cd "$(git rev-parse --show-toplevel)" || exit 3; fi
   [ -f .continuity/feature-status.yml ] || { echo "SKIP: no .continuity/feature-status.yml here" >&2; exit 3; }
   t=$(mktemp) || exit 3
-  cb_set_setting review_url "$(jq -n --arg s "$2" '$s')" < .continuity/feature-status.yml > "$t" && cat "$t" > .continuity/feature-status.yml   # keeps the file's mode
-  rm -f "$t"
-  exit 0
+  if cb_set_setting review_url "$(jq -n --arg s "$2" '$s')" < .continuity/feature-status.yml > "$t"; then
+    cat "$t" > .continuity/feature-status.yml; rm -f "$t"; exit 0   # cat keeps the file's mode
+  fi
+  rm -f "$t"; echo "not recorded: could not edit the board's settings" >&2; exit 1
 fi
 [ $# -ge 4 ] || { echo "usage: continuity-review-apply <seed.json> <overrides.json> <round.json> <today> [--review-url <url>]" >&2; exit 3; }
 SEED=$1 OV=$2 ROUND=$3 TODAY=$4; shift 4

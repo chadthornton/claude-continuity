@@ -632,5 +632,29 @@ got = {i.get('name'): i.get('running') for i in ((doc or {}).get('sessions') or 
 expect('F3 running only when state is running', got == {'shipping-1': True, 'finished-2': False, 'resting-1': False}, got)
 shutil.rmtree(d); shutil.rmtree(wtdir)
 
+# F6b. After the branch merges into the default branch, its edit still counts once
+#      (git's default log would drop the source and the echo rule the copy).
+root, remote, clone, wt = ns['setup']()
+write(f'{wt}/.continuity/feature-status.yml', B6); ns['save'](wt)
+write(f'{wt}/app.js', 'v2\n'); git(wt, 'commit', '-qam', 'code')
+git(clone, 'pull', '-q', '--ff-only'); git(clone, 'merge', '-q', '--no-ff', '--no-edit', 'feature')
+rc, doc, raw = audit(clone, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F6b merged branch: edit counted once on the default branch', eds(doc) == {'alpha': 1, 'beta': 1}, eds(doc))
+shutil.rmtree(root)
+
+# F3b. An orphan worktree is never running, whatever its state says.
+d = repo(BOARD)
+wtdir, wt = fake_gh(r"""printf 'repo\tpath\tname\tverdict\tstate\tuncommitted\tunpushed\tbranch\tlock_pid\tactivity\n'
+printf '/r\t/r/w/shipping-1\tshipping-1\torphan\trunning\t0\t0\tb\t\tworking\n'""")
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT=wt)
+expect('F3b orphan not running', [i.get('running') for i in ((doc or {}).get('sessions') or {}).get('items', [])] == [False], raw[:300])
+shutil.rmtree(d); shutil.rmtree(wtdir)
+
+# F1b. Settings values and serves are blanked like other free text.
+d = repo('settings:\n  review_url: "https://x.test/?k=' + SK + '"\nfeatures:\n  a:\n    status: building\n    serves: "' + SK + '"\n')
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F1b token in settings or serves never printed', rc == 0 and SK not in raw, raw[:300])
+shutil.rmtree(d)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

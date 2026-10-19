@@ -38,7 +38,7 @@ AUDIT = {
          'area': None, 'size': 'S', 'aspiration': None, 'inferred': ['size'],
          'activity': {'board_edits': 0, 'dates': [], 'prs_merged': []}, 'flags': []},
     ],
-    'sessions': {'source': 'wt', 'items': [{'name': 'lists-4', 'branch': 'b', 'verdict': 'running', 'state': 'running', 'activity': 'idle (replied)', 'row': 'lists', 'match': 'owner'}]},
+    'sessions': {'source': 'wt', 'items': [{'name': 'lists-4', 'branch': 'b', 'verdict': 'running', 'state': 'running', 'activity': 'idle (replied)', 'running': True, 'row': 'lists', 'match': 'owner'}]},
     'gotchas': {'count': 0, 'lines': 0, 'cap': 10, 'over_cap': False, 'entries': []},
 }
 REVIEW = {
