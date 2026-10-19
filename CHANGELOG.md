@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+- **The review's own round counted as activity** — its "continuity: review round" commit stamps area, size and owners on many rows, so the next routine review saw every row as moved and packed them all in full. The audit now skips that commit; on trip-planner the routine pack falls from 105 KB to 74 KB (19 rows in full to 9).
+- **The review skill named `continuity-state` and `continuity-save` without a path** — they live in the startup and wrap-up skills, not `lib/` or PATH; trip-planner's trial checked the board by hand. The skill now gives both paths.
+
 ## [0.17.2] - 2026-10-19
 
 ### Fixed

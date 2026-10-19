@@ -55,7 +55,8 @@
 #   unexpected_files[] path, bytes, binary — files under .continuity/ (tracked
 #                     or about to be) that are binary or not .md/.yml/.yaml/.txt
 # A row's board_edits are commits in the window whose version of the row
-# differs from their first parent's (merges skipped). prs_merged are PRs the
+# differs from their first parent's (merges skipped, and the review's own
+# "continuity: review round" commit, which stamps many rows at once). prs_merged are PRs the
 # row cites that merged in the window. CONTINUITY_AUDIT_WT names the wt:status
 # command (tests). PR states come from one `gh pr list`; without a working gh every state is
 # "unknown" and prs.source is "unavailable". CONTINUITY_AUDIT_GH names the gh
@@ -128,8 +129,9 @@ if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   cc_echoes "$REV" "$since" > "$tmp/echoes"
   # --full-history: git's default would drop a merged branch's source commit
   # (its merge is TREESAME), leaving only the landed copy, which is an echo.
-  git log --no-merges --full-history --format='%H %ct' "$REV" -- "$B" 2>/dev/null | while read -r c ct; do
+  git log --no-merges --full-history --format='%H %ct %s' "$REV" -- "$B" 2>/dev/null | while read -r c ct subj; do
     [ "$ct" -ge "$since" ] || continue
+    case "$subj" in "continuity: review round"*) continue ;; esac   # the review's own write, not activity
     grep -qxF "$c" "$tmp/echoes" && continue
     git show "$c:$B" 2>/dev/null | cb_blocks > "$tmp/b.new"
     if git rev-parse -q --verify "$c^" >/dev/null 2>&1; then git show "$c^:$B" 2>/dev/null | cb_blocks > "$tmp/b.old"; else : > "$tmp/b.old"; fi

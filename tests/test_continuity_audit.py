@@ -493,6 +493,17 @@ expect('W2 last review read', ((doc or {}).get('review') or {}).get('last_review
 expect('W2 only edits since the review count', act('shipping').get('board_edits') == 1 and act('finished').get('board_edits') == 1, (act('shipping'), act('finished')))
 shutil.rmtree(d)
 
+# W4. The review's own round commit (it stamps area, size and owners on many rows) is not activity; later edits are.
+d = repo(BOARD, when=NOW - 40 * DAY)
+p4 = f'{d}/.continuity/feature-status.yml'
+write(p4, open(p4).read().replace('"Pick a carrier"', '"Pick a carrier"\n    size: L', 1).replace('"Nothing left"', '"Nothing left"\n    size: S', 1))
+commit(d, 'continuity: review round 2026-10-19 (shipping-1)', NOW - 2 * DAY)
+edit_row(d, '"Only step"', '"Only step, done"', NOW - 1 * DAY)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('W4 review round commit not counted', act('shipping').get('board_edits') == 0, act('shipping'))
+expect('W4 an edit after it still counts', act('finished').get('board_edits') == 1, act('finished'))
+shutil.rmtree(d)
+
 # W3. Cited PRs that merged inside the window count; older or unmerged ones don't.
 d = repo(BOARD, when=NOW - 40 * DAY)
 m = lambda k: time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(NOW - k * DAY))
