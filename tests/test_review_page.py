@@ -159,5 +159,17 @@ R9['initiatives'][1]['line'] = 'Lead one. Two. Three. Four. Five.'
 disc_row = run([['seed', R9]])['shots'][-1]['app'].split('data-toggle="discovery"')[1].split('</tr>')[0]
 expect('G8 bullets past three fold behind more', '<li>Four.</li></ul><details class="more"><summary>1 more</summary><ul class="pts"><li>Five.</li>' in disc_row, disc_row[:700])
 
+# G10. A close/park/merge with no session shows as the row's next session, its button named by the change;
+#      the row and Winding down are one item, so adding from the row marks both.
+out = run([['seed', REVIEW]])
+app = out['shots'][-1]['app']
+disc_row = app.split('data-toggle="discovery"')[1].split('</tr>')[0]
+expect('G10 board change in the row, button says Merge', 'Board change' in disc_row and 'data-add="b:discovery">Merge</button>' in disc_row and 'data-keep="discovery"' in disc_row, disc_row[-700:])
+expect('G10 no separate merge pill beside the status', 'pill warn' not in disc_row, disc_row[:400])
+expect('G10 Winding down names it Merge too, sessions still say Add', app.count('data-add="b:discovery">Merge</button>') == 2 and 'data-add="p:lists">Add</button>' in app, '')
+out = run([['seed', REVIEW], ['click', {'add': 'b:discovery'}]])
+app = out['shots'][-1]['app']
+expect('G10 added from the row: both places say in this round', 'data-add="b:discovery"' not in app and app.count('In this round') >= 2, text(app)[-500:])
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

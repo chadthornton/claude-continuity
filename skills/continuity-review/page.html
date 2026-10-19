@@ -181,10 +181,14 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
   }
   function starters() { var o = []; (S.review.areas || []).forEach(function (a, ai) { (a.starters || []).forEach(function (s, si) { o.push({ key: "s:" + ai + ":" + si, kind: s.first_session, title: "Start: " + s.title, label: s.title, brief: s.brief, aspiration: s.aspiration, size: s.size, area: a.name }); }); }); return o; }
   function chores() { return (S.review.chore_groups || []).map(function (g, i) { return { key: "c:" + i, kind: "chores", title: g.title, brief: g.items.map(function (x) { return x.title; }).join("; ") + ".", area: g.code_area, why: g.why_together, rows: Array.from(new Set(g.items.map(function (x) { return x.row; }))) }; }); }
-  function changes() { return S.review.initiatives.filter(suggestion).map(function (i) { var s = i.suggest; return { key: "b:" + i.row, kind: "board", row: i.row, title: s.action + (s.into ? " into " + s.into : ""), brief: s.reason }; }); }
+  function change(i) { var s = i.suggest; return { key: "b:" + i.row, kind: "board", row: i.row, action: s.action, title: s.action + (s.into ? " into " + s.into : ""), brief: s.reason }; }
+  function changes() { return S.review.initiatives.filter(suggestion).map(change); }
   function all() { var o = []; S.review.initiatives.forEach(function (i) { var p = proposal(i); if (p) o.push(p); }); return o.concat(starters(), chores(), changes()); }
   function added() { return ((S.round && !S.round.confirmed_at && S.round.generated === S.review.generated) ? S.round.items : []) || []; }
-  function addCell(p) { return added().some(function (x) { return x.key === p.key; }) ? '<span class="inb">✓ In this round</span>' : (S.canWrite && db ? '<button type="button" class="btn quiet" data-add="' + esc(p.key) + '">Add</button>' : ""); }
+  // A session is added to the round; a board change is named by what it does (Close, Park, Merge), still only into the round.
+  function cap(w) { w = String(w || ""); return w.charAt(0).toUpperCase() + w.slice(1); }
+  function addCell(p) { return added().some(function (x) { return x.key === p.key; }) ? '<span class="inb">✓ In this round</span>' : (S.canWrite && db ? '<button type="button" class="btn quiet" data-add="' + esc(p.key) + '">' + (p.kind === "board" ? esc(cap(p.action)) : "Add") + "</button>" : ""); }
+  function keepCell(row) { return S.canWrite && db ? '<button type="button" class="btn quiet" data-keep="' + esc(row) + '">Keep it</button>' : ""; }
   function kindPill(p) { var k = KIND[p.kind] || ["", p.kind]; return '<span class="pill ' + k[0] + '">' + esc(k[1]) + "</span>"; }
 
   // --- small renderers
@@ -232,17 +236,19 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
   }
 
   function rowHTML(i) {
-    var p = proposal(i), open = S.open.has(i.row), sg = suggestion(i), asp = val(i, "aspiration"), area = val(i, "area"), act = i.activity || {};
+    var p = proposal(i), open = S.open.has(i.row), sg = suggestion(i), bc = !p && sg && !(i.running && !idle(i)) ? change(i) : null, asp = val(i, "aspiration"), area = val(i, "area"), act = i.activity || {};
     var html = "<tr><td class=\"ini\"><div class=\"name\"><button type=\"button\" data-toggle=\"" + esc(i.row) + '" aria-expanded="' + open + '">' + esc(i.row) + "</button>" +
         '<span class="pill">' + esc(i.status || i.section) + "</span>" +
-        (sg ? '<span class="pill warn">' + esc(sg.action) + '<span class="tag">Claude</span></span>' : ov(i.row).keep ? '<span class="pill">kept<span class="tag you">You</span></span>' : "") +
+        (sg && !bc ? '<span class="pill warn">' + esc(sg.action) + '<span class="tag">Claude</span></span>' : ov(i.row).keep ? '<span class="pill">kept<span class="tag you">You</span></span>' : "") +
         '</div>' + lede(i) + "</td><td>" + mini([
           ["Size", sizeCell(i)],
           frac(i.progress) != null && ["Done", bar(i)],
           (act.board_edits || (act.prs_merged || []).length) && ["Activity", spark(i) + '<span class="sub num">' + (act.board_edits || 0) + " edits · " + (act.prs_merged || []).length + " PRs</span>"],
           i.waiting && ["Waiting on you", '<span class="waitn">' + plural(i.waiting, "call") + "</span>"],
           i.running && ["Who's on it", '<span class="mono">' + esc(i.running) + (idle(i) ? " (idle)" : "") + "</span>"],
-          (p || (i.running && !idle(i))) && ["Next session", p ? kindPill(p) + ' <span class="claude">' + esc(p.title) + '</span><span class="add">' + addCell(p) + "</span>" : '<span class="sub">Running</span>']
+          (p || bc || (i.running && !idle(i))) && ["Next session", p ? kindPill(p) + ' <span class="claude">' + esc(p.title) + '</span><span class="add">' + addCell(p) + "</span>"
+            : bc ? kindPill(bc) + ' <span class="claude">' + esc(cap(bc.title)) + ": " + esc(bc.brief) + '</span><span class="add acts">' + addCell(bc) + (added().some(function (x) { return x.key === bc.key; }) ? "" : keepCell(i.row)) + "</span>"
+            : '<span class="sub">Running</span>']
         ]) + notesField(i) + "</td></tr>";
     if (open) {
       var areas = (S.review.areas || []).map(function (a) { return a.name; });
@@ -299,7 +305,7 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
 
     var ch = changes(), kept = R.initiatives.filter(function (i) { return ov(i.row).keep; });
     html += '<section><h2>Winding down <span class="tag">Claude suggests</span></h2>' + (ch.length || kept.length ? '<div class="scroll"><table class="narrow"><tbody>' +
-      ch.map(function (p) { return "<tr><td><b>" + esc(p.title) + '</b> <span class="mono">' + esc(p.row) + '</span><div class="what">' + esc(p.brief) + '</div></td><td><div class="acts">' + addCell(p) + (S.canWrite && db ? '<button type="button" class="btn quiet" data-keep="' + esc(p.row) + '">Keep it</button>' : "") + "</div></td></tr>"; }).join("") +
+      ch.map(function (p) { return "<tr><td><b>" + esc(p.title) + '</b> <span class="mono">' + esc(p.row) + '</span><div class="what">' + esc(p.brief) + '</div></td><td><div class="acts">' + addCell(p) + keepCell(p.row) + "</div></td></tr>"; }).join("") +
       kept.map(function (i) { return '<tr><td class="sub">You kept <span class="mono">' + esc(i.row) + "</span></td><td>" + (S.canWrite && db ? '<button type="button" class="btn quiet" data-unkeep="' + esc(i.row) + '">Undo</button>' : "") + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="sub">Nothing to wind down.</p>') + "</section>";
     html += '<section><h2>Chores <span class="tag">Claude suggests</span></h2><p class="sub">Behind-the-scenes work grouped by the code it touches: no decision from you, nothing a user would notice.</p>' + (chores().length ? '<div class="scroll"><table class="narrow"><tbody>' +
       chores().map(function (c) { return "<tr><td><b>" + esc(c.title) + '</b><div class="what">' + esc(c.brief) + '</div><div class="what">Touches ' + esc(c.area) + " · " + esc(c.rows.join(", ")) + "</div></td><td>" + addCell(c) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="sub">No chores this round.</p>') + "</section>";
