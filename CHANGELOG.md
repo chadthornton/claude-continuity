@@ -5,6 +5,7 @@
 ### Changed
 - **Review page: two-column initiatives table** — the initiative on the left; size, done, activity, waiting on you, who's on it and next session (with Add) as labelled mini rows on the right. Why: eight columns forced a 1060px table and sideways scrolling; two columns fit a laptop and read top to bottom. Mini rows with nothing to say (no activity, nobody waiting, no one on it, no next session) are left out, so a quiet initiative is two lines.
 - **Review page: notes per initiative** — a box under each initiative's mini rows; saved on blur into `overrides/<row>` as `notes` (apply ignores it), and a draft survives a re-render. Why: you take notes while reading the review, beside the row they're about.
+- **Review page: type and spacing pass** — initiative names in the body face at 15px, taller mini rows with faint solid dividers, roomier cells; Claude's mark is a faint offset dotted underline, and the line under each initiative (always Claude's) no longer carries it. Why: every summary line was underlined, which read as noise.
 - **Your notes reach the reviewer** — `continuity-review-pack --notes <overrides.json>` prints a "Your notes from the review page" section; the skill reads the page's overrides before building the pack, and the brief has the reviewer act on each note in that row's line, proposal and suggestion. Why: a note asking "carrier first?" should change what the next review proposes.
 
 
