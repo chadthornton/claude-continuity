@@ -9,7 +9,7 @@ features:
     status: building
     mandate: 2026-10-11
     owner: closure-pass-1
-    next: "Board review as a planning table: step 12 of 13, wrap-up marks re-learned gotchas. Owned by agent closure-pass-1"
+    next: "Board review as a planning table: step 13 of 13, the trip-planner trial (then code review, merge, release). Owned by agent closure-pass-1"
     summary: >
       Keep a board small and true, and let Chad direct it from a page. Since 2026-10-14 the page
       is a planning table: one table grouped by lasting areas (initiatives under them, sizes,
@@ -28,9 +28,9 @@ features:
       - { step: "The page in the plugin: area table, Live, wind-down, chores, checkout with lanes (live 1, back 3, quiet 3). Per-project publish, URL on the board; overrides and the confirmed round in the page store. Proof: write as a viewer and read back, then Chad clicks Add and Confirm once", done: true }
       - { step: "/continuity-review: build the pack; routine reviewer as one tool-free call (claude -p --tools \"\" --setting-sources \"\" --strict-mcp-config; one retry with the checker's complaints), full reviewer as an agent; seed; on 'go' read the round, write a brief per pick by kind, set owner, continuity-save, agent-spawn within lanes, message running agents, board changes listed and confirmed last. Removes /continuity-prune (every project using the plugin). Skill scenario fixture, RED first", done: true }
       - { step: "One-line offers from /startup (no session waiting, or board past a size) and wrap-up (several initiatives changed). Skill scenario fixture", done: true }
-      - { step: "Wrap-up marks a gotcha that got re-learned. Skill scenario fixture", done: false }
+      - { step: "Wrap-up marks a gotcha that got re-learned. Skill scenario fixture", done: true }
       - { step: "Trial on trip-planner through its own session: a real round with tokens measured; whether it adopts areas on its board is its call", done: false }
-    in_progress: "Step 12 (re-learned gotchas) on branch closure-pass-1-step-5"
+    in_progress: "Step 13 (trip-planner trial) and the pre-merge code review"
 
   relay-and-spawn:
     status: polishing
