@@ -47,7 +47,8 @@ jq -e '.confirmed_at' "$ROUND" >/dev/null 2>&1 || { echo "not applied: the round
 tmp=$(mktemp -d) || exit 3
 trap 'rm -rf "$tmp"' EXIT
 cp "$B" "$tmp/b"
-edit() { "$@" < "$tmp/b" > "$tmp/b.new" && mv "$tmp/b.new" "$tmp/b"; }
+# A writer that refuses (a board shape it can't edit) stops the whole apply: the board is left as it was.
+edit() { "$@" < "$tmp/b" > "$tmp/b.new" && mv "$tmp/b.new" "$tmp/b" || { echo "not applied: could not edit the board ($1)" >&2; exit 1; }; }
 q() { jq -n --arg s "$1" '$s'; }   # a string as a double-quoted YAML scalar
 
 edit cb_set_setting last_review "$TODAY"

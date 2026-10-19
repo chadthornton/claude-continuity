@@ -125,5 +125,49 @@ b = open(f'{d}/.continuity/feature-status.yml').read()
 expect('Y8 url recorded, nothing else changed', r.returncode == 0 and 'review_url: "https://claude.ai/artifact/xyz"' in b and b.replace('  review_url: "https://claude.ai/artifact/xyz"\n', '') == BOARD, (r.stdout + r.stderr, b[:300]))
 shutil.rmtree(d)
 
+# --- Review findings, 2026-10-19.
+import datetime, yaml
+TODAY = datetime.date(2026, 10, 19)   # the writer leaves the date bare, so YAML reads a date
+
+def applied(board, seed=SEED):
+    """Apply the standard round to `board`; returns (exit, board text, parsed board or the YAML error)."""
+    d = repo(board)
+    rc, summary, raw = apply(d, files(d, seed=seed), '--review-url', 'https://claude.ai/artifact/abc')
+    text = open(f'{d}/.continuity/feature-status.yml').read()
+    shutil.rmtree(d)
+    try:
+        return rc, text, yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        return rc, text, e
+
+top_keys = lambda text: [l.split(':')[0] for l in text.splitlines() if l[:1].isalpha()]
+
+# F2a. settings: placed after features: is edited where it is, not added a second time.
+later = BOARD.replace('settings:\n  push_to_default_branch: true\n', '') + 'settings:\n  push_to_default_branch: true\n'
+rc, text, y = applied(later)
+expect('F2a later settings: one block', top_keys(text).count('settings') == 1, text)
+expect('F2a later settings: keys merged', isinstance(y, dict) and y.get('settings') == {'push_to_default_branch': True, 'last_review': TODAY, 'review_url': 'https://claude.ai/artifact/abc'}, (y if not isinstance(y, dict) else y.get('settings')))
+
+# F2b. Flow-style settings (what continuity-save's hint writes) become a block that keeps every key.
+for flow in ('settings: { push_to_default_branch: true }\n', 'settings: {push_to_default_branch: true, note: "a, b"}  # opt in\n', 'settings: {}\n'):
+    rc, text, y = applied(BOARD.replace('settings:\n  push_to_default_branch: true\n', flow))
+    want = {'last_review': TODAY, 'review_url': 'https://claude.ai/artifact/abc'}
+    if 'push' in flow: want['push_to_default_branch'] = True
+    if 'note' in flow: want['note'] = 'a, b'
+    expect(f'F2b flow settings {flow.strip()!r}: valid YAML with every key', rc == 0 and isinstance(y, dict) and y.get('settings') == want, (rc, text[:200], y if not isinstance(y, dict) else y.get('settings')))
+    expect(f'F2b flow settings {flow.strip()!r}: features untouched', isinstance(y, dict) and list(y.get('features', {})) == ['lists', 'discovery', 'quiet', 'morning-of-chooser'], text[:400])
+
+# F2c. Flow settings this writer can't follow (a nested map) are refused: exit non-zero, board untouched.
+odd = BOARD.replace('settings:\n  push_to_default_branch: true\n', 'settings: { push_to_default_branch: true, x: { y: 1 } }\n')
+d = repo(odd)
+rc, summary, raw = apply(d, files(d))
+expect('F2c unreadable flow settings: refused, board untouched', rc != 0 and open(f'{d}/.continuity/feature-status.yml').read() == odd, (rc, raw[:300]))
+shutil.rmtree(d)
+
+# F2d. areas: placed after features: is replaced where it is, not added a second time.
+rc, text, y = applied(BOARD + 'areas:\n  - name: "Old"\n    what: "x"\n    open_question: "y?"\n')
+expect('F2d later areas: one block', top_keys(text).count('areas') == 1, text)
+expect('F2d later areas: replaced by the review', isinstance(y, dict) and [a['name'] for a in y.get('areas') or []] == ['Lists', 'Running'], text[-500:])
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)
