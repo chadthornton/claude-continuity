@@ -19,14 +19,17 @@ Work files go in a fresh directory under your scratchpad (`$W` below).
 2. `<lib>/continuity-audit > $W/audit.json`.
 3. Mode: **full** when the user asks for it or the audit has no `areas`;
    **routine** otherwise.
-4. `<lib>/continuity-review-pack [--full] > $W/pack.md`.
+4. If the audit has a `review_url`, read that page's `overrides` collection with
+   `read_db` into `$W/overrides.json` (one object keyed by row, as in step 3.1);
+   it carries the notes the user took on the page. Then
+   `<lib>/continuity-review-pack [--full] [--notes $W/overrides.json] > $W/pack.md`.
 5. The reviewer:
    - **routine**: `<lib>/continuity-review-oneshot $W/pack.md $W/audit.json $W/review.json`.
      One tool-free call, one retry on checker complaints. If it exits 1, tell
      the user in one line and run the full-mode agent below in routine mode.
    - **full**: start one agent (Agent tool, general-purpose) told to follow
      `<base>/reviewer.md` in full mode, read `$W/pack-full.md` (build it with
-     `--full`), reach past the pack only where the brief allows, write
+     `--full` and the same `--notes`), reach past the pack only where the brief allows, write
      `$W/review.json`, and run `continuity-review-check` with the audit until
      it prints OK.
 6. `<lib>/continuity-review-seed $W/review.json $W/audit.json <project> > $W/seed.json`,

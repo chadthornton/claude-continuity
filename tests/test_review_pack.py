@@ -97,6 +97,20 @@ expect('K2 full: quiet initiative in full too', 'Quiet step text' in out, '')
 expect('K2 full keeps finished steps', 'Busy finished step' in out and 'Busy finished block step' in out, '')
 expect('K2 header says full', 'mode: full' in out, out[:300])
 
+# K5. --notes prints the reader's notes from the page; a row gone from the board says so; no file prints none.
+nf = f'{d}/../overrides.json'
+write(nf, '{"busy": {"notes": "Carrier first\\nthen ship", "size": "L"}, "quiet": {"size": "S"}, "gone": {"notes": "old"}}')
+rc, out = pack(d, '--notes', nf, CONTINUITY_AUDIT_GH=gh)
+notes = section(out, 'Your notes')
+expect('K5 note on its row, one line', rc == 0 and '- busy: Carrier first / then ship' in notes, notes)
+expect('K5 a row without a note stays out', 'quiet' not in notes, notes)
+expect('K5 a note on a row gone from the board is marked', '- gone (not on the board): old' in notes, notes)
+rc, out = pack(d, '--full', '--notes', nf, CONTINUITY_AUDIT_GH=gh)
+expect('K5 --notes works beside --full', 'mode: full' in out and 'Carrier first' in section(out, 'Your notes'), out[:300])
+rc, out = pack(d, CONTINUITY_AUDIT_GH=gh)
+expect('K5 no notes file: none', section(out, 'Your notes').strip() == '(none)', section(out, 'Your notes'))
+os.remove(nf)
+
 # K3. Without gh the PR section says so; the rest is still there.
 rc, out = pack(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
 expect('K3 no gh: says unavailable, exit 0', rc == 0 and 'unavailable' in section(out, 'Merged'), section(out, 'Merged'))

@@ -1,7 +1,7 @@
 #!/bin/bash
 # continuity-review-pack — everything a reviewing Claude reads, in one file.
 #
-#   continuity-review-pack [--full]   run in a project that has .continuity/
+#   continuity-review-pack [--full] [--notes <overrides.json>]   run in a project that has .continuity/
 #
 # Prints, as markdown sections: a header (mode, window, board source), the
 # audit's JSON, each initiative that moved in the window in full with the Open,
@@ -9,7 +9,9 @@
 # handoff, the quiet
 # ones as one line each, the gotchas, the commits and the merged pull requests
 # in the window. --full adds the product document (settings.product_doc) and
-# prints every initiative in full.
+# prints every initiative in full. --notes takes the review page's overrides
+# (one object keyed by row, as continuity-review-apply reads them) and prints
+# the reader's notes from the page; a missing or unreadable file prints none.
 #
 # "Moved" is a fact from the audit: a board edit or a cited PR merged in the
 # window, or a session working on it. No model call, changes nothing; reads the
@@ -22,8 +24,14 @@ LIB="$(cd "$(dirname "$0")" && pwd)"
 . "$LIB/continuity-board.sh" || { echo "SKIP: lib/continuity-board.sh missing" >&2; exit 3; }
 command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-review-pack needs jq" >&2; exit 3; }
 GH="${CONTINUITY_AUDIT_GH:-gh}"
-MODE=routine
-[ "${1:-}" = "--full" ] && MODE=full
+MODE=routine NOTES=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --full) MODE=full ;;
+    --notes) NOTES="${2:-}"; shift ;;
+  esac
+  shift
+done
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then TOP=$(git rev-parse --show-toplevel); else TOP=$PWD; fi
 cd "$TOP" || exit 3
@@ -74,6 +82,19 @@ echo
 echo "## Audit"
 echo
 jq -c 'del(.gotchas.entries)' "$tmp/audit.json"   # the gotchas are printed in full below
+echo
+
+echo "## Your notes from the review page"
+echo
+# The reader's own words about a row, written on the page since the last review.
+if [ -n "$NOTES" ] && jq -e 'type == "object"' "$NOTES" >/dev/null 2>&1; then
+  jq -r --slurpfile a "$tmp/audit.json" '
+    ([$a[0].rows[].name]) as $rows
+    | to_entries | map(select((.value.notes // "") | type == "string" and length > 0))
+    | if length == 0 then "(none)" else .[] | "- \(.key)\(if (.key as $k | $rows | index($k)) then "" else " (not on the board)" end): \(.value.notes | gsub("\n"; " / "))" end' "$NOTES"
+else
+  echo "(none)"
+fi
 echo
 
 moved=$(jq -r '
