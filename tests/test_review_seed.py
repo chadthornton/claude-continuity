@@ -128,5 +128,26 @@ expect('D8 malformed notes file: still seeds, no notes read, says so', r9.return
 rc, doc9, raw9 = seed(REVIEW, AUDIT, notes={'x': 'str', 'lists': {'notes': 'n'}})
 expect('D9 non-object entry skipped', rc == 0 and (doc9 or {}).get('notes_read') == {'lists': 'n'}, raw9[:400])
 
+# D10. --live refreshes only what's running: initiatives' running and running_idle, the sessions, live_at;
+#      the review's generated time, judgments and everything else stay, so the sent round still matches.
+def live(doc, audit):
+    d = tempfile.mkdtemp(); sp, ap = os.path.join(d, 's.json'), os.path.join(d, 'a.json')
+    json.dump(doc, open(sp, 'w')); json.dump(audit, open(ap, 'w'))
+    r = subprocess.run([SEED, '--live', sp, ap], capture_output=True, text=True)
+    try: return r.returncode, json.loads(r.stdout), r.stdout + r.stderr
+    except ValueError: return r.returncode, None, r.stdout + r.stderr
+expect('D10 a fresh seed carries live_at', bool((doc or {}).get('live_at')), (doc or {}).get('live_at'))
+audit2 = json.loads(json.dumps(AUDIT))
+audit2['sessions'] = {'source': 'wt', 'items': [{'name': 'quiet-1', 'running': True, 'row': 'quiet', 'match': 'name', 'activity': 'working'}]}
+old = dict(doc, live_at='2026-10-19T10:00Z')
+rc, nd, raw = live(old, audit2)
+nb = {i['row']: i for i in (nd or {}).get('initiatives', [])}
+expect('D10 running refreshed from the new audit', rc == 0 and nb.get('quiet', {}).get('running') == 'quiet-1' and nb['quiet'].get('running_idle') is False and nb.get('lists', {}).get('running') is None, raw[:600])
+expect('D10 generated and judgments kept', nd and nd.get('generated') == doc.get('generated') and nb['lists'].get('line') == by['lists'].get('line') and nd.get('read') == doc.get('read'), raw[:400])
+expect('D10 sessions replaced, live_at moved', nd and [s['name'] for s in nd.get('sessions', [])] == ['quiet-1'] and nd.get('live_at') != '2026-10-19T10:00Z', raw[:400])
+audit3 = dict(AUDIT, sessions={'source': 'unavailable', 'items': []})
+rc, nd3, raw3 = live(old, audit3)
+expect('D10 sessions unavailable: nothing refreshed, says so', rc == 0 and nd3 == old and 'unavailable' in raw3, raw3[:400])
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

@@ -2,6 +2,7 @@
 # continuity-review-seed — the one document the review page reads.
 #
 #   continuity-review-seed <review.json> <audit.json> <project name> [--notes <overrides.json>]
+#   continuity-review-seed --live <seed.json> <audit.json>   refresh what's running
 #
 # Merges the audit's facts with the reviewer's judgments, per initiative, and
 # prints one JSON document for the page's store (review/current). The review
@@ -18,10 +19,29 @@
 # by row) and records each row's note under notes_read, so that on "go" the
 # notes this review read can be cleared and any written since kept.
 #
+#
+# --live takes a seed already on the page and a fresh audit and prints it with
+# only the running sessions refreshed (each initiative's running and
+# running_idle, the sessions list, live_at); generated and every judgment stay,
+# so a round sent from this review still matches it. An audit that couldn't see
+# sessions changes nothing.
+#
 # Exit codes: 0 ok · 1 the review fails the checker · 3 not usable here
 set -u
 LIB="$(cd "$(dirname "$0")" && pwd)"
 command -v jq >/dev/null 2>&1 || { echo "SKIP: continuity-review-seed needs jq" >&2; exit 3; }
+if [ "${1:-}" = "--live" ]; then
+  [ $# -eq 3 ] && jq -e . "$2" >/dev/null 2>&1 && jq -e . "$3" >/dev/null 2>&1 || { echo "usage: continuity-review-seed --live <seed.json> <audit.json>" >&2; exit 3; }
+  if [ "$(jq -r '.sessions.source // "unavailable"' "$3")" = unavailable ]; then
+    echo "live not refreshed: the audit could not see sessions (unavailable)" >&2; jq . "$2"; exit 0
+  fi
+  jq --slurpfile a "$3" '($a[0].sessions.items // []) as $sess
+    | .initiatives |= map(.row as $r | ([$sess[] | select(.row == $r and .running)] | .[0]) as $s
+        | .running = ($s.name // null) | .running_idle = (($s.activity // "") | startswith("idle")))
+    | .sessions = $sess | .live_at = (now | strftime("%Y-%m-%dT%H:%MZ"))' "$2"
+  exit
+fi
+
 NOTES=/dev/null
 [ $# -eq 5 ] && [ "$4" = "--notes" ] && NOTES=$5 && set -- "$1" "$2" "$3"
 [ $# -eq 3 ] && [ -r "$1" ] && [ -r "$2" ] && [ -r "$NOTES" ] || { echo "usage: continuity-review-seed <review.json> <audit.json> <project name> [--notes <overrides.json>]" >&2; exit 3; }
@@ -66,5 +86,6 @@ $r[0] as $rv | $a[0] as $au
     initiatives: $inits,
     chore_groups: ($rv.chore_groups // []),
     sessions: $sess,
+    live_at: (now | strftime("%Y-%m-%dT%H:%MZ")),
     notes_read: (($n[0] // {}) | if type == "object" then with_entries(select((.value | type) == "object" and ((.value.notes // null) | type) == "string" and (.value.notes | length) > 0) | .value = .value.notes) else {} end)
   }' "$1"

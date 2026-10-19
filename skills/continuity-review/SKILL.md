@@ -140,7 +140,14 @@ changes. Treat the answer as a confirmed round.
    refused because a document changed since step 1, the user is writing on the
    page: drop the document it names (it stays as they left it) and send the
    rest, repeating until the batch goes through or nothing is left.
-7. Report one line per item: what started where, what got a message, what was
+7. **Live.** The page shows only what was running when it was seeded, so
+   refresh it now that this round's agents are up: re-run the audit into
+   `$W/audit-live.json`, then
+   `<lib>/continuity-review-seed --live $W/seed.json $W/audit-live.json > $W/seed-live.json`
+   and write that to `review/current` (`set`, with the `if_version` of a read
+   made just before). It changes only who is running and when that was read;
+   the round still matches the review.
+8. Report one line per item: what started where, what got a message, what was
    held, what changed on the board. End with `Check on them: agent-spawn status`
    when anything started.
 

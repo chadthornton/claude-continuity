@@ -285,7 +285,9 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
     document.getElementById("read").innerHTML = rs.length ? "<p>" + esc(rs.slice(0, 3).join(" ")) + "</p>" +
       (rs.length > 3 ? '<details class="more"><summary>More</summary><p>' + esc(rs.slice(3).join(" ")) + "</p></details>" : "") : "";
     var live = R.initiatives.filter(function (i) { return i.running; });
-    var html = "<section><h2>Live now</h2>" + (live.length ? '<div class="livebox">' + live.map(function (i) {
+    // The page can't see the machine: Live is as of the last audit written here (the review, or a refresh after "go").
+    var asof = Date.parse(R.live_at || R.generated), stamp = isNaN(asof) ? "" : short(R.live_at || R.generated) + " " + new Date(asof).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    var html = "<section><h2>Live now" + (stamp ? ' <span class="sub" style="font-family:var(--body);font-weight:400">as of ' + esc(stamp) + "</span>" : "") + "</h2>" + (live.length ? '<div class="livebox">' + live.map(function (i) {
       return '<div class="lcard"><span class="who">' + esc(i.running) + (idle(i) ? " (idle)" : "") + "</span><span><b>" + esc(i.row) + '</b></span><span class="sub claude">' + esc(i.line || "") + "</span>" + (i.waiting ? '<span class="waitn">Waiting on you: ' + plural(i.waiting, "call") + "</span>" : "") + "</div>";
     }).join("") + "</div>" : '<p class="sub">Nothing is running.</p>') + "</section>";
 
