@@ -124,5 +124,9 @@ rp, ap = os.path.join(d9, 'r.json'), os.path.join(d9, 'a.json'); json.dump(REVIE
 r9 = subprocess.run([SEED, rp, ap, 'demo', '--notes', bad], capture_output=True, text=True)
 expect('D8 malformed notes file: still seeds, no notes read, says so', r9.returncode == 0 and json.loads(r9.stdout or '{}').get('notes_read') == {} and 'notes' in r9.stderr, r9.stdout[:200] + r9.stderr)
 
+# D9. An entry that isn't a document is skipped, not fatal.
+rc, doc9, raw9 = seed(REVIEW, AUDIT, notes={'x': 'str', 'lists': {'notes': 'n'}})
+expect('D9 non-object entry skipped', rc == 0 and (doc9 or {}).get('notes_read') == {'lists': 'n'}, raw9[:400])
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

@@ -55,6 +55,20 @@ jq -e '.confirmed_at' "$ROUND" >/dev/null 2>&1 || { echo "not applied: the round
 jq -e '.applied_at' "$ROUND" >/dev/null 2>&1 && { echo "not applied: this round was already applied at $(jq -r .applied_at "$ROUND")" >&2; exit 1; }
 [ "$(jq -r .generated "$ROUND")" = "$(jq -r .generated "$SEED")" ] || { echo "not applied: the round belongs to another review" >&2; exit 1; }
 
+# What each override document becomes once the round is sent, worked out before the board is touched so a
+# failure here leaves it as it was. The corrections are on the board now and a "keep" answered this review's
+# suggestion, so both go. A note this review read (the seed's notes_read) that still reads the same has done
+# its job; one edited or written since hasn't reached a review and stays, with its timestamp. null deletes
+# the document (nothing left but a timestamp counts as empty); one that wouldn't change is left out, and so is
+# an entry that isn't a document.
+next=$(jq -c --slurpfile o "$OV" '(.notes_read // {}) as $read | [($o[0] // {}) | to_entries[]
+  | select(.value | type == "object") | .key as $k | .value as $v
+  | ($v | del(.area, .size, .aspiration, .keep)
+        | if .notes != null and .notes == $read[$k] then del(.notes) else . end) as $n
+  | select($n != $v or ($n | del(.at)) == {})
+  | {key: $k, value: (if ($n | del(.at)) == {} then null else $n end)}] | from_entries' "$SEED") \
+  || { echo "not applied: could not read the overrides" >&2; exit 1; }
+
 tmp=$(mktemp -d) || exit 3
 trap 'rm -rf "$tmp"' EXIT
 cp "$B" "$tmp/b"
@@ -74,7 +88,7 @@ cb_names < "$tmp/b" > "$tmp/names"
 fields=0
 # One line per field to write: row<TAB>key<TAB>yaml value ("" removes the field).
 jq -r --slurpfile ov "$OV" --arg mode "$(jq -r .mode "$SEED")" '
-  .initiatives[] | . as $i | ($ov[0][.row] // {}) as $o
+  .initiatives[] | . as $i | ($ov[0][.row] // {} | if type == "object" then . else {} end) as $o
   | [ ("area", "size", "aspiration") as $f
       | if $o[$f] != null and $o[$f] != "" then {f: $f, v: $o[$f], inf: false}
         elif ($i.judged | index($f)) and $i[$f] != null then {f: $f, v: $i[$f], inf: true}
@@ -111,16 +125,6 @@ while IFS= read -r s; do
 done < <(jq -c '.items[] | select(.key | startswith("s:"))' "$ROUND")
 
 if ! cmp -s "$tmp/b" "$B"; then cp "$tmp/b" "$B"; fi
-# What each override document becomes once the round is sent. The corrections are on the board now and a
-# "keep" answered this review's suggestion, so both go. A note this review read (the seed's notes_read)
-# that still reads the same has done its job; one edited or written since hasn't reached a review and stays.
-# null deletes the document; a document that wouldn't change is left out.
-next=$(jq -c --slurpfile o "$OV" '(.notes_read // {}) as $read | [($o[0] // {}) | to_entries[]
-  | .key as $k | .value as $v
-  | ($v | del(.area, .size, .aspiration, .keep, .at)
-        | if .notes != null and .notes == $read[$k] then del(.notes) else . end) as $n
-  | select($n != ($v | del(.at)))
-  | {key: $k, value: (if $n == {} then null else $n end)}] | from_entries' "$SEED")
 jq -n --argjson fields "$fields" --rawfile st "$tmp/starters" --argjson next "$next" \
   '{added_rows: $ARGS.positional, fields: $fields,
     starters: ($st | split("\n") | map(select(length > 0) | split("\t") | {key: .[0], value: .[1]}) | from_entries),

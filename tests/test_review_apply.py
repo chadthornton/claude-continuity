@@ -209,7 +209,7 @@ ov_n = {'discovery': {'size': 'L', 'notes': 'Carrier first', 'at': 'x'},
         'lists': {'notes': 'Written after the review', 'at': 'x'}}
 rc, summary, raw = apply(d, files(d, seed=seed_n, overrides=ov_n))
 expect('N1 read note and corrections go; edited note stays; untouched doc unlisted',
-       rc == 0 and (summary or {}).get('overrides_next') == {'discovery': None, 'quiet': {'notes': 'Ask Sam, then park'}}, raw[:700])
+       rc == 0 and (summary or {}).get('overrides_next') == {'discovery': None, 'quiet': {'notes': 'Ask Sam, then park', 'at': 'x'}}, raw[:700])
 rc, summary, raw = apply(d, files(d))
 expect('N1 seed without notes_read: corrections still cleared, every doc emptied',
        rc == 0 and (summary or {}).get('overrides_next') == {'discovery': None, 'quiet': None}, raw[:600])
@@ -217,6 +217,16 @@ rc, summary, raw = apply(d, files(d, seed=SEED, overrides={'lists': {'notes': 'N
 expect('N1 a note no review read: nothing changes', rc == 0 and (summary or {}).get('overrides_next') == {}, raw[:600])
 rc, summary, raw = apply(d, files(d, seed=seed_n, overrides=ov_n, rnd=dict(ROUND, confirmed_at=None)))
 expect('N1 unconfirmed round: refused, nothing listed', rc == 1 and summary is None, raw[:300])
+shutil.rmtree(d)
+
+# N2. A document holding only its timestamp is deleted; a kept note keeps its timestamp; an entry that isn't a
+#     document is left alone and doesn't stop the apply.
+d = repo(BOARD)
+rc, summary, raw = apply(d, files(d, seed=dict(SEED, notes_read={}), overrides={'discovery': {'at': 'x'}, 'quiet': {'size': 'S', 'notes': 'Unread', 'at': 't1'}, 'pages': 'not a doc'}))
+nx = (summary or {}).get('overrides_next')
+expect('N2 timestamp-only document deleted', rc == 0 and nx is not None and 'discovery' in nx and nx['discovery'] is None, raw[:600])
+expect('N2 kept note keeps its timestamp', (nx or {}).get('quiet') == {'notes': 'Unread', 'at': 't1'}, raw[:600])
+expect('N2 a non-document entry is left out', 'pages' not in (nx or {'pages': 1}), raw[:600])
 shutil.rmtree(d)
 
 print('\nFAILED:', fails if fails else 'none')

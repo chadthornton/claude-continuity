@@ -66,5 +66,5 @@ $r[0] as $rv | $a[0] as $au
     initiatives: $inits,
     chore_groups: ($rv.chore_groups // []),
     sessions: $sess,
-    notes_read: (($n[0] // {}) | if type == "object" then with_entries(select((.value.notes // null) | type == "string" and length > 0) | .value = .value.notes) else {} end)
+    notes_read: (($n[0] // {}) | if type == "object" then with_entries(select((.value | type) == "object" and ((.value.notes // null) | type) == "string" and (.value.notes | length) > 0) | .value = .value.notes) else {} end)
   }' "$1"
