@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-19
+
 ### Added
 - **Areas on the board (optional)** — a top-level `areas:` list (name, what, open question) and, on a feature, `area`, `size` (S/M/L/XL), `aspiration` and `inferred` (the fields Claude guessed). The audit lists areas with their initiative counts and flags an unknown area or size, keeping the value; startup's large-board summary keeps them. Boards without areas behave as before.
 - **Review facts in the audit** — the review window (since `settings.last_review`, else 14 days), per row the board edits and dates in it and the cited PRs that merged in it, and the sessions running now from `wt:status` matched to a row by its `owner` (or flagged as a name match). No model call; without `wt:status` sessions read "unavailable". Why: the review page shows where activity went and what is live, and these were the facts a reader spent tokens reconstructing; 13 s on trip-planner's 94 KB board.
