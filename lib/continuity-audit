@@ -11,6 +11,7 @@
 # Output keys:
 #   review            last_review (settings.last_review or null), since — the
 #                     window start: midnight UTC of last_review, else 14 days ago
+#   review_url        settings.review_url (the project's review page) or null
 #   product_doc       {path, exists} from settings.product_doc, or null; the
 #                     reviewer reads the document this names, never a guess
 #   board             path, source (local, or origin/<default> when other
@@ -182,6 +183,7 @@ jq -n \
   --arg wt_src "$wt_src" \
   --arg last_review "$last_review" \
   --arg product_doc "$product_doc" \
+  --arg review_url "$(awk -F'\t' '$1 == "reviewurl" {print $2; exit}' "$tmp/facts")" \
   --argjson product_doc_exists "$product_doc_exists" \
   --arg since "$since" \
   --arg now "$(date +%s)" \
@@ -209,6 +211,7 @@ recs($facts) as $f
 | (($f | map(select(.[0] == "gotchalines")) | .[0][1] // "0") | tonumber) as $glines
 | {
     review: {last_review: ($last_review | nn), since: ($since | strftime("%Y-%m-%d"))},
+    review_url: ($review_url | nn),
     product_doc: (if $product_doc == "" then null else {path: $product_doc, exists: $product_doc_exists} end),
     board: {path: $path, source: $board_src, bytes: ($bytes | tonumber), lines: ($lines | tonumber)},
     decisions: [recs($decisions)[] | {path: .[0], bytes: (.[1] | tonumber), lines: (.[2] | tonumber), over_budget: ((.[2] | tonumber) > 30)}],

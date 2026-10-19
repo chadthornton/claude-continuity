@@ -10,6 +10,11 @@
 
 - **The review page** (`skills/continuity-review/page.html`) and **`lib/continuity-review-seed`** — one table grouped by area (Live on top, wind-down, chores, a checkout bar counting sessions against limits of 1 live, 3 reporting back, 3 quiet). Claude's judgments carry a mark; correcting a size, area or aspiration, or keeping an initiative Claude would wind down, writes an override the next review applies to the board. Each project publishes its own copy and seeds it. Why: seven prototypes on trip-planner settled the shape; data no longer lives in the page.
 
+- **`/continuity-review`** — the board review, end to end: audit, pack, a routine reviewer as one tool-free call (`lib/continuity-review-oneshot`, ~61k tokens on trip-planner against an agent's 128k) or a full one as an agent, seed, then publish the project's page (URL in `settings.review_url`) or refresh it. On "go" it applies the confirmed round with `lib/continuity-review-apply` (your corrections, areas and sizes marked `inferred`, `settings.last_review`, starters as new initiatives), asks once before each close or merge, keeps within the capacity lanes, and starts one agent per session (a message instead when an agent is already on it). Board writers (`cb_set_setting`, `cb_set_field`, `cb_set_areas`, `cb_add_row`) join the reader in `lib/continuity-board.sh`. Why: the review is how one person decides where many agents go next.
+
+### Changed
+- **`/continuity-prune` is retired** — it now only points to `/continuity-review`, and goes in the next release. Every project using the plugin loses the command. Why: the review does the same job with facts from the audit and a yes per change.
+
 ### Fixed
 - **The audit reads the same board as `continuity-state`** — origin's when other sessions landed continuity this checkout lacks, with `board.source` saying which. Why: on a stale checkout the audit's step counts disagreed with the board the reviewer read. Why: the board review re-inferred trip-planner's areas and sizes on every pass, most of a ~150k-token read; stored, a routine review only reads what changed.
 

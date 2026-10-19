@@ -523,8 +523,9 @@ expect('W5 no wt:status: unavailable, exit 0', rc == 0 and (doc or {}).get('sess
 shutil.rmtree(d); shutil.rmtree(wtdir)
 
 # P1. settings.product_doc is reported with whether the file exists; unset is null.
-d = repo(BOARD.replace('  push_to_default_branch: true\n', '  push_to_default_branch: true\n  product_doc: docs/principles.md\n', 1), files={'docs/principles.md': '# Bets\n'})
+d = repo(BOARD.replace('  push_to_default_branch: true\n', '  push_to_default_branch: true\n  product_doc: docs/principles.md\n  review_url: "https://claude.ai/artifact/abc"\n', 1), files={'docs/principles.md': '# Bets\n'})
 rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')
+expect('P1b review_url reported', (doc or {}).get('review_url') == 'https://claude.ai/artifact/abc', (doc or {}).get('review_url'))
 expect('P1 product doc found', (doc or {}).get('product_doc') == {'path': 'docs/principles.md', 'exists': True}, (doc or {}).get('product_doc'))
 os.remove(f'{d}/docs/principles.md')
 rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary', CONTINUITY_AUDIT_WT='false')

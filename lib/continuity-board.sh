@@ -28,6 +28,7 @@
 #                       areasok 1|0   (present only when there is an `areas:` block)
 #                       lastreview date   (settings.last_review, when set)
 #                       productdoc path   (settings.product_doc, when set)
+#                       reviewurl url     (settings.review_url, when set)
 #
 # A step is done when it carries `done: true` outside a quoted string. A step or
 # claim list this reader can't follow (an unclosed quote, a `>` or `|` block, an
@@ -233,6 +234,7 @@ top == "gotchas" {
 
 top == "settings" && mode == "facts" && keyof($0) == "last_review" { print "lastreview\t" val($0) }
 top == "settings" && mode == "facts" && keyof($0) == "product_doc" { print "productdoc\t" val($0) }
+top == "settings" && mode == "facts" && keyof($0) == "review_url" { print "reviewurl\t" val($0) }
 
 top == "areas" && mode == "facts" { if (!blank) steps_feed($0); next }
 
@@ -285,3 +287,73 @@ cb_names()   { LC_ALL=C awk -v mode=names "$CB_AWK"; }
 cb_gotchas() { LC_ALL=C awk -v mode=gotchas "$CB_AWK"; }
 cb_facts()   { LC_ALL=C awk -v mode=facts "$CB_AWK"; }
 cb_blocks()  { LC_ALL=C awk -v mode=blocks "$CB_AWK"; }
+
+# --- writers: each reads the board on stdin and prints the edited board.
+# Values are YAML scalars the caller has already quoted (a JSON string is a
+# valid double-quoted YAML scalar). Lines this does not touch pass through
+# byte for byte.
+#
+#   cb_set_setting <key> <value>       set settings.<key>, creating settings: if absent
+#   cb_set_field <row> <key> <value>   set a field on a features/workflows row; an
+#                                      empty value removes the field
+#   cb_set_areas <file>                replace the top-level areas: block with the
+#                                      file (a whole block, `areas:` line included);
+#                                      insert it before features: when absent
+#   cb_add_row <section> <file>        append a row to features: or workflows:; the
+#                                      file holds `name:` then its fields, unindented
+CB_W_AWK='
+function ind(s) { match(s, /^ */); return RLENGTH }
+function keyof(s) { sub(/^ +/, "", s); sub(/:.*/, "", s); return s }
+function pad(n,   s) { s = ""; while (n-- > 0) s = s " "; return s }
+function emit_file(prefix_header, prefix_body,   line, first) {
+  first = 1
+  while ((getline line < file) > 0) {
+    if (op == "areas") print line
+    else { print (first ? prefix_header : prefix_body) line; first = 0 }
+  }
+  close(file)
+}
+BEGIN { top = ""; done = 0; R = -1; inrow = 0; F = -1; skipping = 0; cont = 0; value = ENVIRON["CB_VALUE"] }
+{ sub(/\r$/, ""); blank = ($0 ~ /^[ ]*(#.*)?$/) }
+!blank && /^[^ #-]/ {
+  # leaving a block: finish what was pending there
+  if (op == "setting" && top == "settings" && !done) { print "  " key ": " value; done = 1 }
+  if (op == "field" && inrow && !done) { if (value != "") print pad(F < 0 ? R + 2 : F) key ": " value; done = 1 }
+  if (op == "addrow" && top == section && !done) { emit_file(pad(R < 0 ? 2 : R), pad(R < 0 ? 4 : R + 2)); done = 1 }
+  inrow = 0; skipping = 0
+  top = keyof($0); R = -1
+  if (op == "areas" && top == "areas" && !done) { emit_file(); print ""; done = 1; skipping = 1; next }
+  if (op == "areas" && top == "features" && !done) { emit_file(); print ""; done = 1 }
+  if (op == "setting" && top != "settings" && !done && !seen_settings) { print "settings:"; print "  " key ": " value; print ""; done = 1 }
+  if (top == "settings") seen_settings = 1
+  print; next
+}
+skipping && op == "areas" && top == "areas" { next }
+op == "setting" && top == "settings" && !blank && ind($0) == 2 && keyof($0) == key && !done { print "  " key ": " value; done = 1; next }
+op == "field" && (top == "features" || top == "workflows") && !blank {
+  if (cont && ind($0) > CF) next                     # the replaced field went on over several lines
+  cont = 0
+  if (R < 0) R = ind($0)
+  if (ind($0) == R && $0 !~ /^ *-/) {
+    if (inrow && !done) { if (value != "") print pad(F < 0 ? R + 2 : F) key ": " value; done = 1 }
+    inrow = (keyof($0) == row && !done); F = -1; print; next
+  }
+  if (inrow) {
+    if (F < 0) F = ind($0)
+    if (ind($0) == F && $0 !~ /^ *-/ && keyof($0) == key) { if (value != "") print pad(F) key ": " value; done = 1; inrow = 0; cont = 1; CF = F; next }
+  }
+}
+op == "addrow" && top == section && !blank && R < 0 { R = ind($0) }
+{ print }
+END {
+  if (op == "setting" && !done) { if (top == "settings") print "  " key ": " value; else { print "settings:"; print "  " key ": " value } }
+  if (op == "field" && inrow && !done && value != "") print pad(F < 0 ? R + 2 : F) key ": " value
+  if (op == "areas" && !done) emit_file()
+  if (op == "addrow" && !done) { if (top != section) print section ":"; emit_file(pad(R < 0 ? 2 : R), pad(R < 0 ? 4 : R + 2)) }
+}
+'
+# Values travel in the environment: awk -v would turn a quoted value's \" into a bare quote.
+cb_set_setting() { CB_VALUE="$2" LC_ALL=C awk -v op=setting -v key="$1" "$CB_W_AWK"; }
+cb_set_field()   { CB_VALUE="$3" LC_ALL=C awk -v op=field -v row="$1" -v key="$2" "$CB_W_AWK"; }
+cb_set_areas()   { LC_ALL=C awk -v op=areas -v file="$1" "$CB_W_AWK"; }
+cb_add_row()     { LC_ALL=C awk -v op=addrow -v section="$1" -v file="$2" "$CB_W_AWK"; }
