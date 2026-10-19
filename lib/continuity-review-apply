@@ -13,13 +13,18 @@
 #   full review: the areas list; per initiative, each area/size/aspiration the
 #     reviewer judged is written and listed in `inferred`
 #   your corrections (overrides) are written and leave `inferred`
-#   each starter in the round becomes an initiative (status exploring)
+#   each starter in the round becomes an initiative (status exploring), named
+#     from its label; a name another row holds gets -2, -3…, a label with no
+#     letters becomes "starter". A row already made from that starter (same
+#     name pattern, same `next`) is reused, so applying twice adds nothing
 #
 # Sessions, handoffs and board changes (close, merge, park) are not written
 # here: those take judgment and a yes, and the review skill does them.
-# Prints {"added_rows": [...], "fields": n} on stdout.
+# Prints {"added_rows": [...], "fields": n, "starters": {"<item key>": "<row>"}}
+# on stdout; starters names the row each starter item is on, new or reused.
 #
-# Exit codes: 0 ok · 1 the round is not confirmed or belongs to another review · 3 not usable here
+# Exit codes: 0 ok · 1 the round is not confirmed, was already applied, or
+# belongs to another review · 3 not usable here
 set -u
 LIB="$(cd "$(dirname "$0")" && pwd)"
 . "$LIB/continuity-board.sh" || { echo "SKIP: lib/continuity-board.sh missing" >&2; exit 3; }
@@ -42,6 +47,8 @@ B=.continuity/feature-status.yml
 [ -f "$B" ] || { echo "SKIP: no $B here" >&2; exit 3; }
 
 jq -e '.confirmed_at' "$ROUND" >/dev/null 2>&1 || { echo "not applied: the round is not confirmed" >&2; exit 1; }
+# applied_at is set once the round's sessions start: applying it again would start them twice.
+jq -e '.applied_at' "$ROUND" >/dev/null 2>&1 && { echo "not applied: this round was already applied at $(jq -r .applied_at "$ROUND")" >&2; exit 1; }
 [ "$(jq -r .generated "$ROUND")" = "$(jq -r .generated "$SEED")" ] || { echo "not applied: the round belongs to another review" >&2; exit 1; }
 
 tmp=$(mktemp -d) || exit 3
@@ -79,14 +86,28 @@ while IFS=$'\t' read -r r k v; do
 done < "$tmp/fields"
 
 added=()
+: > "$tmp/starters"
 while IFS= read -r s; do
-  name=$(jq -r '.label | ascii_downcase | gsub("[^a-z0-9]+"; "-") | gsub("^-|-$"; "")' <<< "$s")
-  grep -qxF "$name" "$tmp/names" && continue
-  jq -r '"\(.label | ascii_downcase | gsub("[^a-z0-9]+"; "-") | gsub("^-|-$"; "")):",
+  base=$(jq -r '.label | ascii_downcase | gsub("[^a-z0-9]+"; "-") | gsub("^-|-$"; "")' <<< "$s")
+  [ -n "$base" ] || base=starter
+  want="next: $(jq -c '.brief' <<< "$s")"
+  n=1 new=1
+  while :; do
+    name=$base; [ $n -gt 1 ] && name="$base-$n"
+    grep -qxF "$name" "$tmp/names" || break
+    if cb_row "$name" < "$tmp/b" | sed 's/^ *//' | grep -qxF -- "$want"; then new=0; break; fi   # made from this starter before
+    n=$((n + 1))
+  done
+  jq -r --arg row "$name" '[.key, $row] | @tsv' <<< "$s" >> "$tmp/starters"
+  [ $new = 1 ] || continue
+  jq -r --arg name "$name" '"\($name):",
     "status: exploring", "area: \(.area | tojson)", "size: \(.size)", "aspiration: \(.aspiration | tojson)",
     "inferred: [size, aspiration]", "next: \(.brief | tojson)", "next_steps: []"' <<< "$s" > "$tmp/row"
   edit cb_add_row features "$tmp/row"; added+=("$name"); echo "$name" >> "$tmp/names"
 done < <(jq -c '.items[] | select(.key | startswith("s:"))' "$ROUND")
 
 if ! cmp -s "$tmp/b" "$B"; then cp "$tmp/b" "$B"; fi
-jq -n --argjson fields "$fields" '{added_rows: $ARGS.positional, fields: $fields}' --args ${added[@]+"${added[@]}"}
+jq -n --argjson fields "$fields" --rawfile st "$tmp/starters" \
+  '{added_rows: $ARGS.positional, fields: $fields,
+    starters: ($st | split("\n") | map(select(length > 0) | split("\t") | {key: .[0], value: .[1]}) | from_entries)}' \
+  --args ${added[@]+"${added[@]}"}

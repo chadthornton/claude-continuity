@@ -6,10 +6,12 @@
 # `lists`, and a decision on `lists`, which an agent (lists-4) is already on.
 # The user's correction: discovery's size is L. lists-4 matches lists by name only. The user answers yes to every
 # board change. A fake agent-spawn in <dir>/bin logs to <dir>/spawn.log.
-# Check the result with review-go-check.sh <dir>.
-# Usage: review-go.sh <dir>   → checkout at <dir>/work, PATH prefix <dir>/bin
+# A worktree pages-3 ended earlier on `pages`: it is listed, not running.
+# --applied: the round was already sent (applied_at set): nothing may start.
+# Check the result with review-go-check.sh <dir> [--applied].
+# Usage: review-go.sh <dir> [--applied]   → checkout at <dir>/work, PATH prefix <dir>/bin
 set -euo pipefail
-root="$1"; rm -rf "$root"; mkdir -p "$root/bin" "$root/w"; cd "$root"
+root="$1"; applied="${2:-}"; rm -rf "$root"; mkdir -p "$root/bin" "$root/w"; cd "$root"
 cat > bin/agent-spawn <<'SH'
 #!/bin/sh
 d="$(dirname "$0")/.."
@@ -24,7 +26,8 @@ cat > bin/zsh <<'SH'
 #!/bin/sh
 case "$*" in *wt:status*)
   printf 'repo\tpath\tname\tverdict\tstate\tuncommitted\tunpushed\tbranch\tlock_pid\tactivity\n'
-  printf '/r\t/r/.claude/worktrees/lists-4\tlists-4\trunning\trunning\t0\t0\tlists-4-pr-2\t\tidle (replied)\n' ;;
+  printf '/r\t/r/.claude/worktrees/lists-4\tlists-4\trunning\trunning\t0\t0\tlists-4-pr-2\t\tidle (replied)\n'
+  printf '/r\t/r/.claude/worktrees/pages-3\tpages-3\tsafe\tended\t0\t0\tpages-3\t\tidle (replied)\n' ;;
 *) exec /bin/zsh "$@" ;; esac
 SH
 chmod +x bin/zsh
@@ -78,9 +81,9 @@ cat > "$root/w/seed.json" <<JSON
 JSON
 echo '{"discovery": {"size": "L", "at": "2026-10-19T11:00:00Z"}}' > "$root/w/overrides.json"
 # The audit at review time; lists-4 is running on lists (no wt:status in the fixture, so a fresh audit sees none).
-echo '{"review": {"since": "2026-10-05"}, "rows": [{"name": "lists", "gated": [{"step": "Lists build 3: whole list onto a trip", "gate": "decision: one-time copy or living link?"}]}, {"name": "discovery", "gated": []}, {"name": "pages", "gated": []}], "sessions": {"source": "wt", "items": [{"name": "lists-4", "branch": "lists-4-pr-2", "verdict": "running", "state": "running", "activity": "idle (replied)", "row": "lists", "match": "name"}]}}' > "$root/w/audit.json"
+echo '{"review": {"since": "2026-10-05"}, "rows": [{"name": "lists", "gated": [{"step": "Lists build 3: whole list onto a trip", "gate": "decision: one-time copy or living link?"}]}, {"name": "discovery", "gated": []}, {"name": "pages", "gated": []}], "sessions": {"source": "wt", "items": [{"name": "lists-4", "branch": "lists-4-pr-2", "verdict": "running", "state": "running", "activity": "idle (replied)", "running": true, "row": "lists", "match": "name"}, {"name": "pages-3", "branch": "pages-3", "verdict": "safe", "state": "ended", "activity": "idle (replied)", "running": false, "row": "pages", "match": "name"}]}}' > "$root/w/audit.json"
 cat > "$root/w/round.json" <<JSON
-{"generated": "$gen", "confirmed_at": "2026-10-19T11:05:00Z", "items": [
+{"generated": "$gen", "confirmed_at": "2026-10-19T11:05:00Z",$( [ "$applied" = --applied ] && echo ' "applied_at": "2026-10-19T11:30:00Z",' ) "items": [
   {"key": "p:pages", "kind": "continue", "row": "pages", "title": "Trip page loads with one lookup", "brief": "Make a trip page load with one lookup instead of two.", "comes_back": "With a PR to look at."},
   {"key": "s:0:0", "kind": "think", "title": "Start: Morning-of chooser", "label": "Morning-of chooser", "area": "Lists", "size": "M", "aspiration": "Pick a jaunt in a minute.", "brief": "Walk a real trip morning with the user and sketch what the screen must show."},
   {"key": "c:0", "kind": "chores", "title": "Guards on adding places", "brief": "Refuse an oversized paste.", "area": "the add-places handler", "rows": ["lists"]},

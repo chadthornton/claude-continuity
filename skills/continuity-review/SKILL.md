@@ -1,6 +1,6 @@
 ---
 name: continuity-review
-description: Use when the user wants to review the board and decide where attention and agents go next — "review the board", "board review", "what should we work on across the project", "plan the next round", "/continuity-review" — or accepts the review offered at startup or wrap-up. Builds a review, publishes or refreshes the project's review page, and on "go" applies the confirmed round and starts the sessions. Replaces /continuity-prune.
+description: Use when the user wants to review the board and decide where attention and agents go next — "review the board", "board review", "what should we work on across the project", "plan the next round", "/continuity-review" — or accepts the review offered at startup or wrap-up. Builds a review, publishes or refreshes the project's review page, and on "go" applies the confirmed round and starts the sessions. Takes over /continuity-prune's board pruning (decisions-file trimming stays in /continuity-prune for now).
 ---
 
 # Board review
@@ -60,13 +60,15 @@ changes. Treat the answer as a confirmed round.
 1. Read `round/current` and the `overrides` collection with `read_db` into
    `$W/round.json` and `$W/overrides.json` (overrides as one object keyed by
    row). If the round is not confirmed, or its `generated` differs from the
-   seed's, say so and stop. Re-run the audit into `$W/audit-go.json` for what
+   seed's, say so and stop. If it carries `applied_at`, it was already sent:
+   say when, and stop; a second go would start its sessions twice. Re-run the audit into `$W/audit-go.json` for what
    is running now; where it can't see sessions (`sessions.source` is
    `unavailable`), use the review's `$W/audit.json`.
 2. Sync the board as in step 1.1, then
    `<lib>/continuity-review-apply $W/seed.json $W/overrides.json $W/round.json <today> --review-url <url>`.
    It writes your corrections, a full review's areas and sizes, the last-review
-   date and any starters as new initiatives; it prints the rows it added.
+   date and any starters as new initiatives; it prints the rows it added and,
+   under `starters`, the row each starter item is on (a taken name gets `-2`).
 3. **Board changes** (round items with `kind: board`). For each, show what it
    removes: the open steps (`continuity-state row <name>`), whether a handoff
    and a decisions file exist, and where a merge sends the open steps. Ask once
@@ -80,7 +82,8 @@ changes. Treat the answer as a confirmed round.
      append each of its decisions file's Decided, Ruled out and Open entries
      to the same section of X's, marked `(from {row})` (create X's file if
      needed), and delete its file; sort its finished steps as for close; delete the row.
-4. **Capacity.** Agents already running each fill one place in the
+4. **Capacity.** Agents already running (the audit's `sessions` items with
+   `running: true`; an ended, safe or orphan worktree is not one) each fill one place in the
    reports-back lane. Each new pane this round fills one place in its lane:
    live for decision, think and starters; reports back for continue; quiet for
    chores. A message to an agent already running fills nothing. Compare with
@@ -88,7 +91,8 @@ changes. Treat the answer as a confirmed round.
    items in it that come last in the round, and ask once (AskUserQuestion) whether to hold
    those. Held items stay proposed; a held starter keeps its new row.
 5. **Sessions.** For each session item, in one batch:
-   - An initiative with a running agent (the audit's `sessions`): send that
+   - An initiative with a running agent (a `sessions` item on its row with
+     `running: true`): send that
      agent the brief with SendMessage, worded as the handoff below would be
      for its kind; don't start another. If the board doesn't name it as
      `owner`, set `owner` to it.
@@ -105,19 +109,19 @@ changes. Treat the answer as a confirmed round.
        until they agree a direction, then record it and the next steps.
      - **continue**: carry on the next step the board already holds, then
        wrap up.
-     - **starter** (an item whose key starts `s:`): the row
-       `continuity-review-apply` added; treat as think.
+     - **starter** (an item whose key starts `s:`): the row apply's
+       `starters` names for its key; treat as think.
    - **chores**: one agent per group, named `chores-{N}`, with the group's
      items and why they go together as its prompt; it opens a PR per group,
      marks an item's step done on the board when the step is there, and asks
      before anything the chore rule excludes (the Chores rule in
      `<base>/reviewer.md`; quote it in the prompt).
-   Then save once (`continuity-save -m "continuity: review round <date>"`) and
-   start each agent as wrap-up's relay steps 4 and 5 do (`agent-spawn {name}
+   Then save once (`continuity-save -m "continuity: review round <date>"`),
+   mark the round sent (`update` `round/current` with `applied_at`, now) so no
+   second go can start these again, and only then start each agent as wrap-up's relay steps 4 and 5 do (`agent-spawn {name}
    --prompt "/startup"`, judged by its exit status, its `Open it:` line copied
    into the report). A chore agent gets `--prompt` with its brief instead.
-6. Mark the round applied (`update` `round/current` with `applied_at`) and
-   delete the override documents the apply step wrote to the board.
+6. Delete the override documents the apply step wrote to the board.
 7. Report one line per item: what started where, what got a message, what was
    held, what changed on the board. End with `Check on them: agent-spawn status`
    when anything started.

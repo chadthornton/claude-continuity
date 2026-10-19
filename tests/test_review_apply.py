@@ -169,5 +169,28 @@ rc, text, y = applied(BOARD + 'areas:\n  - name: "Old"\n    what: "x"\n    open_
 expect('F2d later areas: one block', top_keys(text).count('areas') == 1, text)
 expect('F2d later areas: replaced by the review', isinstance(y, dict) and [a['name'] for a in y.get('areas') or []] == ['Lists', 'Running'], text[-500:])
 
+# F5. A round already applied (applied_at set when its sessions started) is refused, board untouched.
+d = repo(BOARD)
+rc, summary, raw = apply(d, files(d, rnd=dict(ROUND, applied_at='2026-10-19T12:00Z')))
+expect('F5 applied round refused, board untouched', rc == 1 and 'already applied' in raw and open(f'{d}/.continuity/feature-status.yml').read() == BOARD, (rc, raw[:300]))
+shutil.rmtree(d)
+
+# F8. A starter whose name is taken by another row gets its own row (-2) and the summary maps
+#     its key to that row; applying again adds nothing and maps it to the same row.
+#     A label with no letters to make a name from becomes "starter".
+taken = BOARD.replace('  quiet:\n', '  morning-of-chooser:\n    status: polishing\n    next_steps: []\n  quiet:\n', 1)
+d = repo(taken)
+odd = dict(ROUND, items=ROUND['items'] + [{'key': 's:1:0', 'kind': 'think', 'label': '日本語', 'area': 'Lists', 'size': 'S', 'aspiration': 'A.', 'brief': 'B.'}])
+f = files(d, rnd=odd)
+rc, summary, raw = apply(d, f)
+rc2, doc, raw2 = audit(d)
+names = [r['name'] for r in (doc or {'rows': []})['rows']]
+expect('F8 taken name: a new row beside the old one', rc == 0 and names.count('morning-of-chooser') == 1 and 'morning-of-chooser-2' in names and 'starter' in names, (names, raw[:300]))
+expect('F8 summary maps each starter key to its row', (summary or {}).get('starters') == {'s:0:0': 'morning-of-chooser-2', 's:1:0': 'starter'} and (summary or {}).get('added_rows') == ['morning-of-chooser-2', 'starter'], summary)
+before = open(f'{d}/.continuity/feature-status.yml').read()
+rc, summary, raw = apply(d, f)
+expect('F8 applied again: nothing added, same map', rc == 0 and open(f'{d}/.continuity/feature-status.yml').read() == before and (summary or {}).get('added_rows') == [] and (summary or {}).get('starters') == {'s:0:0': 'morning-of-chooser-2', 's:1:0': 'starter'}, (summary, raw[:300]))
+shutil.rmtree(d)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

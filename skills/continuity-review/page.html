@@ -285,12 +285,14 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
       return '<span class="lane' + (used > cap ? " over" : "") + '">' + LANE_LABEL[k] + " " + s + " <b>" + used + "/" + cap + "</b></span>";
     }).join("");
     var confirmed = S.round && S.round.confirmed_at && S.round.generated === R.generated;
+    var applied = confirmed && S.round.applied_at;   // sent: reopening it would let a second "go" start the same sessions again
     var summary = [panes ? plural(panes, "new pane") : "", edits ? plural(edits, "board change") : ""].filter(Boolean).join(" · ");
     var html = '<div class="co-row">' + meters + '<span style="opacity:.7;font-size:12.5px">' + by.back.run + ' running already</span></div><div class="co-row"><div class="items">' +
-      (confirmed ? '<span>Confirmed ' + esc(short(S.round.confirmed_at)) + ": " + plural(S.round.items.length, "item") + '. Tell Claude “go” to send them.</span>'
+      (applied ? '<span>Sent ' + esc(short(S.round.applied_at)) + ": " + plural(S.round.items.length, "item") + '. The next review starts a new round.</span>'
+        : confirmed ? '<span>Confirmed ' + esc(short(S.round.confirmed_at)) + ": " + plural(S.round.items.length, "item") + '. Tell Claude “go” to send them.</span>'
         : sel.map(function (p) { return '<span class="item">' + esc(p.kind === "board" ? p.row + ": " + p.title : p.title) + (S.canWrite ? '<button type="button" aria-label="Remove" data-remove="' + esc(p.key) + '">×</button>' : "") + "</span>"; }).join("") || '<span style="opacity:.7">This round is empty. Add anything from the page.</span>') +
       '</div><span class="spacer"></span>' + (sel.length || confirmed ? '<button type="button" class="btn quiet" data-showreview="1">' + (S.showReview ? "Hide" : "Review") + "</button>" : "") +
-      (confirmed ? (S.canWrite ? '<button type="button" class="btn quiet" data-reopen="1">Change this round</button>' : "")
+      (confirmed ? (S.canWrite && !applied ? '<button type="button" class="btn quiet" data-reopen="1">Change this round</button>' : "")
         : (S.canWrite && db ? '<button type="button" class="btn big" data-confirm="1"' + (sel.length ? "" : " disabled") + ">Confirm" + (summary ? " · " + esc(summary) : "") + "</button>" : "")) + "</div>";
     var shown = confirmed ? S.round.items : sel;
     if (S.showReview && shown.length) html += '<ol class="review">' + shown.map(function (p) { return "<li>" + esc(sentence(p)) + "</li>"; }).join("") + "</ol>" +

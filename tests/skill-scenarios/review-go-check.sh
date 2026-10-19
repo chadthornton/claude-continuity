@@ -1,11 +1,18 @@
 #!/bin/bash
-# Checks what an agent did with the review-go.sh fixture. Usage: review-go-check.sh <dir>
+# Checks what an agent did with the review-go.sh fixture. Usage: review-go-check.sh <dir> [--applied]
 # Prints PASS/FAIL per expectation; exit 1 when any fails.
 set -u
 root="$1"; B="$root/work/.continuity/feature-status.yml"; log="$root/spawn.log"; fails=0
 check() { if eval "$2" >/dev/null 2>&1; then echo "PASS $1"; else echo "FAIL $1"; fails=$((fails + 1)); fi; }
 row() { awk -v r="$1" '/^  [a-z0-9-]+:/{on = ($0 == "  " r ":")} on' "$B"; }
 today=$(date +%F)
+if [ "${2:-}" = --applied ]; then
+  check "applied round: no agent started" "test ! -s '$log'"
+  check "applied round: no message sent" "test ! -s '$root/messages.log'"
+  check "applied round: board unchanged" "git -C '$root/work' diff --quiet HEAD -- .continuity && ! grep -q owner: '$B'"
+  echo; [ "$fails" -eq 0 ] && echo "all passed" || { echo "$fails failed"; exit 1; }
+  exit 0
+fi
 check "last review date set" "grep -q 'last_review: $today' '$B'"
 check "your correction applied: discovery or its merge target carries no inferred size for discovery" "! row discovery | grep -q 'inferred: \\[size\\]'"
 check "starter added as an exploring initiative" "row morning-of-chooser | grep -q 'status: exploring'"
@@ -18,6 +25,7 @@ check "starter agent started" "grep -q 'agent-spawn morning-of-chooser-1' '$log'
 check "one chore agent started with its brief" "grep -q 'agent-spawn chores-1 --prompt' '$log'"
 check "no second agent on lists (lists-4 is on it)" "! grep -q 'agent-spawn lists' '$log'"
 check "lists-4 got the decision brief" "grep -qi 'lists-4' '$root/messages.log'"
+check "pages-3 (ended) got no message" "! grep -qi 'pages-3' '$root/messages.log'"
 check "lists now owned by the agent on it" "row lists | grep -q 'owner: lists-4'"
 check "discovery merged: row gone" "! grep -q '^  discovery:' '$B'"
 check "discovery's open step moved to lists" "row lists | grep -q 'Queue screen for suggested places'"
