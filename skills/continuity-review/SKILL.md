@@ -9,7 +9,11 @@ The review settles where attention and agents go next; what the product should
 be is decided in sessions with the user (principles 9 and 10 in the plugin's
 `docs/principles.md`). The page is the user's; the board is the record.
 
-`<base>` is this skill's directory; the scripts are in `<base>/../../lib/`.
+`<base>` is this skill's directory; the scripts are in `<base>/../../lib/`
+(`<lib>` below), except two that live with other skills: `continuity-state` is
+`<base>/../startup/continuity-state` and `continuity-save` is
+`<base>/../wrap-up/continuity-save`. Run each by that absolute path; neither is
+on PATH. `agent-spawn` is on PATH.
 Work files go in a fresh directory under your scratchpad (`$W` below).
 
 ## 1. Review
@@ -123,7 +127,9 @@ changes. Treat the answer as a confirmed round.
      marks an item's step done on the board when the step is there, and asks
      before anything the chore rule excludes (the Chores rule in
      `<base>/reviewer.md`; quote it in the prompt).
-   Then save once (`continuity-save -m "continuity: review round <date>"`),
+   Then save once (`continuity-save -m "continuity: review round <date>"`; keep
+   that subject as written: the audit leaves the review's own commit out of
+   each row's activity by it),
    mark the round sent (`update` `round/current` with `applied_at`, now) so no
    second go can start these again, and only then start each agent as wrap-up's relay steps 4 and 5 do (`agent-spawn {name}
    --prompt "/startup"`, judged by its exit status, its `Open it:` line copied

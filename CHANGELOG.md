@@ -5,6 +5,12 @@
 ### Fixed
 - **False "CONTINUITY NOT LANDED" on busy repos.** `cc_landed_sources` read `Continuity-Source` trailers from only the last 500 commits of the default branch. It now reads the whole branch, filtered by `--grep`, which takes 0.13s on trip-planner's 1,581 commits. Why: trip-planner pushed 657 commits in 14 days, so three landed saves read as pending. Re-landing them, as SessionStart and continuity-save would have done, would have reverted a later board close-out.
 
+## [0.17.3] - 2026-10-19
+
+### Fixed
+- **The review's own round counted as activity** — its "continuity: review round" commit stamps area, size and owners on many rows, so the next routine review saw every row as moved and packed them all in full. The audit now skips that commit; on trip-planner the routine pack falls from 105 KB to 74 KB (19 rows in full to 9).
+- **The review skill named `continuity-state` and `continuity-save` without a path** — they live in the startup and wrap-up skills, not `lib/` or PATH; trip-planner's trial checked the board by hand. The skill now gives both paths.
+
 ## [0.17.2] - 2026-10-19
 
 ### Fixed
