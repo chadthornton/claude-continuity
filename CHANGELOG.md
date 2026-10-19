@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-10-19
+
 ### Fixed
 - **"Live now" stayed empty after a go** — the page shows sessions as of its seed, and a round's agents start after that. On "go" the skill now refreshes the review with `continuity-review-seed --live` (only who's running and `live_at`; the round still matches), and the page heads the section "as of <time>". Why: trip-planner's page said nothing was running while app-1 and lists-5 were.
 
