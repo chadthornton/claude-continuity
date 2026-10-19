@@ -55,13 +55,14 @@ One JSON object:
 {
   "mode": "routine | full",
   "since": "YYYY-MM-DD (the audit's review.since)",
-  "read": "two or three sentences across the board: where effort went, what competes with what matters, what no one owns",
+  "read": "two or three sentences, at most 480 characters, across the board: where effort went, what competes with what matters, what no one owns",
   "areas": [  // full only
     {"name": "...", "what": "one sentence", "open_question": "the one unanswered question at the head of this area, as a question the reader could answer",
      "starters": [ {"title": "...", "aspiration": "one sentence", "size": "S|M|L", "first_session": "think|decision", "brief": "what that first session does with the reader"} ]}
   ],
   "initiatives": [  // every row on the board
-    {"row": "exact row name", "line": "one sentence: where it is, for the reader",
+    {"row": "exact row name", "line": "one sentence, at most 160 characters: where it is, for the reader",
+     "points": [ "up to three, each at most 160 characters: one fact or call the reader needs, most important first" ],
      "recent": [ {"what": "what a user or the reader would notice", "when": "YYYY-MM-DD", "evidence": "PR #n or a short commit sha"} ],
      "proposal": null or {"kind": "decision|think|continue", "title": "...", "brief": "what the session is told", "comes_back": "when and with what"},
      "suggest": {"action": "keep|park|close|merge", "into": "row (merge only)", "reason": "one sentence"},
@@ -83,6 +84,11 @@ what it reports until it prints OK.
 - **Product terms.** Write what a user would see or be able to do. Steps on the
   board are written for agents ("drop places.interest"); restate them. Keep row
   names exact.
+- **Write to the reader.** Call them "you", never by name, even where the
+  board names them. `line` is the headline; `points` carry only what changes
+  what the reader does next (a call waiting on them, an overlap, something
+  overdue or stale). How a record came to be, timelines of commits, and
+  anything the reader can't act on stay out; if it matters, it goes in `read`.
 - **Say what you think.** If an initiative fits none of the product's bets, or
   two initiatives solve one problem, say so. Don't soften.
 - **No invented facts.** Every date, count and pull request comes from something

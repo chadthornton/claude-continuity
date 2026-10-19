@@ -49,7 +49,7 @@ REVIEW = {
          'starters': [{'title': 'Morning-of chooser', 'aspiration': 'Pick in a minute.', 'size': 'M', 'first_session': 'think', 'brief': 'Walk a morning.'}]},
     ],
     'initiatives': [
-        {'row': 'lists', 'line': 'Soaking; calls wait on you.', 'recent': [{'what': 'Add all', 'when': '2026-10-12', 'evidence': 'PR #103'}],
+        {'row': 'lists', 'line': 'Soaking; calls wait on you.', 'points': ['PR 3b waits on you.'], 'recent': [{'what': 'Add all', 'when': '2026-10-12', 'evidence': 'PR #103'}],
          'proposal': None, 'suggest': {'action': 'keep', 'reason': 'Live.'},
          'area': 'Lists', 'size': 'XL', 'aspiration': 'Reviewer aspiration.', 'progress': 'about a third', 'progress_basis': 'Two of six builds.'},
         {'row': 'quiet', 'line': 'Nothing moved.', 'recent': [],
@@ -79,6 +79,7 @@ expect('D2 progress, line, proposal, suggest always marked', {'progress', 'line'
 # D3. Facts come across from the audit.
 expect('D3 counts, status, waiting', (l.get('open'), l.get('done'), l.get('status'), l.get('waiting')) == (5, 3, 'building', 2), l)
 expect('D3 activity and running session', l.get('activity', {}).get('board_edits') == 3 and l.get('running') == 'lists-4' and l.get('running_idle') is True, l)
+expect('D3 points carried and marked', l.get('points') == ['PR 3b waits on you.'] and 'points' in l.get('judged', []) and q.get('points') == [], (l, q))
 expect('D3 reviewer judgments carried', l.get('line') == 'Soaking; calls wait on you.' and l.get('recent', [{}])[0].get('evidence') == 'PR #103' and q.get('proposal', {}).get('kind') == 'think', (l, q))
 
 # D4. Areas: the reviewer's list, each with its initiative count; starters kept; chores and sessions carried.

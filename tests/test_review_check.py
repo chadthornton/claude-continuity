@@ -90,6 +90,16 @@ bad('C3 recent date not a date', lambda r: r['initiatives'][0]['recent'][0].upda
 bad('C3 initiative names an area not listed', lambda r: r['initiatives'][0].update(area='Nowhere'), 'Nowhere')
 bad('C3 starter size XL', lambda r: r['areas'][0]['starters'][0].update(size='XL'), 'starter')
 
+# C7. A line is one short sentence; detail goes in at most three short points.
+bad('C7 line over 160 characters', lambda r: r['initiatives'][0].update(line='x' * 161), 'line is 161 characters')
+bad('C7 read over 480 characters', lambda r: r.update(read='z' * 481), 'read: 481 characters')
+bad('C7 four points', lambda r: r['initiatives'][0].update(points=['a', 'b', 'c', 'd']), 'points')
+bad('C7 a point over 160 characters', lambda r: r['initiatives'][0].update(points=['y' * 161]), 'points')
+bad('C7 an empty point', lambda r: r['initiatives'][0].update(points=['']), 'points')
+r7 = copy.deepcopy(GOOD); r7['initiatives'][0]['points'] = ['One call waits on you.', 'PR 3b drops columns with no rollback.']
+rc, out = check(r7)
+expect('C7 three short points pass', rc == 0 and out.strip() == 'OK', out)
+
 # C4. The chore rule: nothing needing approval, nothing destructive, nothing gated on the board.
 bad('C4 chore naming ship it', lambda r: r['chore_groups'][0]['items'][0].update(step='Wait for ship it, then cap paste size'), 'chore')
 bad('C4 chore deleting live data', lambda r: r['chore_groups'][0]['items'][0].update(step='Delete old backups on the server'), 'chore')

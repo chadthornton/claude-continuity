@@ -36,6 +36,7 @@ def need($o; $k; $where): if ($o[$k] | str) then empty else "\($where): \($k) mi
 | [
     (if ($r.mode | IN("routine", "full")) then empty else "mode: must be routine or full" end),
     need($r; "read"; "review"),
+    (if ($r.read | str) and ($r.read | length) > 480 then "read: \($r.read | length) characters; two or three sentences, at most 480" else empty end),
     (if ($r.since | date) then empty else "since: not a YYYY-MM-DD date" end),
     (if ($r.initiatives | type) == "array" then empty else "initiatives: missing" end),
     (if ($r.chore_groups | type) == "array" then empty else "chore_groups: missing" end),
@@ -48,6 +49,10 @@ def need($o; $k; $where): if ($o[$k] | str) then empty else "\($where): \($k) mi
             (if (.first_session | IN("think", "decision")) then empty else "\($sw): first_session must be think or decision" end))),
     ($r.initiatives[]? | . as $i | "initiative \(.row // "?")" as $w
       | need($i; "row"; $w), need($i; "line"; $w),
+        (if (.line | str) and (.line | length) > 160 then "\($w): line is \(.line | length) characters; one sentence of at most 160, the rest in points" else empty end),
+        (if .points == null then empty
+         elif (.points | type) == "array" and (.points | length) <= 3 and all(.points[]; str and length <= 160) then empty
+         else "\($w): points must be at most 3 non-empty strings of at most 160 characters" end),
         (if $audit != null and ($rows | index($i.row)) == null then "\($w): no row \($i.row) on the board" else empty end),
         (if (.recent | type) == "array" then empty else "\($w): recent missing" end),
         (.recent[]? | if (.what | str) and (.when | date) then empty else "\($w): a recent item needs what and a YYYY-MM-DD when" end),

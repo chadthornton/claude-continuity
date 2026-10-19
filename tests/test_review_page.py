@@ -144,5 +144,20 @@ disc = out['shots'][-1]['app'].split('data-toggle="discovery"')[1].split('</tr>'
 expect('G7 note written with the size kept', ov and ov[-1]['data'].get('notes') == 'ask about merge' and ov[-1]['data'].get('size') == 'L', out['writes'])
 expect('G7 note shown in its box', '>ask about merge</textarea>' in disc, disc[-500:])
 
+# G8. A row's read: line, then points as bullets; an older long line splits into a lead sentence and bullets.
+R8 = json.loads(json.dumps(REVIEW))
+R8['initiatives'][0]['points'] = ['PR 3b waits on you.']
+R8['initiatives'][1]['line'] = 'Parked since 08-30 (no spend). Its leftovers are 70 Sydney proposals. Lists Build 5 replaces it.'
+app = run([['seed', R8]])['shots'][-1]['app']
+lists_row = app.split('data-toggle="lists"')[1].split('</tr>')[0]
+disc_row = app.split('data-toggle="discovery"')[1].split('</tr>')[0]
+expect('G8 points as bullets under the line', '<div class="lede">Calls wait on you.</div><ul class="pts"><li>PR 3b waits on you.</li></ul>' in lists_row, lists_row[:600])
+expect('G8 old long line split into lead and bullets', '<div class="lede">Parked since 08-30 (no spend).</div><ul class="pts"><li>Its leftovers are 70 Sydney proposals.</li><li>Lists Build 5 replaces it.</li></ul>' in disc_row, disc_row[:700])
+
+R9 = json.loads(json.dumps(REVIEW))
+R9['initiatives'][1]['line'] = 'Lead one. Two. Three. Four. Five.'
+disc_row = run([['seed', R9]])['shots'][-1]['app'].split('data-toggle="discovery"')[1].split('</tr>')[0]
+expect('G8 bullets past three fold behind more', '<li>Four.</li></ul><details class="more"><summary>1 more</summary><ul class="pts"><li>Five.</li>' in disc_row, disc_row[:700])
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

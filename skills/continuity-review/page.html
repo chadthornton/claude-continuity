@@ -83,6 +83,12 @@ tr.area td { background: var(--sunk); padding: 14px 18px; border-top: 2px solid 
 .name button::before { content: "▸ "; color: var(--muted); }
 .name button[aria-expanded="true"]::before { content: "▾ "; }
 .what { color: var(--muted); font-size: 13px; line-height: 1.55; margin-top: 6px; max-width: 52ch; text-wrap: pretty; }
+.lede { color: var(--ink); font-size: 13.5px; line-height: 1.5; margin-top: 6px; max-width: 52ch; text-wrap: pretty; }
+.pts { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 4px; max-width: 52ch; }
+.pts li::marker { color: var(--line); }
+.more { margin-top: 4px; }
+.more summary { cursor: pointer; color: var(--accent); font-size: 12.5px; width: max-content; }
+.more > p { margin-top: 6px; color: var(--muted); font-size: 13.5px; }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 select.size { border: 1px dotted var(--muted); background: var(--surface); border-radius: 4px; padding: 1px 4px; font-family: var(--display); font-weight: 700; }
 select.size.you { border: 1px solid var(--accent); color: var(--accent); }
@@ -128,7 +134,7 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
   <header style="display:flex;flex-direction:column;gap:6px">
     <h1 id="title">Board review</h1>
     <p class="sub" id="meta"></p>
-    <p id="read" style="font-size:15px"></p>
+    <div id="read" style="font-size:15px;max-width:92ch"></div>
     <div class="legend"><span>Plain text is a fact from the board or git, except the line under each initiative, which is Claude's read.</span><span><span class="claude">Dotted</span><span class="tag">Claude</span> is Claude's judgment; change it and it becomes yours<span class="tag you">You</span>.</span></div>
     <div class="note" id="note" hidden></div>
   </header>
@@ -203,6 +209,21 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
   // The right-hand column: one labelled mini row per fact, instead of a table column each; a null row is an empty fact and is left out.
   function mini(rows) { return rows.filter(Boolean).map(function (r) { return '<div class="mr"><span class="ml">' + r[0] + '</span><div class="mv">' + r[1] + "</div></div>"; }).join(""); }
 
+  // Claude's read of a row: a one-sentence line, then up to three points as bullets. A review
+  // written before points existed has one long line; its first sentence leads and the rest become the bullets.
+  function sentences(t) { return String(t || "").split(/(?<=[.!?])\s+(?=[A-Z0-9'"(])/).filter(Boolean); }
+  function lede(i) {
+    var line = i.line || "", pts = (i.points || []).slice();
+    if (!pts.length) { var ss = sentences(line); if (ss.length > 1) { line = ss[0]; pts = ss.slice(1); } }
+    return '<div class="lede">' + esc(line) + "</div>" + bullets(pts);
+  }
+  // At most three bullets in view; any beyond fold behind "N more".
+  function bullets(pts) {
+    function ul(xs) { return '<ul class="pts">' + xs.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>"; }
+    if (!pts.length) return "";
+    return ul(pts.slice(0, 3)) + (pts.length > 3 ? '<details class="more"><summary>' + (pts.length - 3) + " more</summary>" + ul(pts.slice(3)) + "</details>" : "");
+  }
+
   // Your notes on a row: kept in overrides/<row> beside your corrections; a draft survives a re-render until it saves on blur.
   function notesField(i) {
     var v = S.drafts[i.row] != null ? S.drafts[i.row] : ov(i.row).notes || "";
@@ -215,7 +236,7 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
     var html = "<tr><td class=\"ini\"><div class=\"name\"><button type=\"button\" data-toggle=\"" + esc(i.row) + '" aria-expanded="' + open + '">' + esc(i.row) + "</button>" +
         '<span class="pill">' + esc(i.status || i.section) + "</span>" +
         (sg ? '<span class="pill warn">' + esc(sg.action) + '<span class="tag">Claude</span></span>' : ov(i.row).keep ? '<span class="pill">kept<span class="tag you">You</span></span>' : "") +
-        '</div><div class="what">' + esc(i.line || "") + "</div></td><td>" + mini([
+        '</div>' + lede(i) + "</td><td>" + mini([
           ["Size", sizeCell(i)],
           frac(i.progress) != null && ["Done", bar(i)],
           (act.board_edits || (act.prs_merged || []).length) && ["Activity", spark(i) + '<span class="sub num">' + (act.board_edits || 0) + " edits · " + (act.prs_merged || []).length + " PRs</span>"],
@@ -249,7 +270,10 @@ tr.detail td { background: var(--bg); border-top: 0; padding: 4px 12px 16px 12px
     var y = window.scrollY, f = document.activeElement, fid = f && f.id, fs = f && f.selectionStart, fe = f && f.selectionEnd;
     document.getElementById("title").textContent = (R.project || "Board") + " board review";
     document.getElementById("meta").textContent = (R.mode === "full" ? "Full review" : "Routine review") + " · since " + short(R.since) + " · seeded " + short(R.generated) + (R.board_source && R.board_source !== "local" ? " · board read from " + R.board_source : "");
-    document.getElementById("read").textContent = R.read || "";
+    var rs = sentences(R.read);
+    // The read leads with three sentences; an over-long one folds the rest behind "More".
+    document.getElementById("read").innerHTML = rs.length ? "<p>" + esc(rs.slice(0, 3).join(" ")) + "</p>" +
+      (rs.length > 3 ? '<details class="more"><summary>More</summary><p>' + esc(rs.slice(3).join(" ")) + "</p></details>" : "") : "";
     var live = R.initiatives.filter(function (i) { return i.running; });
     var html = "<section><h2>Live now</h2>" + (live.length ? '<div class="livebox">' + live.map(function (i) {
       return '<div class="lcard"><span class="who">' + esc(i.running) + (idle(i) ? " (idle)" : "") + "</span><span><b>" + esc(i.row) + '</b></span><span class="sub claude">' + esc(i.line || "") + "</span>" + (i.waiting ? '<span class="waitn">Waiting on you: ' + plural(i.waiting, "call") + "</span>" : "") + "</div>";

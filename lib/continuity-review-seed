@@ -11,8 +11,8 @@
 # Per initiative, `judged` names every field that is Claude's judgment, so the
 # page can mark it: an area, size or aspiration the reader confirmed on the
 # board (the board holds it and `inferred` does not list it) is a fact; one the
-# board lacks, or lists as inferred, is the reviewer's. line, recent, progress,
-# proposal and suggest are always judgments.
+# board lacks, or lists as inferred, is the reviewer's. line, points, recent,
+# progress, proposal and suggest are always judgments.
 #
 # Exit codes: 0 ok · 1 the review fails the checker · 3 not usable here
 set -u
@@ -42,9 +42,9 @@ $r[0] as $rv | $a[0] as $au
        running: ($s.name // null), running_idle: (($s.activity // "") | startswith("idle")),
        area: $m.v.area, size: $m.v.size, aspiration: $m.v.aspiration,
        progress: ($j.progress // null), progress_basis: ($j.progress_basis // null),
-       line: ($j.line // null), recent: ($j.recent // []), proposal: ($j.proposal // null),
+       line: ($j.line // null), points: ($j.points // []), recent: ($j.recent // []), proposal: ($j.proposal // null),
        suggest: ($j.suggest // null),
-       judged: ($m.judged + ["line", "recent", "progress", "proposal", "suggest"])}
+       judged: ($m.judged + ["line", "points", "recent", "progress", "proposal", "suggest"])}
   ] as $inits
 | (if $rv.mode == "full" then [$rv.areas[] | {name, what, open_question, starters: (.starters // [])}]
    else [($au.areas // [])[] | {name, what, open_question, starters: []}] end) as $areas
