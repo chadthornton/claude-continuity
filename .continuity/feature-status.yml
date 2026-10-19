@@ -31,7 +31,7 @@ features:
       - { step: "Merge closure-pass-1-step-5 into main with the review line in the message (b589373: 9+8 fixed, 3 dismissed over two rounds)", done: true }
       - { step: "Release 0.16.0: CHANGELOG, bump .claude-plugin/{plugin,marketplace}.json, update the installed plugin (69db0cd, v0.16.0)", gate: approval, done: true }
       - { step: "0.17.0: page redesign from Chad's first look (two columns, notes to the reviewer, line/points limits, board changes as Next step) (v0.17.0)", done: true }
-      - { step: "Trial on trip-planner through its own session: a real round with tokens measured; whether it adopts areas on its board is its call", done: false }
+      - { step: "Trial on trip-planner through its own session: routine review on 0.17.1, one call 48k in + 14k out, 132 s, no retry, longest line 127 chars (review-trial-1, 2026-10-19). A round sent from it is still to come", done: true }
     in_progress: null
 
   review-followups:
@@ -39,6 +39,8 @@ features:
     next: "Non-critical bugs logged during closure-pass; pick up after the trip-planner trial"
     next_steps:
       - { step: "continuity-save: `push_to_default_branch` in flow style (`settings: { push_to_default_branch: true }`, which its own hint suggests) is missed by its grep (`^[[:space:]]*push_to_default_branch:`); match it anywhere on the line, test with a flow-style board", done: false }
+      - { step: "continuity-review SKILL.md names continuity-state and continuity-save bare; they live in skills/startup/ and skills/wrap-up/, not lib/ or PATH (trial review-trial-1 had to check staleness by hand). Give their paths from <base>", done: false }
+      - { step: "Routine pack is 88% of the board on trip-planner (105 KB of 120 KB): moved rows go in full; trim them (e.g. last N done steps, handoff head) and measure", done: false }
       - { step: "continuity-review-pack: take --audit <path> so it doesn't re-run the audit SKILL step 2 already ran (13 s on trip-planner)", done: false }
       - { step: "Page notes clear once a review read them and its round is sent (Chad 2026-10-19); also fixed go deleting unread notes (v0.17.1, eed5e98)", done: true }
       - { step: "Review page: starters (areas not yet started) get no notes box; their key s:<area>:<n> shifts between reviews, so a note would attach to the wrong starter", done: false }
