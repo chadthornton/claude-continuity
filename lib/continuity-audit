@@ -74,11 +74,13 @@ tmp=$(mktemp -d) || exit 3
 trap 'rm -rf "$tmp"' EXIT
 
 # kind<TAB>pattern. A finding is a path, a line number and a kind; the match is never printed.
-SECRET_PATTERNS='github-token	gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}
-aws-access-key	AKIA[0-9A-Z]{16}
-api-key	sk-[A-Za-z0-9_-]{20,}
-slack-token	xox[baprs]-[A-Za-z0-9-]{10,}
-private-key	-----BEGIN [A-Z ]*PRIVATE KEY-----
+# Tokens start at a word boundary ($BND), so a name like task-queue-retry is not an sk- key.
+BND='(^|[^A-Za-z0-9_])'
+SECRET_PATTERNS="github-token	${BND}(gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})
+aws-access-key	${BND}AKIA[0-9A-Z]{16}
+api-key	${BND}sk-[A-Za-z0-9_-]{20,}
+slack-token	${BND}xox[baprs]-[A-Za-z0-9-]{10,}
+"'private-key	-----BEGIN [A-Z ]*PRIVATE KEY-----
 assigned-secret	([Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Pp][Aa][Ss][Ss][Ww]([Oo][Rr])?[Dd])["'"'"']?[ ]*[:=][ ]*["'"'"']?[A-Za-z0-9/+_-]{16,}'
 
 # Board text the audit repeats (steps, claims, gotchas) has the same patterns blanked.
@@ -93,10 +95,9 @@ fi
 REV="${SRC:-HEAD}"
 if [ -n "$SRC" ]; then git show "$SRC:$B" > "$tmp/board.yml" 2>/dev/null || cp "$B" "$tmp/board.yml"; else cp "$B" "$tmp/board.yml"; fi
 
+# Free text (steps, gates, claims, gotchas, area text, aspirations) is blanked in
+# the jq below; names never are, since every reader matches rows by name.
 cb_facts < "$tmp/board.yml" > "$tmp/facts"
-printf '%s\n' "$SECRET_PATTERNS" | while IFS='	' read -r kind re; do
-  sed -E "s#$re#[redacted:$kind]#g" "$tmp/facts" > "$tmp/facts.r" && mv "$tmp/facts.r" "$tmp/facts"
-done
 
 # PR states: one listing, only when the board cites a PR.
 gh_src=unavailable
@@ -116,14 +117,20 @@ since=$(jq -nr --arg d "$last_review" --arg now "$now" \
 
 # Board edits per row in the window: each commit that touched the board, its row
 # blocks against its first parent. section<TAB>name<TAB>date per edited row.
+# A landed copy or a sync whose source is also in history is skipped (cc_echoes):
+# one edit counts once.
 : > "$tmp/edits"
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  cc_echoes "$REV" > "$tmp/echoes"
   git log --no-merges --format='%H %ct' "$REV" -- "$B" 2>/dev/null | while read -r c ct; do
     [ "$ct" -ge "$since" ] || continue
+    grep -qxF "$c" "$tmp/echoes" && continue
     git show "$c:$B" 2>/dev/null | cb_blocks > "$tmp/b.new"
     if git rev-parse -q --verify "$c^" >/dev/null 2>&1; then git show "$c^:$B" 2>/dev/null | cb_blocks > "$tmp/b.old"; else : > "$tmp/b.old"; fi
     day=$(jq -nr --arg t "$ct" '$t | tonumber | strftime("%Y-%m-%d")')
-    awk -F'\t' -v day="$day" 'NR == FNR { old[$1 FS $2] = $0; next } old[$1 FS $2] != $0 { print $1 "\t" $2 "\t" day }' "$tmp/b.old" "$tmp/b.new" >> "$tmp/edits"
+    # The old board is read in BEGIN: an empty one (a commit that creates the board) still has its rows counted.
+    awk -F'\t' -v day="$day" -v oldf="$tmp/b.old" 'BEGIN { while ((getline l < oldf) > 0) { split(l, k, "\t"); old[k[1] FS k[2]] = l } }
+      old[$1 FS $2] != $0 { print $1 "\t" $2 "\t" day }' "$tmp/b.new" >> "$tmp/edits"
   done
 fi
 
@@ -189,6 +196,8 @@ jq -n \
   --arg since "$since" \
   --arg now "$(date +%s)" \
   --rawfile facts "$tmp/facts" \
+  --arg pats "$SECRET_PATTERNS" \
+  --arg bnd "$BND" \
   --slurpfile gh "$tmp/gh.json" \
   --arg gh_src "$gh_src" \
   --arg path "$B" \
@@ -197,6 +206,9 @@ jq -n \
   --arg lines "$(wc -l < "$tmp/board.yml" | tr -d ' ')" '
 def recs($s): $s | split("\n") | map(select(length > 0) | split("\t"));
 def nn: if . == "" then null else . end;
+# The secret patterns, blanked in free text. The boundary becomes a lookbehind so the character before stays.
+def red: reduce ($pats | split("\n")[] | select(length > 0) | split("\t")) as $p
+  (.; gsub($p[1] | split($bnd) | join("(?<![A-Za-z0-9_])"); "[redacted:" + $p[0] + "]"));
 recs($facts) as $f
 | ($f | map(select(.[0] == "gated"))) as $gated
 | ($f | map(select(.[0] == "pr"))) as $prs
@@ -220,14 +232,14 @@ recs($facts) as $f
       count: ($gotchas | length), lines: $glines, cap: 10, over_cap: ($glines > 10),
       entries: [
         $gotchas[] | ([range((.[1] | tonumber); (.[3] | tonumber) + 1) | $edited[tostring] // empty] | max) as $t
-        | {line: (.[1] | tonumber), head: .[2], relearned: ((.[4] // "") | if . == "" then [] else split(",") end),
+        | {line: (.[1] | tonumber), head: (.[2] | red), relearned: ((.[4] // "") | if . == "" then [] else split(",") end),
            last_edited: (if $t then ($t | strftime("%Y-%m-%d")) else null end),
            age_days: (if $t then ((($now | tonumber) - $t) / 86400 | floor) else null end)}
       ]
     },
     areas: [
       $f[] | select(.[0] == "area") | . as $a
-      | {name: (.[1] | nn), what: (.[2] // "" | nn), open_question: (.[3] // "" | nn),
+      | {name: (.[1] | nn), what: (.[2] // "" | red | nn), open_question: (.[3] // "" | red | nn),
          initiatives: ([$rowx[] | select(.[3] == $a[1] and $a[1] != "")] | length)}
       | .empty = (.initiatives == 0)
     ],
@@ -240,17 +252,17 @@ recs($facts) as $f
       | ($r[1] == "workflows" and ($r[3] != "" or $r[9] == "1")) as $misfiled
       | ([$rowx[] | select(.[1] == $r[1] and .[2] == $r[2])] | .[0] // []) as $x
       | ($x[3] // "" | nn) as $area | ($x[4] // "" | nn) as $size
-      | [$claims[] | select(.[1] == $r[1] and .[2] == $r[2]) | {text: .[4], status: .[3], evidence: (.[5] // "" | nn), waits_on: (.[6] // "" | nn)}] as $rc
+      | [$claims[] | select(.[1] == $r[1] and .[2] == $r[2]) | {text: (.[4] | red), status: .[3], evidence: (.[5] // "" | red | nn), waits_on: (.[6] // "" | red | nn)}] as $rc
       | {
           name: $r[2], section: $r[1], status: ($r[3] | nn), kind: ($r[4] | nn), serves: ($r[5] | nn),
           open: (if $ok then ($r[6] | tonumber) else null end),
           done: (if $ok then ($r[7] | tonumber) else null end),
           steps_readable: $ok,
-          gated: [$gated[] | select(.[1] == $r[1] and .[2] == $r[2]) | {step: .[3], gate: .[4]}],
+          gated: [$gated[] | select(.[1] == $r[1] and .[2] == $r[2]) | {step: (.[3] | red), gate: (.[4] // "" | red)}],
           prs: [$prs[] | select(.[1] == $r[1] and .[2] == $r[2]) | .[3] | tonumber],
           claims: $rc,
           claims_readable: ($r[11] == "1"),
-          area: $area, size: $size, aspiration: ($x[5] // "" | nn),
+          area: $area, size: $size, aspiration: ($x[5] // "" | red | nn),
           inferred: ($x[6] // "" | if . == "" then [] else split(",") end),
           activity: ([$edits[] | select(.[0] == $r[1] and .[1] == $r[2]) | .[2]] as $d
             | {board_edits: ($d | length), dates: ($d | sort),

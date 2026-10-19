@@ -562,5 +562,64 @@ ents = ((doc or {}).get('gotchas') or {}).get('entries') or []
 expect('G1 markers read per gotcha', [e.get('relearned') for e in ents] == [['2026-10-12', '2026-10-19'], ['2026-10-03'], []], ents)
 shutil.rmtree(d)
 
+# --- Review findings, 2026-10-19.
+
+# F1. A row name that looks like a token's tail stays whole and keeps its edits; it is not a
+#     secret. A real token in a step is still found and blanked.
+SK = 'sk-' + 'Q' * 24
+d = repo('features:\n  task-queue-retry-and-backoff:\n    status: building\n    next_steps:\n'
+         f'      - {{ step: "Rotate {SK} soon", done: false, gate: approval }}\n', when=NOW - 40 * DAY)
+edit_row(d, 'status: building', 'status: polishing', NOW - 2 * DAY)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+r = row(doc or {'rows': []}, 'task-queue-retry-and-backoff')
+expect('F1 row keeps its exact name', r is not None, [x['name'] for x in (doc or {'rows': []})['rows']])
+expect('F1 row keeps its edits', ((r or {}).get('activity') or {}).get('board_edits') == 1, (r or {}).get('activity'))
+sec = [(x['line'], x['kind']) for x in (doc or {}).get('secrets', [])]
+expect('F1 the row name is not a secret; the token is', sec == [(5, 'api-key')], sec)
+expect('F1 token never printed', SK not in raw and 'redacted' in raw, raw[:300])
+shutil.rmtree(d)
+
+# F4. The commit that creates the board counts as an edit of each row it creates,
+#     as a root commit and as a later one.
+d = repo(BOARD, when=NOW - 1 * DAY)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F4 board created in a root commit: rows edited', ((row(doc or {'rows': []}, 'shipping') or {}).get('activity') or {}).get('board_edits') == 1, raw[:300])
+shutil.rmtree(d)
+d = tempfile.mkdtemp()
+git(d, 'init', '-q', '-b', 'master'); write(f'{d}/README', 'x\n'); commit(d, 'readme', NOW - 3 * DAY)
+write(f'{d}/.continuity/feature-status.yml', BOARD); commit(d, 'board', NOW - 1 * DAY)
+rc, doc, raw = audit(d, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F4 board created after a first commit: rows edited', ((row(doc or {'rows': []}, 'shipping') or {}).get('activity') or {}).get('board_edits') == 1, raw[:300])
+shutil.rmtree(d)
+
+# F6. One edit counts once: a continuity-save landed copy and its source, or a sync and the
+#     peer commit it copied, are one edit when both are in history. A sync whose peer
+#     commit is not in history is the only record of that edit and counts.
+root, remote, clone, wt = ns['setup']()
+B6 = 'settings:\n  push_to_default_branch: true\nfeatures:\n  alpha:\n    status: building\n  gamma:\n    status: planned\n    next: one\n    summary: two\n  beta:\n    status: building\n'
+write(f'{wt}/.continuity/feature-status.yml', B6); ns['save'](wt)
+git(clone, 'pull', '-q', '--ff-only')
+p = f'{clone}/.continuity/feature-status.yml'; write(p, open(p).read().replace('  beta:\n    status: building', '  beta:\n    status: polishing'))
+git(clone, 'commit', '-qam', 'peer edits beta'); git(clone, 'push', '-q', 'origin', 'master')
+git(wt, 'fetch', '-q', 'origin')
+p = f'{wt}/.continuity/feature-status.yml'; write(p, open(p).read().replace('  alpha:\n    status: building', '  alpha:\n    status: polishing'))
+rc6, out6 = ns['save'](wt)
+eds = lambda doc: {n: ((row(doc or {'rows': []}, n) or {}).get('activity') or {}).get('board_edits') for n in ('alpha', 'beta')}
+rc, doc, raw = audit(wt, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F6 branch only: own edits and the synced peer edit count once', eds(doc) == {'alpha': 2, 'beta': 2}, (eds(doc), out6))
+# Merge once (boards equal: git follows one side), then both sides edit again, so the
+# next merge's board differs from both parents and git walks both.
+git(wt, 'merge', '-q', '--no-edit', 'origin/master')
+p =f'{wt}/.continuity/feature-status.yml'; write(p, open(p).read().replace('  alpha:\n    status: polishing', '  alpha:\n    status: parked'))
+git(wt, 'commit', '-qam', 'local alpha edit')
+git(clone, 'pull', '-q', '--ff-only')
+p = f'{clone}/.continuity/feature-status.yml'; write(p, open(p).read().replace('  beta:\n    status: polishing', '  beta:\n    status: parked'))
+git(clone, 'commit', '-qam', 'peer edits beta again'); git(clone, 'push', '-q', 'origin', 'master')
+git(wt, 'fetch', '-q', 'origin')
+git(wt, 'merge', '-q', '--no-edit', 'origin/master')
+rc, doc, raw = audit(wt, CONTINUITY_AUDIT_GH='no-such-gh-binary')
+expect('F6 after merging the default branch: still once each', eds(doc) == {'alpha': 3, 'beta': 3}, eds(doc))
+shutil.rmtree(root)
+
 print('\nFAILED:', fails if fails else 'none')
 sys.exit(1 if fails else 0)

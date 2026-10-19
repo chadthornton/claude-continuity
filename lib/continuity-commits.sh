@@ -73,6 +73,28 @@ cc_pending() {
   cc_scan "$@" | awk '$2 == "pending" { print $1 }'
 }
 
+# cc_echoes <rev> — commits in <rev>'s history whose .continuity edits are another
+# commit's in that same history, one SHA per line: a landed copy whose every
+# Continuity-Source is an ancestor of <rev>, and a sync whose Continuity-Sync
+# target is. A sync whose target isn't in history is the only record of the peer
+# edits it copied, so it is not an echo. Counting edits per commit should skip these.
+cc_echoes() {
+  local rev="$1" c srcs s mine
+  git log --format='%H%x09%(trailers:key=Continuity-Source,valueonly,separator=%x20)' "$rev" -- .continuity 2>/dev/null |
+  while IFS=$'\t' read -r c srcs; do
+    [ -n "$srcs" ] || continue
+    mine=1
+    for s in $srcs; do git merge-base --is-ancestor "$s" "$rev" 2>/dev/null || { mine=""; break; }; done
+    [ -n "$mine" ] && echo "$c"
+  done
+  # Found by the message line, as in cc_scan, so a hook's appended text can't hide one.
+  git log --format=%H --grep='^Continuity-Sync:' "$rev" -- .continuity 2>/dev/null |
+  while read -r c; do
+    s=$(git show -s --format=%B "$c" | sed -n 's/^Continuity-Sync:[ ]*//p' | head -1)
+    [ -n "$s" ] && git merge-base --is-ancestor "$s" "$rev" 2>/dev/null && echo "$c"
+  done
+}
+
 # cc_behind <default-ref> — how many continuity commits on the default branch
 # this checkout lacks, not counting its own landed saves (their
 # Continuity-Source is in HEAD) or peer commits a sync already copied in.
