@@ -40,12 +40,24 @@ A piece of work on this plugin should serve one of these.
 7. **The record belongs to the project.** It lives in the repo as plain files,
    readable without this plugin.
 8. **What can't be undone waits for a yes.** Silence is never a yes.
+9. **The review allocates; sessions decide.** The review settles where
+   attention and agents go next. What the product should be is worked out in a
+   session with you, with room for evidence and options.
+10. **The board is for agents; the page is for you.** The board's nouns keep
+    agents consistent. The page is organised by your questions (what moved,
+    what is live, what could start), and Claude's judgments on it are marked
+    and can be overridden.
+
+Principles 9 and 10 were added on 2026-10-19 from the board-review prototypes
+(`prototype/board-review-page`, `docs/board-review/prototype/NOTES.md`) and have
+not been through the scenario test below.
 
 ## What the principles leave to rules
 
 - A leaked secret: the audit script flags it. No principle is needed.
 - How many agents to start for a batch of fixes: the review skill groups fixes
-  by the code they touch.
+  by the code they touch, and the page counts sessions against limits per kind
+  (needs you live 1, reports back 3, quiet 3; Chad 2026-10-19).
 - When an optional field becomes worth asking for: a threshold in the skill.
 
 ## Retired
