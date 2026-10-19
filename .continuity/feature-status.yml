@@ -48,7 +48,7 @@ features:
       - { step: "Page notes clear once a review read them and its round is sent (Chad 2026-10-19); also fixed go deleting unread notes (v0.17.1, eed5e98)", done: true }
       - { step: "Review page: starters (areas not yet started) get no notes box; their key s:<area>:<n> shifts between reviews, so a note would attach to the wrong starter", done: false }
       - { step: "continuity-review-apply: a starter named <row>-2 matches the audit's <row>-N worktree name guess; pick a suffix the guess can't match", done: false }
-      - { step: "Merge PR #1 (cc_landed_sources reads the whole default branch, not -n 500: false CONTINUITY NOT LANDED on trip-planner). Branch worktree-cc-landed-window-1; tests green; rebase CHANGELOG onto 0.17.3 first", done: false }
+      - { step: "Merge PR #1 (cc_landed_sources reads the whole default branch, not -n 500: false CONTINUITY NOT LANDED on trip-planner). Branch worktree-cc-landed-window-1; tests green, merged with 0.17.3, mergeable", done: false }
       - { step: "cc_behind (lib/continuity-commits.sh ~line 109) reads Continuity-Sync trailers from `git log HEAD -n 200`: same window bug, stale count only; drop the -n like cc_landed_sources", done: false }
     in_progress: null
 
