@@ -246,12 +246,12 @@ Agent worktrees (subagents, relays, spawned sessions) each hold a full checkout,
 <skill base directory>/worktree-sweep
 ```
 
-It prints one `<path>\t<reason>` line per worktree under `.claude/worktrees/` that is finished: no uncommitted changes, every commit on a remote, no live session working in it, and not held by another running session's lock. Worktrees locked by this session (its own subagents) and locks whose process has died count as finished.
+It prints one `<path>\t<reason>` line per worktree under `.claude/worktrees/` that is finished: no uncommitted changes, every commit on a remote, no live session working in it, and not held by another running session's lock. Worktrees locked by this session (its own subagents) and locks whose process has died count as finished. A worktree whose folder is already gone but whose Muxy 2 sidebar entry is left is listed too.
 
 - **Prints nothing** → skip this step without mentioning it.
-- **Prints lines** → ask once with AskUserQuestion: **"Remove {N} finished worktree(s): {names}? Their folders are deleted; branches and commits stay."** Options: **Remove them** / **Keep them**.
+- **Prints lines** → ask once with AskUserQuestion: **"Remove {N} finished worktree(s): {names}? Their folders are deleted; commits stay on the remote."** Options: **Remove them** / **Keep them**.
 
-On yes, run `worktree-sweep --remove` and report its `REMOVED` / `KEPT` lines in Step 7. Remove only what the script listed, and leave any worktree it didn't list for the user to decide.
+On yes, run `worktree-sweep --remove` and report its `REMOVED` / `KEPT` / `FORGOT` lines in Step 7. A folder Muxy 2 holds is cleared through `agent-spawn done`, which also ends its terminals and removes its sidebar entry and local branch; if done refuses, the line says why. Remove only what the script listed, and leave any worktree it didn't list for the user to decide.
 
 ### Step 7: Confirm
 

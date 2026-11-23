@@ -2,7 +2,9 @@
 # worktree-sweep — find (and optionally remove) finished agent worktrees.
 #
 #   worktree-sweep            list removable worktrees: "<path>\t<reason>" per line
-#   worktree-sweep --remove   remove them (git worktree remove, never --force)
+#   worktree-sweep --remove   remove them (never --force): through
+#                             `agent-spawn done <name>` when Muxy 2 holds the
+#                             folder, else git worktree remove
 #
 # Looks only under <main checkout>/.claude/worktrees/. A worktree is removable
 # when ALL hold:
@@ -12,9 +14,17 @@
 #   - it is unlocked, or locked by THIS session (its own subagents), or locked
 #     by a pid that is no longer running. A lock held by another live session
 #     means that session still owns it.
-# Removing a worktree deletes its folder (checkout + node_modules); branches and
-# commits stay in the repo. Seams for tests: CONTINUITY_LIVE_CWDS (newline list
-# of live cwds), CONTINUITY_SESSION_PID (this session's claude pid).
+# Removing a worktree deletes its folder (checkout + node_modules); commits stay
+# in the repo. A folder Muxy 2 holds (`agent-spawn muxy-project <dir>` answers)
+# is cleared by `agent-spawn done <name>` instead, which also ends its
+# terminals, deletes its sidebar entry and its (pushed) local branch, and runs
+# its own checks; if done refuses, the folder is KEPT. A registered worktree
+# whose folder is already gone but whose sidebar entry is left is listed, and
+# --remove deletes the entry (muxy project delete). Removing a Muxy-held folder
+# with git directly orphaned its sidebar entry (2026-11-23).
+# Seams for tests: CONTINUITY_LIVE_CWDS (newline list of live cwds),
+# CONTINUITY_SESSION_PID (this session's claude pid), CONTINUITY_AGENT_SPAWN
+# (agent-spawn's path; empty: none), CONTINUITY_MUXY (Muxy 2's CLI).
 set -u
 GIT=${GIT:-git}
 mode=list
@@ -24,6 +34,10 @@ common=$($GIT rev-parse --path-format=absolute --git-common-dir 2>/dev/null) \
   || { echo "worktree-sweep: not a git repo" >&2; exit 1; }
 main=$(dirname "$common")
 here=$($GIT rev-parse --show-toplevel 2>/dev/null)
+AS=${CONTINUITY_AGENT_SPAWN-$(command -v agent-spawn 2>/dev/null)}
+MUXY=${CONTINUITY_MUXY:-${AGENT_SPAWN_MUXY2:-/Applications/Muxy Beta.app/Contents/MacOS/muxy}}
+# muxy_id DIR: Muxy 2's project id for DIR, if it holds it (needs agent-spawn and a Muxy 2 session).
+muxy_id() { [ -n "$AS" ] && "$AS" muxy-project "$1" 2>/dev/null; }
 
 if [ -n "${CONTINUITY_LIVE_CWDS+x}" ]; then
   live=$CONTINUITY_LIVE_CWDS
@@ -50,6 +64,11 @@ consider() {
   case "$path" in "$main/.claude/worktrees/"*) ;; *) return ;; esac
   [ "$path" = "$here" ] && return
   printf '%s\n' "$live" | grep -qxF -- "$path" && return
+  if [ ! -e "$path" ]; then
+    id=$(muxy_id "$path") && [ -n "$id" ] && candidates="$candidates$path	folder already gone; its Muxy sidebar entry is left	0	$id
+"
+    return
+  fi
   [ -n "$($GIT -C "$path" status --porcelain 2>/dev/null)" ] && return
   [ "$($GIT -C "$path" rev-list --count HEAD --not --remotes 2>/dev/null)" = "0" ] || return
   reason="finished: clean, all commits on a remote"
@@ -61,7 +80,7 @@ consider() {
     else reason="$reason; stale lock (pid $lpid gone)"
     fi
   fi
-  candidates="$candidates$path	$reason	$haslock
+  candidates="$candidates$path	$reason	$haslock	
 "
 }
 while IFS= read -r line; do
@@ -78,8 +97,18 @@ if [ "$mode" = list ]; then
 fi
 
 status=0
-while IFS='	' read -r p reason locked; do
+while IFS='	' read -r p reason locked gid; do
   [ -n "$p" ] || continue
+  if [ -n "$gid" ]; then
+    if "$MUXY" project delete "$gid" --yes >/dev/null 2>&1; then echo "FORGOT $p (its Muxy sidebar entry)"
+    else echo "KEPT $p (Muxy wouldn't delete its sidebar entry $gid)"; status=1; fi
+    continue
+  fi
+  if id=$(muxy_id "$p") && [ -n "$id" ]; then
+    if msg=$(cd "$main" && "$AS" done "$(basename "$p")" 2>&1) && [ ! -e "$p" ]; then echo "REMOVED $p (agent-spawn done: folder, terminals, sidebar entry, branch)"
+    else echo "KEPT $p (agent-spawn done refused: $(printf '%s' "$msg" | grep -v '^[[:space:]]*$' | tail -n 1))"; status=1; fi
+    continue
+  fi
   [ "$locked" = 1 ] && $GIT -C "$main" worktree unlock "$p" 2>/dev/null
   $GIT -C "$main" worktree remove "$p" 2>/dev/null
   if $GIT -C "$main" worktree list --porcelain | grep -qxF "worktree $p"; then

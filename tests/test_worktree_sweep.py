@@ -58,8 +58,11 @@ def setup():
     return clone, wts
 
 
-def run(cwd, wts, *args):
-    env = dict(BASE_ENV, CONTINUITY_LIVE_CWDS=wts['live'], CONTINUITY_SESSION_PID=str(SESSION))
+def run(cwd, wts, *args, **extra):
+    # CONTINUITY_AGENT_SPAWN="": no agent-spawn here (git removal only) unless a test passes a fake.
+    env = dict(BASE_ENV, CONTINUITY_LIVE_CWDS=wts['live'], CONTINUITY_SESSION_PID=str(SESSION),
+               CONTINUITY_AGENT_SPAWN='', CONTINUITY_MUXY='/nonexistent-muxy')
+    env.update(extra)
     r = sh(cwd, SWEEP, *args, env=env, check=False)
     return r.returncode, r.stdout, r.stderr
 
@@ -99,6 +102,45 @@ expect('dirty work untouched', os.path.exists(f"{wts['dirty']}/scratch.txt"))
 # ── nothing to do ────────────────────────────────────────────────────────────
 code, out, err = run(wts['self'], wts)
 expect('second run lists nothing', out.strip() == '', out)
+
+# ── Muxy-held worktrees go through `agent-spawn done` ───────────────────────
+# (2026-11-23: --remove ran `git worktree remove` on an agent-spawn worktree;
+# its Muxy 2 sidebar entry and terminal were orphaned.) Muxy holds a folder
+# when `agent-spawn muxy-project <dir>` answers; done then clears folder,
+# terminals, sidebar entry and branch. A folder already gone leaves only the
+# entry: `muxy project delete <id> --yes`.
+fake = os.path.realpath(tempfile.mkdtemp(prefix='ws-fake-'))
+log = os.path.join(fake, 'log')
+open(f'{fake}/agent-spawn', 'w').write(f"""#!/bin/bash
+echo "agent-spawn $* (in $PWD)" >> {log}
+case "$1" in
+  muxy-project) printf '%s\\n' "$FAKE_HELD" | grep -qxF -- "$2" && {{ echo "ID-${{2##*/}}"; exit 0; }}; exit 1 ;;
+  done) [ "$2" = "${{FAKE_DONE_FAIL:-}}" ] && {{ echo "agent-spawn: '$2' still has 1 unpushed commit — not cleared" >&2; exit 1; }}
+        git worktree remove "$PWD/.claude/worktrees/$2" && echo "✓ Agent '$2' is cleared"; exit $? ;;
+esac
+exit 2
+""")
+open(f'{fake}/muxy', 'w').write(f'#!/bin/bash\necho "muxy $*" >> {log}\n')
+for f in ('agent-spawn', 'muxy'): os.chmod(f'{fake}/{f}', 0o755)
+clone2, w2 = setup()
+gone = f'{clone2}/.claude/worktrees/gone'
+git(clone2, 'worktree', 'add', '-q', '-b', 'worktree-gone', gone, 'HEAD'); shutil.rmtree(gone)
+held = '\n'.join([w2['done'], w2['stale'], gone])
+kw = dict(CONTINUITY_AGENT_SPAWN=f'{fake}/agent-spawn', CONTINUITY_MUXY=f'{fake}/muxy', FAKE_HELD=held, FAKE_DONE_FAIL='stale')
+code, out, err = run(w2['self'], w2, **kw)
+expect('list: a gone folder with a sidebar entry is listed', any(l.startswith(gone + '\t') for l in out.splitlines()), out)
+open(log, 'w').close()
+code, out, err = run(w2['self'], w2, '--remove', **kw)
+L = open(log).read(); reg = registered(clone2)
+expect('held: removed through agent-spawn done, run in the main checkout', f'agent-spawn done done (in {clone2})' in L, L)
+expect('held: …folder gone', not os.path.exists(w2['done']), out + err)
+expect('held: …reported REMOVED', f'REMOVED {w2["done"]}' in out, out)
+expect('held, done refuses: KEPT with its reason', f'KEPT {w2["stale"]}' in out and 'unpushed' in out, out + err)
+expect('held, done refuses: never removed behind its back', f'worktree {w2["stale"]}' in reg and os.path.exists(w2['stale']), reg)
+expect('not held (a subagent worktree): git removal, as before', f'worktree {w2["mine"]}' not in reg and 'agent-spawn done mine' not in L, L)
+expect('gone folder: its sidebar entry deleted', 'muxy project delete ID-gone --yes' in L, L)
+expect('gone folder: reported', f'FORGOT {gone}' in out, out)
+expect('exit 1 when something was kept', code == 1, out)
 
 print(f'\n{len(fails)} failed' if fails else '\nall passed')
 raise SystemExit(1 if fails else 0)
