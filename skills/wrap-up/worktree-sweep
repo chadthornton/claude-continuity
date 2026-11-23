@@ -2,7 +2,9 @@
 # worktree-sweep — find (and optionally remove) finished agent worktrees.
 #
 #   worktree-sweep            list removable worktrees: "<path>\t<reason>" per line
-#   worktree-sweep --remove   remove them (git worktree remove, never --force)
+#   worktree-sweep --remove   remove them (never --force): through
+#                             `agent-spawn done <name>` when Muxy 2 holds the
+#                             folder, else git worktree remove
 #
 # Looks only under <main checkout>/.claude/worktrees/. A worktree is removable
 # when ALL hold:
@@ -12,9 +14,19 @@
 #   - it is unlocked, or locked by THIS session (its own subagents), or locked
 #     by a pid that is no longer running. A lock held by another live session
 #     means that session still owns it.
-# Removing a worktree deletes its folder (checkout + node_modules); branches and
-# commits stay in the repo. Seams for tests: CONTINUITY_LIVE_CWDS (newline list
-# of live cwds), CONTINUITY_SESSION_PID (this session's claude pid).
+# Removing a worktree deletes its folder (checkout + node_modules); commits stay
+# in the repo. A folder Muxy 2 holds (`agent-spawn muxy-project <dir>` answers)
+# is cleared by `agent-spawn done <name>` instead, which also ends its
+# terminals, deletes its sidebar entry and its (pushed) local branch, and runs
+# its own checks; if done refuses, the folder is KEPT, and so is one Muxy
+# didn't answer for (muxy-project exit 4). A registered worktree whose folder
+# is already gone but whose sidebar entry is left is listed (same lock rules),
+# and --remove hands it to `agent-spawn sweep --forget <folder>`, which deletes
+# its entries unless an agent is open there. Removing a Muxy-held folder with
+# git directly orphaned its sidebar entry (2026-11-23).
+# Seams for tests: CONTINUITY_LIVE_CWDS (newline list of live cwds),
+# CONTINUITY_SESSION_PID (this session's claude pid), CONTINUITY_AGENT_SPAWN
+# (agent-spawn's path; empty: none).
 set -u
 GIT=${GIT:-git}
 mode=list
@@ -24,6 +36,14 @@ common=$($GIT rev-parse --path-format=absolute --git-common-dir 2>/dev/null) \
   || { echo "worktree-sweep: not a git repo" >&2; exit 1; }
 main=$(dirname "$common")
 here=$($GIT rev-parse --show-toplevel 2>/dev/null)
+AS=${CONTINUITY_AGENT_SPAWN-$(command -v agent-spawn 2>/dev/null)}
+# muxy_held DIR: 0 = Muxy 2 holds DIR, 1 = it doesn't (or no agent-spawn / not
+# in Muxy 2: git alone is right), 4 = Muxy didn't answer — not known, so keep it.
+muxy_held() {
+  [ -n "$AS" ] || return 1
+  "$AS" muxy-project "$1" >/dev/null 2>&1
+  case $? in 0) return 0 ;; 4) return 4 ;; *) return 1 ;; esac
+}
 
 if [ -n "${CONTINUITY_LIVE_CWDS+x}" ]; then
   live=$CONTINUITY_LIVE_CWDS
@@ -50,9 +70,14 @@ consider() {
   case "$path" in "$main/.claude/worktrees/"*) ;; *) return ;; esac
   [ "$path" = "$here" ] && return
   printf '%s\n' "$live" | grep -qxF -- "$path" && return
-  [ -n "$($GIT -C "$path" status --porcelain 2>/dev/null)" ] && return
-  [ "$($GIT -C "$path" rev-list --count HEAD --not --remotes 2>/dev/null)" = "0" ] || return
-  reason="finished: clean, all commits on a remote"
+  gone=""; reason="finished: clean, all commits on a remote"
+  if [ ! -e "$path" ]; then
+    muxy_held "$path" || return   # nothing left but git's record: prune handles it
+    gone=1; reason="folder already gone; its Muxy sidebar entry is left"
+  else
+    [ -n "$($GIT -C "$path" status --porcelain 2>/dev/null)" ] && return
+    [ "$($GIT -C "$path" rev-list --count HEAD --not --remotes 2>/dev/null)" = "0" ] || return
+  fi
   if [ "$haslock" = 1 ]; then
     lpid=$(printf '%s' "$lockreason" | sed -n 's/.*pid \([0-9][0-9]*\).*/\1/p')
     if [ -z "$lpid" ]; then return
@@ -61,7 +86,7 @@ consider() {
     else reason="$reason; stale lock (pid $lpid gone)"
     fi
   fi
-  candidates="$candidates$path	$reason	$haslock
+  candidates="$candidates$path	$reason	$haslock	$gone
 "
 }
 while IFS= read -r line; do
@@ -78,8 +103,30 @@ if [ "$mode" = list ]; then
 fi
 
 status=0
-while IFS='	' read -r p reason locked; do
+while IFS='	' read -r p reason locked gone; do
   [ -n "$p" ] || continue
+  if [ -n "$gone" ]; then
+    [ "$locked" = 1 ] && $GIT -C "$main" worktree unlock "$p" 2>/dev/null   # stale or ours (consider checked); prune skips locked ones
+    if msg=$(cd "$main" && "$AS" sweep --forget "$p" 2>&1); then echo "FORGOT $p (its Muxy sidebar entry)"
+    else echo "KEPT $p (agent-spawn sweep --forget refused: $(printf '%s\n' "$msg" | grep -v '^[[:space:]]*$' | head -n 1))"; status=1; fi
+    continue
+  fi
+  muxy_held "$p"; held=$?
+  if [ "$held" = 4 ]; then echo "KEPT $p (Muxy 2 didn't answer whether it holds this folder; run the sweep again)"; status=1; continue; fi
+  if [ "$held" = 0 ]; then
+    name=${p#"$main/.claude/worktrees/"}
+    case "$name" in */*|-*) echo "KEPT $p (Muxy holds it, but agent-spawn done can't name '$name')"; status=1; continue ;; esac
+    # done refuses a worktree locked by a live pid — this session's own lock included.
+    [ "$locked" = 1 ] && $GIT -C "$main" worktree unlock "$p" 2>/dev/null
+    if err=$(cd "$main" && "$AS" done "$name" 2>&1 >/dev/null) && [ ! -e "$p" ]; then
+      echo "REMOVED $p (agent-spawn done: folder, terminals, sidebar entry, branch)"
+    elif [ ! -e "$p" ]; then echo "REMOVED $p"
+    else
+      [ -n "$err" ] || err="done finished but the folder is still there"
+      echo "KEPT $p (agent-spawn done: $(printf '%s\n' "$err" | grep -v '^[[:space:]]*$' | head -n 1 | sed 's/^agent-spawn: //'))"; status=1
+    fi
+    continue
+  fi
   [ "$locked" = 1 ] && $GIT -C "$main" worktree unlock "$p" 2>/dev/null
   $GIT -C "$main" worktree remove "$p" 2>/dev/null
   if $GIT -C "$main" worktree list --porcelain | grep -qxF "worktree $p"; then

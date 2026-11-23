@@ -58,8 +58,11 @@ def setup():
     return clone, wts
 
 
-def run(cwd, wts, *args):
-    env = dict(BASE_ENV, CONTINUITY_LIVE_CWDS=wts['live'], CONTINUITY_SESSION_PID=str(SESSION))
+def run(cwd, wts, *args, **extra):
+    # CONTINUITY_AGENT_SPAWN="": no agent-spawn here (git removal only) unless a test passes a fake.
+    env = dict(BASE_ENV, CONTINUITY_LIVE_CWDS=wts['live'], CONTINUITY_SESSION_PID=str(SESSION),
+               CONTINUITY_AGENT_SPAWN='', CONTINUITY_MUXY='/nonexistent-muxy')
+    env.update(extra)
     r = sh(cwd, SWEEP, *args, env=env, check=False)
     return r.returncode, r.stdout, r.stderr
 
@@ -99,6 +102,61 @@ expect('dirty work untouched', os.path.exists(f"{wts['dirty']}/scratch.txt"))
 # ── nothing to do ────────────────────────────────────────────────────────────
 code, out, err = run(wts['self'], wts)
 expect('second run lists nothing', out.strip() == '', out)
+
+# ── Muxy-held worktrees go through `agent-spawn done` ───────────────────────
+# (2026-11-23: --remove ran `git worktree remove` on an agent-spawn worktree;
+# its Muxy 2 sidebar entry and terminal were orphaned.) Muxy holds a folder
+# when `agent-spawn muxy-project <dir>` answers 0; done then clears folder,
+# terminals, sidebar entry and branch. Exit 4 (Muxy didn't answer) keeps the
+# folder. A folder already gone leaves only entries: `agent-spawn sweep
+# --forget <folder>` deletes them (never one with an agent open).
+fake = os.path.realpath(tempfile.mkdtemp(prefix='ws-fake-'))
+log = os.path.join(fake, 'log')
+open(f'{fake}/agent-spawn', 'w').write(f"""#!/bin/bash
+echo "agent-spawn $* (in $PWD)" >> {log}
+case "$1" in
+  muxy-project) [ "$2" = "${{FAKE_UNANSWERED:-}}" ] && exit 4
+                printf '%s\\n' "$FAKE_HELD" | grep -qxF -- "$2" && {{ echo "ID-${{2##*/}}"; exit 0; }}; exit 1 ;;
+  done) w="$PWD/.claude/worktrees/$2"
+        if [ "$2" = "${{FAKE_DONE_FAIL:-}}" ]; then
+          echo "agent-spawn: '$2' still has 1 unpushed commit — not cleared" >&2
+          echo "  If it's idle with everything pushed: agent-spawn done $2 --stop" >&2; exit 1; fi
+        git worktree list --porcelain | grep -A3 -xF "worktree $w" | grep -q '^locked' \\
+          && {{ echo "agent-spawn: '$2' is held by a running session — leave it" >&2; exit 1; }}
+        git worktree remove "$w" && echo "✓ Agent '$2' is cleared"; exit $? ;;
+  sweep) [ "$2" = --forget ] && {{ echo "✓ entry deleted (its folder was already gone)."; exit 0; }}; exit 2 ;;
+esac
+exit 2
+""")
+os.chmod(f'{fake}/agent-spawn', 0o755)
+clone2, w2 = setup()
+for n in ('plain', 'quiet'):
+    git(clone2, 'worktree', 'add', '-q', '-b', f'worktree-{n}', f'{clone2}/.claude/worktrees/{n}', 'HEAD')
+gone = f'{clone2}/.claude/worktrees/gone'
+git(clone2, 'worktree', 'add', '-q', '-b', 'worktree-gone', gone, 'HEAD'); shutil.rmtree(gone)
+gone_held = f'{clone2}/.claude/worktrees/gone-held'   # gone, but another live session holds its lock
+git(clone2, 'worktree', 'add', '-q', '-b', 'worktree-gone-held', gone_held, 'HEAD')
+git(clone2, 'worktree', 'lock', '--reason', f'claude agent x (pid {ME} start Mon)', gone_held); shutil.rmtree(gone_held)
+quiet = f'{clone2}/.claude/worktrees/quiet'
+held = '\n'.join([w2['done'], w2['stale'], w2['mine'], gone, gone_held])
+kw = dict(CONTINUITY_AGENT_SPAWN=f'{fake}/agent-spawn', FAKE_HELD=held, FAKE_DONE_FAIL='stale', FAKE_UNANSWERED=quiet)
+code, out, err = run(w2['self'], w2, **kw)
+rows = {l.split('\t')[0] for l in out.splitlines() if l}
+expect('list: a gone folder with a sidebar entry is listed', gone in rows, out)
+expect('list: …but not one another live session holds', gone_held not in rows, out)
+open(log, 'w').close()
+code, out, err = run(w2['self'], w2, '--remove', **kw)
+L = open(log).read(); reg = registered(clone2)
+expect('held: removed through agent-spawn done, run in the main checkout', f'agent-spawn done done (in {clone2})' in L, L)
+expect('held: …folder gone, reported REMOVED', not os.path.exists(w2['done']) and f'REMOVED {w2["done"]}' in out, out)
+expect('held, done refuses: KEPT with its reason, not its follow-up hint', f'KEPT {w2["stale"]}' in out and 'unpushed' in out and '--stop' not in out, out)
+expect('held, done refuses: never removed behind its back', f'worktree {w2["stale"]}' in reg and os.path.exists(w2['stale']), reg)
+expect('held and locked by THIS session: unlocked, then cleared by done', not os.path.exists(w2['mine']) and f'REMOVED {w2["mine"]}' in out, out + L)
+expect('Muxy didn\'t answer (exit 4): KEPT, never git-removed', os.path.exists(quiet) and f'KEPT {quiet}' in out, out)
+expect('not held: git removal, as before', not os.path.exists(f'{clone2}/.claude/worktrees/plain') and 'agent-spawn done plain' not in L, out + L)
+expect('gone folder: its entries go through agent-spawn sweep --forget', f'agent-spawn sweep --forget {gone}' in L and f'FORGOT {gone}' in out, out + L)
+expect('gone folder held by another session: never forgotten', f'--forget {gone_held}' not in L and gone_held not in out, out + L)
+expect('exit 1 when something was kept', code == 1, out)
 
 print(f'\n{len(fails)} failed' if fails else '\nall passed')
 raise SystemExit(1 if fails else 0)
