@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
-- worktree-sweep --remove clears a folder Muxy 2 holds through `agent-spawn done` (terminals, sidebar entry and branch go with it; if done refuses, the folder is kept) and deletes the sidebar entry left by a folder that is already gone — git removal alone orphaned Muxy's entry (2026-11-23).
+- worktree-sweep --remove clears a folder Muxy 2 holds through `agent-spawn done` (terminals, sidebar entry and branch go with it; if done refuses, the folder is kept) and hands a folder that is already gone to `agent-spawn sweep --forget` (its entries go unless an agent is open there); if Muxy doesn't answer, the folder is kept — git removal alone orphaned Muxy's entry (2026-11-23). Needs agent-tools' `muxy-project` exit 4 and `sweep --forget` for gone folders.
 
 ## [0.17.4] - 2026-10-19
 
